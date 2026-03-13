@@ -1,0 +1,164 @@
+// ===============================================================
+// Assumed Data Model
+// ===============================================================
+//
+// Collection: nodes
+// Fields:
+//   - id: string (required)
+//   - name: string (required)
+//   - type: string (required, enum: street, conference_center)
+//   - latitude: number (required)
+//   - longitude: number (required)
+//   - radius_limit: number (required)
+//
+// Collection: broadcasts
+// Fields:
+//   - id: string (required)
+//   - title: string (required)
+//   - type: string (required, enum: flash_deal, event, conference_panel)
+//   - latitude: number (required)
+//   - longitude: number (required)
+//   - expires_at: timestamp (required)
+//   - current_vibe: string (required, enum: chill, buzzing, packed)
+//   - partner_id: string (optional)
+//   - node_id: string (optional)
+//
+// Collection: taps
+// Fields:
+//   - id: string (required)
+//   - node_id: string (required)
+//   - session_uuid: string (required)
+//   - tapped_at: timestamp (required)
+//
+// Collection: vibe_reports
+// Fields:
+//   - id: string (required)
+//   - broadcast_id: string (required)
+//   - session_uuid: string (required)
+//   - vibe: string (required, enum: chill, buzzing, packed)
+//   - reported_at: timestamp (required)
+//
+// Collection: partners
+// Fields:
+//   - name: string (required, size < 100)
+//   - tier: string (required, enum: standard, premium, anchor)
+//   - latitude: number (required)
+//   - longitude: number (required)
+//   - owner_email: string (required, email format)
+//
+// Collection: users
+// Fields:
+//   - uid: string (required)
+//   - email: string (required)
+//   - role: string (required, enum: admin, partner, user)
+//   - partner_id: string (optional)
+//
+// ===============================================================
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper Functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && 
+             (request.auth.token.email == "vannymwamba@gmail.com" && request.auth.token.email_verified == true);
+    }
+
+    function isValidEmail(email) {
+      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    function isValidVibe(vibe) {
+      return vibe in ['chill', 'buzzing', 'packed'];
+    }
+
+    function isValidBroadcastType(type) {
+      return type in ['flash_deal', 'event', 'conference_panel'];
+    }
+
+    function isPartner() {
+      return isAuthenticated() && 
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'partner';
+    }
+
+    function getPartnerId() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.partner_id;
+    }
+
+    function isValidBroadcast(data) {
+      return data.title is string && data.title.size() < 100 &&
+             data.type in ['flash_deal', 'event', 'conference_panel'] &&
+             data.latitude is number && data.latitude >= -90 && data.latitude <= 90 &&
+             data.longitude is number && data.longitude >= -180 && data.longitude <= 180 &&
+             data.expires_at is string &&
+             data.current_vibe in ['chill', 'buzzing', 'packed'] &&
+             (data.partner_id is string || !('partner_id' in data));
+    }
+
+    function isValidPartner(data) {
+      return data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+             data.tier in ['standard', 'premium', 'anchor'] &&
+             data.latitude is number && data.latitude >= -90 && data.latitude <= 90 &&
+             data.longitude is number && data.longitude >= -180 && data.longitude <= 180 &&
+             isValidEmail(data.owner_email);
+    }
+
+    function isValidUser(data) {
+      return data.uid is string &&
+             isValidEmail(data.email) &&
+             data.role in ['admin', 'partner', 'user'] &&
+             (!('partner_id' in data) || data.partner_id is string);
+    }
+
+    // Rules
+    
+    match /nodes/{nodeId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /broadcasts/{broadcastId} {
+      allow read: if true;
+      allow create: if (isAdmin() || (isPartner() && request.resource.data.partner_id == getPartnerId())) && 
+                    isValidBroadcast(request.resource.data);
+      allow update: if isAdmin() || (
+                    request.resource.data.diff(resource.data).affectedKeys().hasOnly(['current_vibe']) &&
+                    request.resource.data.current_vibe in ['chill', 'buzzing', 'packed']);
+      allow delete: if isAdmin();
+    }
+
+    match /taps/{tapId} {
+      allow create: if true; // Anonymous taps allowed
+      allow read: if isAdmin() || isPartner();
+    }
+
+    match /vibe_reports/{reportId} {
+      allow create: if true; // Anonymous reports allowed
+      allow read: if true; // Allowed for client-side aggregation
+    }
+
+    match /partners/{partnerId} {
+      allow read: if true;
+      allow create, update: if isAdmin() && isValidPartner(request.resource.data);
+      allow delete: if isAdmin();
+    }
+    
+    match /users/{userId} {
+      allow read: if isAuthenticated(); 
+      allow create: if isAuthenticated() && request.auth.uid == userId && isValidUser(request.resource.data) && 
+                    (request.resource.data.role == 'user' || 
+                     (request.resource.data.role == 'partner' && 
+                      get(/databases/$(database)/documents/partners/$(request.resource.data.partner_id)).data.owner_email == request.auth.token.email));
+      allow update: if (isAuthenticated() && request.auth.uid == userId && isValidUser(request.resource.data) && 
+                       (request.resource.data.role == resource.data.role || 
+                        (request.resource.data.role == 'partner' && 
+                         get(/databases/$(database)/documents/partners/$(request.resource.data.partner_id)).data.owner_email == request.auth.token.email))) || 
+                    (isAdmin() && isValidUser(request.resource.data));
+      allow delete: if isAdmin();
+    }
+  }
+}

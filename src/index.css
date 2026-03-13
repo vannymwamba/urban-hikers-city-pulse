@@ -1,0 +1,36 @@
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  --color-hud-bg: #1A2B4A;
+  --color-hud-yellow: #F5C800;
+  --color-hud-green: #4CD98A;
+  --color-hud-magenta: #E24B4A;
+  --color-hud-dark: #112035;
+  --color-feed-bg: #F0EEE8;
+}
+
+@layer base {
+  body {
+    @apply bg-hud-bg text-white font-sans selection:bg-hud-yellow selection:text-hud-bg;
+  }
+}
+
+@layer components {
+  .hud-border {
+    @apply border border-hud-green/30;
+  }
+  
+  .hud-glow-green {
+    text-shadow: 0 0 8px rgba(0, 255, 0, 0.5);
+  }
+  
+  .hud-glow-yellow {
+    text-shadow: 0 0 8px rgba(255, 215, 0, 0.5);
+  }
+
+  .departure-row {
+    @apply grid grid-cols-[1fr_auto_auto] gap-4 py-3 border-b border-hud-green/10 items-center hover:bg-hud-green/5 transition-colors cursor-pointer;
+  }
+}
