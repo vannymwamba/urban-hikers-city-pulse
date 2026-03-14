@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Broadcast, Node, UserProfile } from '../types';
-import { Zap, Music, Palette, Calendar, Clock, ShieldCheck, MapPin, Home, Lock, LayoutGrid, ExternalLink, Share2, ArrowRight } from 'lucide-react';
+import { Zap, Music, Palette, Calendar, Clock, ShieldCheck, MapPin, Home, Lock, LayoutGrid, ExternalLink, Share2, ArrowRight, Mic, Users, Ticket } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { getDistance } from '../utils/geo';
+import { MiniVibeTrend } from './MiniVibeTrend';
 
 interface DepartureBoardProps {
   nodeName: string;
@@ -59,16 +60,20 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
 
   const getIcon = (item: Broadcast) => {
     if (item.type === 'flash_deal') return <Zap size={18} className="text-[#BA7517]" />;
+    if (item.type === 'conference_panel') return <Mic size={18} className="text-[#1A2B4A]" />;
     if (item.title.toLowerCase().includes('music') || item.title.toLowerCase().includes('jazz')) return <Music size={18} className="text-[#3B6D11]" />;
     if (item.title.toLowerCase().includes('art') || item.title.toLowerCase().includes('expo')) return <Palette size={18} className="text-[#534AB7]" />;
+    if (item.type === 'event') return <Ticket size={18} className="text-[#185FA5]" />;
     return <Calendar size={18} className="text-[#185FA5]" />;
   };
 
   const getIconBg = (item: Broadcast) => {
     if (item.type === 'flash_deal') return 'bg-[#FFF3CC]';
+    if (item.type === 'conference_panel') return 'bg-[#E6F1FB]';
     if (item.title.toLowerCase().includes('music') || item.title.toLowerCase().includes('jazz')) return 'bg-[#EAF3DE]';
     if (item.title.toLowerCase().includes('art') || item.title.toLowerCase().includes('expo')) return 'bg-[#EEEDFE]';
-    return 'bg-[#E6F1FB]';
+    if (item.type === 'event') return 'bg-[#E6F1FB]';
+    return 'bg-[#F0EEE8]';
   };
 
   const getEventStatus = (item: Broadcast) => {
@@ -143,9 +148,12 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
                       </div>
                     </div>
                   </div>
-                  <span className={`badge text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider ${getBadgeStyle(item)}`}>
-                    {getEventStatus(item).isLive ? (item.title.includes('BTW26') ? 'LIVE' : item.current_vibe) : 'UPCOMING'}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className={`badge text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider ${getBadgeStyle(item)}`}>
+                      {getEventStatus(item).isLive ? (item.title.includes('BTW26') ? 'LIVE' : item.current_vibe) : 'UPCOMING'}
+                    </span>
+                    {getEventStatus(item).isLive && <MiniVibeTrend broadcastId={item.id} />}
+                  </div>
                 </div>
               </div>
 
@@ -395,16 +403,18 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
 
       {/* Bottom Navigation */}
       <div className="bg-hud-dark px-4 py-2.5 flex justify-between items-center border-t border-white/5 shrink-0">
-        <button className="flex flex-col items-center gap-1 px-3 py-1.5 rounded-xl transition-colors">
-          <Home size={20} className="text-hud-yellow" />
-          <span className="text-[9px] font-bold tracking-widest text-hud-yellow uppercase">FEED</span>
-        </button>
-        <button 
-          onClick={() => (window as any).handleSeed?.()}
+        <a 
+          href="/"
           className="flex flex-col items-center gap-1 px-3 py-1.5 rounded-xl transition-colors group"
         >
-          <MapPin size={20} className="text-white/30 group-hover:text-white/60" />
-          <span className="text-[9px] font-bold tracking-widest text-white/30 uppercase group-hover:text-white/60">MAP</span>
+          <Home size={20} className="text-white/30 group-hover:text-white/60" />
+          <span className="text-[9px] font-bold tracking-widest text-white/30 uppercase group-hover:text-white/60">HOME</span>
+        </a>
+        <button 
+          className="flex flex-col items-center gap-1 px-3 py-1.5 rounded-xl transition-colors"
+        >
+          <LayoutGrid size={20} className="text-hud-yellow" />
+          <span className="text-[9px] font-bold tracking-widest text-hud-yellow uppercase">FEED</span>
         </button>
         <a 
           href="/dashboard"
@@ -417,7 +427,7 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
           href="/dashboard"
           className="flex flex-col items-center gap-1 px-3 py-1.5 rounded-xl transition-colors group"
         >
-          <LayoutGrid size={20} className="text-white/30 group-hover:text-white/60" />
+          <ShieldCheck size={20} className="text-white/30 group-hover:text-white/60" />
           <span className="text-[9px] font-bold tracking-widest text-white/30 uppercase group-hover:text-white/60">CONTROL</span>
         </a>
       </div>

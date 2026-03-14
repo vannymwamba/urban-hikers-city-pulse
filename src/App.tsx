@@ -7,7 +7,7 @@ import { DepartureBoard } from './components/DepartureBoard';
 import { VibeCheck } from './components/VibeCheck';
 import { VibeTrend } from './components/VibeTrend';
 import { Dashboard } from './components/Dashboard';
-import { Login } from './components/Login';
+import { LandingPage } from './components/LandingPage';
 import seedData from './seed';
 import { getDistance } from './utils/geo';
 import { handleFirestoreError, OperationType } from './utils/firebaseErrors';
@@ -104,7 +104,6 @@ export default function App() {
   useEffect(() => {
     const handleLocationChange = () => {
       setPath(window.location.pathname);
-      setLoading(true); // Force loading state on navigation
       setSelectedBroadcast(null);
     };
     window.addEventListener('popstate', handleLocationChange);
@@ -147,6 +146,7 @@ export default function App() {
             partnerSnap = await getDocs(partnerQuery);
           } catch (err) {
             handleFirestoreError(err, OperationType.LIST, 'partners');
+            setLoading(false);
             return;
           }
           
@@ -162,6 +162,7 @@ export default function App() {
               await setDoc(profileRef, updatedProfile);
             } catch (err) {
               handleFirestoreError(err, OperationType.WRITE, `users/${user.uid}`);
+              setLoading(false);
             }
             return;
           }
@@ -174,6 +175,7 @@ export default function App() {
           partnerSnap = await getDocs(partnerQuery);
         } catch (err) {
           handleFirestoreError(err, OperationType.LIST, 'partners');
+          setLoading(false);
           return;
         }
         
@@ -247,13 +249,15 @@ export default function App() {
   }, [handleSeed]);
 
   // Derive view from path state
-  const pathParts = path.split('/');
+  const pathParts = path.split('/').filter(Boolean);
   const isDashboard = pathParts.includes('dashboard');
+  const isLogin = pathParts.includes('login');
   const tapIndex = pathParts.indexOf('tap');
-  const nodeId = tapIndex !== -1 && pathParts[tapIndex + 1] ? pathParts[tapIndex + 1] : 'OTR-ALPHA-01';
+  const nodeId = tapIndex !== -1 && pathParts[tapIndex + 1] ? pathParts[tapIndex + 1] : null;
+  const isHome = path === '/' || path === '' || isLogin;
 
   useEffect(() => {
-    if (!currentNode || isDashboard) return;
+    if (!currentNode || isDashboard || isHome) return;
 
     const recordTap = async () => {
       try {
@@ -285,13 +289,14 @@ export default function App() {
   }, [currentNode, nodeId, isDashboard]);
 
   useEffect(() => {
-    if (isDashboard) {
+    if (isDashboard || isHome) {
       setLoading(false);
       return;
     }
     const fetchNode = () => {
+      const activeNodeId = nodeId || 'OTR-ALPHA-01';
       setLoading(true);
-      const nodeRef = doc(db, 'nodes', nodeId);
+      const nodeRef = doc(db, 'nodes', activeNodeId);
       
       // Use onSnapshot to get cached data immediately and then live updates
       const unsubscribe = onSnapshot(nodeRef, (nodeSnap) => {
@@ -300,8 +305,8 @@ export default function App() {
         } else {
           // Fallback for demo if node doesn't exist
           setCurrentNode({
-            id: nodeId,
-            name: `SECTOR_${nodeId.toUpperCase()}`,
+            id: activeNodeId,
+            name: `SECTOR_${activeNodeId.toUpperCase()}`,
             type: 'street',
             latitude: 0,
             longitude: 0,
@@ -310,7 +315,7 @@ export default function App() {
         }
         setLoading(false);
       }, (err) => {
-        handleFirestoreError(err, OperationType.GET, `nodes/${nodeId}`);
+        handleFirestoreError(err, OperationType.GET, `nodes/${activeNodeId}`);
       });
 
       return unsubscribe;
@@ -318,7 +323,7 @@ export default function App() {
 
     const unsubscribe = fetchNode();
     return () => unsubscribe();
-  }, [nodeId, isDashboard]);
+  }, [nodeId, isDashboard, isHome]);
 
   useEffect(() => {
     if (!currentNode) return;
@@ -466,6 +471,13 @@ export default function App() {
     }
   };
 
+  useEffect(() => {
+    if (isHome && userProfile && (userProfile.role === 'admin' || userProfile.role === 'partner')) {
+      window.history.pushState({}, '', '/dashboard');
+      window.dispatchEvent(new PopStateEvent('popstate'));
+    }
+  }, [isHome, userProfile]);
+
   if (loading) {
     return (
       <div className="h-screen flex flex-col items-center justify-center bg-hud-bg text-hud-green p-8 text-center">
@@ -492,9 +504,13 @@ export default function App() {
     );
   }
 
+  if (isHome) {
+    return <LandingPage onLoginSuccess={setUserProfile} userProfile={userProfile} />;
+  }
+
   if (isDashboard) {
     if (!user || !userProfile) {
-      return <Login onLoginSuccess={setUserProfile} />;
+      return <LandingPage onLoginSuccess={setUserProfile} userProfile={userProfile} />;
     }
     
     if (userProfile.role === 'user') {
@@ -509,7 +525,7 @@ export default function App() {
             onClick={() => window.location.href = '/'}
             className="px-6 py-2 border border-hud-magenta hover:bg-hud-magenta hover:text-hud-bg transition-all font-bold"
           >
-            RETURN_TO_HUD
+            RETURN_TO_HOME
           </button>
         </div>
       );

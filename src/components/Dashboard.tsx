@@ -325,9 +325,17 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
             <div className="text-xs opacity-60 uppercase tracking-widest">{userProfile.role} ACCESS: {userProfile.email}</div>
           </div>
         </div>
-        <button onClick={onLogout} className="flex items-center gap-2 text-hud-magenta hover:bg-hud-magenta/10 px-4 py-2 border border-hud-magenta transition-all text-xs font-bold">
-          <LogOut size={16} /> TERMINATE_SESSION
-        </button>
+        <div className="flex items-center gap-3">
+          <a 
+            href="/tap/OTR-ALPHA-01" 
+            className="flex items-center gap-2 text-hud-yellow hover:bg-hud-yellow/10 px-4 py-2 border border-hud-yellow/20 transition-all text-xs font-bold"
+          >
+            <Globe size={16} /> VIEW_LIVE_BOARD
+          </a>
+          <button onClick={onLogout} className="flex items-center gap-2 text-hud-magenta hover:bg-hud-magenta/10 px-4 py-2 border border-hud-magenta transition-all text-xs font-bold">
+            <LogOut size={16} /> TERMINATE_SESSION
+          </button>
+        </div>
       </header>
 
       <div className="flex flex-1 overflow-hidden">
@@ -781,6 +789,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
                           }`} />
                           <div>
                             <div className="text-xs font-bold text-hud-magenta mb-1">{b.title}</div>
+                            {b.address && (
+                              <div className="text-[10px] text-white/60 mb-1 flex items-center gap-1">
+                                <MapPin size={10} />
+                                {b.address}
+                              </div>
+                            )}
                             <div className="text-[10px] opacity-40 font-mono">
                               TYPE: {b.type.toUpperCase()} // 
                               HUB: {node?.name || b.node_id || 'UNKNOWN'} // 

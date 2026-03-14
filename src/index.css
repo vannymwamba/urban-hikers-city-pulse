@@ -1,14 +1,23 @@
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap');
 @import "tailwindcss";
 
 @theme {
-  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  --font-mono: "DM Mono", "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  --font-sans: "DM Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-bebas: "Bebas Neue", sans-serif;
+
   --color-hud-bg: #1A2B4A;
   --color-hud-yellow: #F5C800;
   --color-hud-green: #4CD98A;
   --color-hud-magenta: #E24B4A;
   --color-hud-dark: #112035;
   --color-feed-bg: #F0EEE8;
+
+  --color-navy: #1A2B4A;
+  --color-navy-deep: #0D1825;
+  --color-navy-mid: #243D5C;
+  --color-yellow: #F5C800;
+  --color-green: #4CD98A;
 }
 
 @layer base {
