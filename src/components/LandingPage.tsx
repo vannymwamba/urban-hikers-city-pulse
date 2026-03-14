@@ -10,9 +10,10 @@ import { Mail, Lock, Globe, Zap, Music, Palette, Calendar, MapPin, ShieldCheck, 
 interface LandingPageProps {
   onLoginSuccess: (profile: UserProfile) => void;
   userProfile?: UserProfile | null;
+  onOpenWallet?: () => void;
 }
 
-export const LandingPage: React.FC<LandingPageProps> = ({ onLoginSuccess, userProfile }) => {
+export const LandingPage: React.FC<LandingPageProps> = ({ onLoginSuccess, userProfile, onOpenWallet }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [partnerType, setPartnerType] = useState('Local Business — $299/mo');
@@ -131,6 +132,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginSuccess, userPr
 
         <ul className="hidden lg:flex items-center gap-8 list-none">
           <li><a href="#how" className="text-[13px] font-medium text-white/45 hover:text-white transition-colors">How It Works</a></li>
+          <li><button onClick={onOpenWallet} className="text-[13px] font-medium text-white/45 hover:text-white transition-colors">My Wallet</button></li>
           <li><a href="#services" className="text-[13px] font-medium text-white/45 hover:text-white transition-colors">Services</a></li>
           <li><a href="#partners" className="text-[13px] font-medium text-white/45 hover:text-white transition-colors">Partners</a></li>
           <li><a href="#signup" className="text-[13px] font-medium text-white/45 hover:text-white transition-colors">Get Listed</a></li>

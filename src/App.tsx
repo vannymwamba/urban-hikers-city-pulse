@@ -8,6 +8,7 @@ import { VibeCheck } from './components/VibeCheck';
 import { VibeTrend } from './components/VibeTrend';
 import { Dashboard } from './components/Dashboard';
 import { LandingPage } from './components/LandingPage';
+import { WalletCard } from './components/WalletCard';
 import seedData from './seed';
 import { getDistance } from './utils/geo';
 import { handleFirestoreError, OperationType } from './utils/firebaseErrors';
@@ -91,6 +92,35 @@ export default function App() {
   const [hudMessage, setHudMessage] = useState<{ text: string; type: 'error' | 'info' } | null>(null);
   const [path, setPath] = useState(window.location.pathname);
   const [now, setNow] = useState(new Date());
+  const [currentTab, setCurrentTab] = useState<'feed' | 'wallet'>(() => {
+    const initial = localStorage.getItem('uh_initial_tab');
+    if (initial === 'wallet') {
+      localStorage.removeItem('uh_initial_tab');
+      return 'wallet';
+    }
+    return 'feed';
+  });
+  const [savedHubs, setSavedHubs] = useState<Node[]>(() => {
+    const saved = localStorage.getItem('uh_saved_hubs');
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  useEffect(() => {
+    localStorage.setItem('uh_saved_hubs', JSON.stringify(savedHubs));
+  }, [savedHubs]);
+
+  const toggleSaveHub = (node: Node) => {
+    setSavedHubs(prev => {
+      const isSaved = prev.some(h => h.id === node.id);
+      if (isSaved) {
+        setHudMessage({ text: "HUB_REMOVED_FROM_WALLET", type: 'info' });
+        return prev.filter(h => h.id !== node.id);
+      } else {
+        setHudMessage({ text: "HUB_SECURED_IN_WALLET", type: 'info' });
+        return [...prev, node];
+      }
+    });
+  };
 
   const isAdmin = user?.email === 'vannymwamba@gmail.com';
 
@@ -505,12 +535,32 @@ export default function App() {
   }
 
   if (isHome) {
-    return <LandingPage onLoginSuccess={setUserProfile} userProfile={userProfile} />;
+    return (
+      <LandingPage 
+        onLoginSuccess={setUserProfile} 
+        userProfile={userProfile}
+        onOpenWallet={() => {
+          // Redirect to a default hub to show the wallet
+          window.location.href = '/tap/otr-alpha-01';
+          // We can't easily set the tab across page loads without a query param or localStorage
+          localStorage.setItem('uh_initial_tab', 'wallet');
+        }}
+      />
+    );
   }
 
   if (isDashboard) {
     if (!user || !userProfile) {
-      return <LandingPage onLoginSuccess={setUserProfile} userProfile={userProfile} />;
+      return (
+        <LandingPage 
+          onLoginSuccess={setUserProfile} 
+          userProfile={userProfile}
+          onOpenWallet={() => {
+            window.location.href = '/tap/otr-alpha-01';
+            localStorage.setItem('uh_initial_tab', 'wallet');
+          }}
+        />
+      );
     }
     
     if (userProfile.role === 'user') {
@@ -561,6 +611,11 @@ export default function App() {
             `Check out this event at ${currentNode?.name}!`,
             `${window.location.origin}/tap/${nodeId}`
           )}
+          onSaveToWallet={(node) => (node || currentNode) && toggleSaveHub(node || currentNode!)}
+          isSaved={currentNode ? savedHubs.some(h => h.id === currentNode.id) : false}
+          activeTab={currentTab}
+          onTabChange={setCurrentTab}
+          savedHubs={savedHubs}
         />
 
         {/* HUD Notifications */}

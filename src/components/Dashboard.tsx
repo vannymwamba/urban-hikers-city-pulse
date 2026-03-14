@@ -28,10 +28,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
     nodeId: '', 
     startTimeOffset: 0, 
     duration: 60, 
-    partnerId: '' 
+    partnerId: '',
+    locationSource: 'node' as 'node' | 'partner'
   });
   const [newPartner, setNewPartner] = useState({ name: '', tier: 'standard' as Partner['tier'], address: '', lat: 0, lng: 0, ownerEmail: '' });
   const [isGeocoding, setIsGeocoding] = useState(false);
+  const [isSeeding, setIsSeeding] = useState(false);
   
   const [activeTab, setActiveTab] = useState<'hubs' | 'broadcasts' | 'partners' | 'analytics'>(userProfile.role === 'admin' ? 'hubs' : 'broadcasts');
   const [hudMessage, setHudMessage] = useState<{ text: string; type: 'info' | 'error' } | null>(null);
@@ -177,6 +179,28 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
     }
   };
 
+  const handleRestoreData = async () => {
+    if (userProfile.role !== 'admin') return;
+    if (!window.confirm("WARNING: This will re-seed the system with initial tactical data. Existing data will be preserved but duplicates may occur. Proceed?")) return;
+    
+    setIsSeeding(true);
+    setHudMessage({ text: "RESTORING_SYSTEM_DATA...", type: 'info' });
+    
+    try {
+      // We use the handleSeed exposed on window in App.tsx
+      if ((window as any).handleSeed) {
+        await (window as any).handleSeed();
+      } else {
+        throw new Error("SEED_FUNCTION_NOT_FOUND");
+      }
+    } catch (err) {
+      console.error("Restore error:", err);
+      setHudMessage({ text: "RESTORE_FAILED", type: 'error' });
+    } finally {
+      setIsSeeding(false);
+    }
+  };
+
   const handleCreateBroadcast = async (e: React.FormEvent) => {
     e.preventDefault();
     if (userProfile.role !== 'partner' && userProfile.role !== 'admin') return;
@@ -188,16 +212,29 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
     const partner = partners.find(p => p.id === partnerId);
     const targetNode = nodes.find(n => n.id === newBroadcast.nodeId);
     
-    // Use partner location if available, otherwise fallback to node location
-    const latitude = partner?.latitude ?? targetNode?.latitude ?? 0;
-    const longitude = partner?.longitude ?? targetNode?.longitude ?? 0;
-    const address = partner?.address ?? targetNode?.address ?? '';
+    // Explicitly choose location based on source
+    let latitude = 0;
+    let longitude = 0;
+    let address = '';
+    let nodeId = newBroadcast.nodeId;
+
+    if (newBroadcast.locationSource === 'partner' && partner) {
+      latitude = partner.latitude;
+      longitude = partner.longitude;
+      address = partner.address || '';
+      // If using partner location, we might still want to associate it with a node if it's nearby, 
+      // but for now let's just use the partner's coordinates.
+    } else if (targetNode) {
+      latitude = targetNode.latitude;
+      longitude = targetNode.longitude;
+      address = targetNode.address || '';
+    }
     
     try {
       await addDoc(collection(db, 'broadcasts'), {
         title: newBroadcast.title,
         type: newBroadcast.type,
-        node_id: newBroadcast.nodeId,
+        node_id: nodeId,
         partner_id: partnerId,
         latitude,
         longitude,
@@ -210,7 +247,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
       handleFirestoreError(err, OperationType.CREATE, 'broadcasts');
     }
     setHudMessage({ text: `SIGNAL_TRANSMITTED: ${newBroadcast.title.toUpperCase()}`, type: 'info' });
-    setNewBroadcast({ title: '', type: 'event', nodeId: '', startTimeOffset: 0, duration: 60, partnerId: '' });
+    setNewBroadcast({ title: '', type: 'event', nodeId: '', startTimeOffset: 0, duration: 60, partnerId: '', locationSource: 'node' });
   };
 
   const handleRepublish = async (b: Broadcast) => {
@@ -363,12 +400,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
           >
             <Send size={18} /> LIVE_BROADCASTS
           </button>
-          {userProfile.role === 'partner' && (
+          {(userProfile.role === 'partner' || userProfile.role === 'admin') && (
             <button 
               onClick={() => setActiveTab('analytics')}
               className={`flex items-center gap-3 p-3 text-sm font-bold transition-all ${activeTab === 'analytics' ? 'bg-hud-green text-black' : 'hover:bg-white/5 text-hud-green/60'}`}
             >
-              <BarChart3 size={18} /> SIGNAL_ANALYTICS
+              <BarChart3 size={18} /> {userProfile.role === 'admin' ? 'SYSTEM_ANALYTICS' : 'SIGNAL_ANALYTICS'}
             </button>
           )}
         </nav>
@@ -401,8 +438,20 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
               <div className="flex justify-between items-end mb-8 border-b border-hud-green/20 pb-4">
                 <h2 className="text-2xl font-black tracking-tighter text-hud-green">SECTOR_HUB_MANAGEMENT</h2>
                 <div className="flex flex-col items-end">
-                  <div className="text-[10px] text-hud-green/40 font-bold uppercase">
-                    {userProfile.role === 'admin' ? `ACTIVE_NODES: ${nodes.length}` : `HOSTING_HUBS: ${nodes.filter(n => broadcasts.some(b => b.node_id === n.id)).length}`}
+                  <div className="flex items-center gap-4 mb-2">
+                    {userProfile.role === 'admin' && (
+                      <button 
+                        onClick={handleRestoreData}
+                        disabled={isSeeding}
+                        className="flex items-center gap-2 px-3 py-1 border border-hud-yellow/30 text-hud-yellow text-[9px] font-bold hover:bg-hud-yellow/10 transition-all disabled:opacity-50"
+                      >
+                        <RefreshCw size={12} className={isSeeding ? 'animate-spin' : ''} />
+                        RESTORE_SYSTEM_DATA
+                      </button>
+                    )}
+                    <div className="text-[10px] text-hud-green/40 font-bold uppercase">
+                      {userProfile.role === 'admin' ? `ACTIVE_NODES: ${nodes.length}` : `HOSTING_HUBS: ${nodes.filter(n => broadcasts.some(b => b.node_id === n.id)).length}`}
+                    </div>
                   </div>
                   {userProfile.role === 'partner' && (
                     <div className="text-[10px] text-hud-yellow font-bold uppercase mt-1">
@@ -560,6 +609,15 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
                       </div>
                     </div>
                   ))}
+                {nodes.length === 0 && (
+                  <div className="py-20 text-center border border-dashed border-white/10 bg-white/[0.02]">
+                    <div className="text-hud-green font-black tracking-[0.2em] mb-2">NO_ACTIVE_HUBS_DETECTED</div>
+                    <div className="text-[10px] opacity-40 uppercase max-w-xs mx-auto leading-relaxed">
+                      The sector network is currently offline or uninitialized. 
+                      {userProfile.role === 'admin' && " Use the RESTORE_SYSTEM_DATA button above to re-seed the tactical grid."}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -707,9 +765,41 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
                   <option value="conference_panel">CONFERENCE_PANEL</option>
                 </select>
 
+                <div className="col-span-2 flex flex-col gap-1">
+                  <label className="text-[9px] opacity-40 font-bold uppercase tracking-widest">Signal_Location_Source</label>
+                  <div className="flex gap-2">
+                    <button 
+                      type="button"
+                      onClick={() => setNewBroadcast({...newBroadcast, locationSource: 'node'})}
+                      className={`flex-1 p-3 text-[10px] font-bold border transition-all ${newBroadcast.locationSource === 'node' ? 'bg-hud-magenta text-black border-hud-magenta' : 'bg-black text-white/40 border-white/20'}`}
+                    >
+                      SPECIFIC_HUB_LOCATION
+                    </button>
+                    <button 
+                      type="button"
+                      onClick={() => setNewBroadcast({...newBroadcast, locationSource: 'partner'})}
+                      className={`flex-1 p-3 text-[10px] font-bold border transition-all ${newBroadcast.locationSource === 'partner' ? 'bg-hud-magenta text-black border-hud-magenta' : 'bg-black text-white/40 border-white/20'}`}
+                    >
+                      PARTNER_DEFAULT_LOCATION
+                    </button>
+                  </div>
+                </div>
+
+                {newBroadcast.locationSource === 'node' && (
+                  <select 
+                    className="col-span-2 bg-black border border-white/20 p-3 text-sm focus:border-hud-magenta outline-none"
+                    value={newBroadcast.nodeId}
+                    onChange={e => setNewBroadcast({...newBroadcast, nodeId: e.target.value})}
+                    required={newBroadcast.locationSource === 'node'}
+                  >
+                    <option value="">SELECT_TARGET_HUB</option>
+                    {nodes.map(n => <option key={n.id} value={n.id}>{n.name}</option>)}
+                  </select>
+                )}
+
                 {userProfile.role === 'admin' && (
                   <select 
-                    className="bg-black border border-white/20 p-3 text-sm focus:border-hud-magenta outline-none"
+                    className="col-span-2 bg-black border border-white/20 p-3 text-sm focus:border-hud-magenta outline-none"
                     value={newBroadcast.partnerId || ''}
                     onChange={e => setNewBroadcast({...newBroadcast, partnerId: e.target.value})}
                   >
@@ -719,16 +809,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
                     ))}
                   </select>
                 )}
-
-                <select 
-                  className="bg-black border border-white/20 p-3 text-sm focus:border-hud-magenta outline-none"
-                  value={newBroadcast.nodeId}
-                  onChange={e => setNewBroadcast({...newBroadcast, nodeId: e.target.value})}
-                  required
-                >
-                  <option value="">SELECT_TARGET_HUB</option>
-                  {nodes.map(n => <option key={n.id} value={n.id}>{n.name}</option>)}
-                </select>
                 <div className="flex flex-col gap-1">
                   <label className="text-[9px] opacity-40 font-bold uppercase tracking-widest">Signal_Start (Delay)</label>
                   <select 
@@ -825,90 +905,190 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
               </div>
             </div>
           )}
-          {activeTab === 'analytics' && userProfile.role === 'partner' && (
+          {activeTab === 'analytics' && (
             <div className="max-w-4xl mx-auto">
               <div className="flex justify-between items-end mb-8 border-b border-hud-magenta/20 pb-4">
-                <h2 className="text-2xl font-black tracking-tighter text-hud-magenta">SIGNAL_ANALYTICS</h2>
-                <div className="text-[10px] text-hud-magenta/40 font-bold">PARTNER_ID: {userProfile.partner_id}</div>
+                <h2 className="text-2xl font-black tracking-tighter text-hud-magenta">
+                  {userProfile.role === 'admin' ? 'SYSTEM_WIDE_ANALYTICS' : 'SIGNAL_ANALYTICS'}
+                </h2>
+                <div className="text-[10px] text-hud-magenta/40 font-bold uppercase tracking-widest">
+                  {userProfile.role === 'admin' ? 'GLOBAL_PULSE_MONITOR' : `PARTNER_ID: ${userProfile.partner_id}`}
+                </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                <div className="bg-white/5 border border-white/10 p-6">
-                  <div className="text-[10px] opacity-40 font-bold mb-2">TOTAL_BROADCASTS</div>
-                  <div className="text-3xl font-black text-hud-magenta">{broadcasts.length}</div>
+              {/* Top Level Stats */}
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+                <div className="bg-white/5 border border-white/10 p-5">
+                  <div className="text-[9px] opacity-40 font-bold mb-2 tracking-widest">TOTAL_NETWORK_TAPS</div>
+                  <div className="text-2xl font-black text-hud-green">
+                    {userProfile.role === 'admin' 
+                      ? taps.length 
+                      : taps.filter(t => broadcasts.some(b => b.node_id === t.node_id)).length}
+                  </div>
                 </div>
-                <div className="bg-white/5 border border-white/10 p-6">
-                  <div className="text-[10px] opacity-40 font-bold mb-2">VIBE_REPORTS_RCVD</div>
-                  <div className="text-3xl font-black text-hud-yellow">{vibeReports.length}</div>
+                <div className="bg-white/5 border border-white/10 p-5">
+                  <div className="text-[9px] opacity-40 font-bold mb-2 tracking-widest">UNIQUE_SESSIONS</div>
+                  <div className="text-2xl font-black text-hud-yellow">
+                    {userProfile.role === 'admin'
+                      ? new Set(taps.map(t => t.session_uuid)).size
+                      : new Set(taps.filter(t => broadcasts.some(b => b.node_id === t.node_id)).map(t => t.session_uuid)).size}
+                  </div>
                 </div>
-                <div className="bg-white/5 border border-white/10 p-6">
-                  <div className="text-[10px] opacity-40 font-bold mb-2">NETWORK_TAPS</div>
-                  <div className="text-3xl font-black text-hud-green">
-                    {taps.filter(t => broadcasts.some(b => b.node_id === t.node_id)).length}
+                <div className="bg-white/5 border border-white/10 p-5">
+                  <div className="text-[9px] opacity-40 font-bold mb-2 tracking-widest">ACTIVE_SIGNALS</div>
+                  <div className="text-2xl font-black text-hud-magenta">
+                    {broadcasts.filter(b => new Date(b.expires_at) > new Date()).length}
+                  </div>
+                </div>
+                <div className="bg-white/5 border border-white/10 p-5">
+                  <div className="text-[9px] opacity-40 font-bold mb-2 tracking-widest">
+                    {userProfile.role === 'admin' ? 'ACTIVE_PARTNERS' : 'VIBE_REPORTS'}
+                  </div>
+                  <div className="text-2xl font-black text-white">
+                    {userProfile.role === 'admin' ? partners.length : vibeReports.length}
                   </div>
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="bg-white/5 border border-white/10 p-6">
-                  <h3 className="text-sm font-bold text-hud-magenta mb-4 tracking-widest">ACTIVE_SIGNAL_PERFORMANCE</h3>
-                  <div className="space-y-4">
-                    {broadcasts.map(b => {
-                      const reports = vibeReports.filter(r => r.broadcast_id === b.id);
-                      const packedCount = reports.filter(r => r.vibe === 'packed').length;
-                      const buzzingCount = reports.filter(r => r.vibe === 'buzzing').length;
-                      const chillCount = reports.filter(r => r.vibe === 'chill').length;
-                      
-                      return (
-                        <div key={b.id} className="border-l-2 border-hud-magenta/20 pl-4 py-2">
-                          <div className="flex justify-between items-center mb-2">
-                            <span className="text-xs font-bold">{b.title}</span>
-                            <span className="text-[10px] opacity-40 font-mono uppercase">{b.current_vibe}</span>
-                          </div>
-                          <div className="flex gap-1 h-1 bg-white/5 rounded-full overflow-hidden">
-                            <div className="bg-hud-magenta" style={{ width: `${(packedCount / (reports.length || 1)) * 100}%` }} />
-                            <div className="bg-hud-yellow" style={{ width: `${(buzzingCount / (reports.length || 1)) * 100}%` }} />
-                            <div className="bg-hud-green" style={{ width: `${(chillCount / (reports.length || 1)) * 100}%` }} />
-                          </div>
-                          <div className="flex justify-between mt-1">
-                            <span className="text-[9px] opacity-40 font-mono">REPORTS: {reports.length}</span>
-                            <span className="text-[9px] opacity-40 font-mono">STATUS: {getRemainingTime(b)}</span>
-                          </div>
-                        </div>
-                      );
-                    })}
-                    {broadcasts.length === 0 && (
-                      <div className="text-center py-8 opacity-40 text-xs italic">NO_ACTIVE_SIGNALS_DETECTED</div>
-                    )}
-                  </div>
-                </div>
+              {userProfile.role === 'admin' ? (
+                <div className="space-y-8">
+                  {/* Partner Performance Table */}
+                  <div className="bg-white/5 border border-white/10 p-6">
+                    <h3 className="text-sm font-bold text-hud-magenta mb-6 tracking-widest uppercase">PARTNER_NETWORK_PERFORMANCE</h3>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left">
+                        <thead>
+                          <tr className="text-[9px] font-bold text-white/30 uppercase tracking-widest border-b border-white/10">
+                            <th className="pb-3">PARTNER_IDENTITY</th>
+                            <th className="pb-3 text-right">NODES</th>
+                            <th className="pb-3 text-right">SIGNALS</th>
+                            <th className="pb-3 text-right">TOTAL_TAPS</th>
+                            <th className="pb-3 text-right">UNIQUE_TAPS</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-white/5">
+                          {partners.map(p => {
+                            const partnerBroadcasts = broadcasts.filter(b => b.partner_id === p.id);
+                            const partnerNodes = new Set(partnerBroadcasts.map(b => b.node_id));
+                            const partnerTaps = taps.filter(t => partnerNodes.has(t.node_id));
+                            const partnerUniqueTaps = new Set(partnerTaps.map(t => t.session_uuid)).size;
 
-                <div className="bg-white/5 border border-white/10 p-6">
-                  <h3 className="text-sm font-bold text-hud-green mb-4 tracking-widest">MY_ACTIVE_HUBS</h3>
-                  <div className="space-y-4">
-                    {nodes.filter(n => broadcasts.some(b => b.node_id === n.id)).map(node => {
-                      const nodeTaps = taps.filter(t => t.node_id === node.id).length;
-                      const activeBroadcasts = broadcasts.filter(b => b.node_id === node.id);
-                      
-                      return (
-                        <div key={node.id} className="border-l-2 border-hud-green/20 pl-4 py-2">
-                          <div className="flex justify-between items-center mb-1">
-                            <span className="text-xs font-bold text-hud-green">{node.name}</span>
-                            <span className="text-[10px] opacity-40 font-mono uppercase">{node.type}</span>
+                            return (
+                              <tr key={p.id} className="group hover:bg-white/[0.02]">
+                                <td className="py-4">
+                                  <div className="text-xs font-bold text-hud-yellow">{p.name}</div>
+                                  <div className="text-[9px] opacity-30 font-mono mt-0.5">{p.id}</div>
+                                </td>
+                                <td className="py-4 text-right text-[11px] font-mono">{partnerNodes.size}</td>
+                                <td className="py-4 text-right text-[11px] font-mono">{partnerBroadcasts.length}</td>
+                                <td className="py-4 text-right text-[11px] font-mono text-hud-green">{partnerTaps.length}</td>
+                                <td className="py-4 text-right text-[11px] font-mono text-hud-yellow">{partnerUniqueTaps}</td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  {/* Node Activity Heatmap-style list */}
+                  <div className="bg-white/5 border border-white/10 p-6">
+                    <h3 className="text-sm font-bold text-hud-green mb-6 tracking-widest uppercase">SECTOR_HUB_ACTIVITY_LOG</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {nodes.map(node => {
+                        const nodeTaps = taps.filter(t => t.node_id === node.id);
+                        const nodeUniqueTaps = new Set(nodeTaps.map(t => t.session_uuid)).size;
+                        const activeSignals = broadcasts.filter(b => b.node_id === node.id && new Date(b.expires_at) > new Date());
+
+                        return (
+                          <div key={node.id} className="border border-white/10 p-4 hover:border-hud-green/40 transition-all">
+                            <div className="flex justify-between items-start mb-3">
+                              <div>
+                                <div className="text-xs font-bold text-hud-green">{node.name}</div>
+                                <div className="text-[9px] opacity-30 font-mono">{node.id}</div>
+                              </div>
+                              <div className={`px-2 py-0.5 rounded text-[8px] font-black ${activeSignals.length > 0 ? 'bg-hud-green text-black' : 'bg-white/10 text-white/40'}`}>
+                                {activeSignals.length > 0 ? 'LIVE_SIGNAL' : 'IDLE'}
+                              </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                              <div>
+                                <div className="text-[9px] opacity-40 font-bold uppercase">Total_Taps</div>
+                                <div className="text-lg font-black text-white">{nodeTaps.length}</div>
+                              </div>
+                              <div>
+                                <div className="text-[9px] opacity-40 font-bold uppercase">Unique_Users</div>
+                                <div className="text-lg font-black text-white">{nodeUniqueTaps}</div>
+                              </div>
+                            </div>
                           </div>
-                          <div className="flex justify-between items-center">
-                            <span className="text-[9px] opacity-40 font-mono">TOTAL_TAPS: {nodeTaps}</span>
-                            <span className="text-[9px] opacity-40 font-mono">SIGNALS: {activeBroadcasts.length}</span>
-                          </div>
-                        </div>
-                      );
-                    })}
-                    {broadcasts.length === 0 && (
-                      <div className="text-center py-8 opacity-40 text-xs italic">NO_HUB_ACTIVITY_DETECTED</div>
-                    )}
+                        );
+                      })}
+                    </div>
                   </div>
                 </div>
-              </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="bg-white/5 border border-white/10 p-6">
+                    <h3 className="text-sm font-bold text-hud-magenta mb-4 tracking-widest uppercase">ACTIVE_SIGNAL_PERFORMANCE</h3>
+                    <div className="space-y-4">
+                      {broadcasts.map(b => {
+                        const reports = vibeReports.filter(r => r.broadcast_id === b.id);
+                        const packedCount = reports.filter(r => r.vibe === 'packed').length;
+                        const buzzingCount = reports.filter(r => r.vibe === 'buzzing').length;
+                        const chillCount = reports.filter(r => r.vibe === 'chill').length;
+                        
+                        return (
+                          <div key={b.id} className="border-l-2 border-hud-magenta/20 pl-4 py-2">
+                            <div className="flex justify-between items-center mb-2">
+                              <span className="text-xs font-bold">{b.title}</span>
+                              <span className="text-[10px] opacity-40 font-mono uppercase">{b.current_vibe}</span>
+                            </div>
+                            <div className="flex gap-1 h-1 bg-white/5 rounded-full overflow-hidden">
+                              <div className="bg-hud-magenta" style={{ width: `${(packedCount / (reports.length || 1)) * 100}%` }} />
+                              <div className="bg-hud-yellow" style={{ width: `${(buzzingCount / (reports.length || 1)) * 100}%` }} />
+                              <div className="bg-hud-green" style={{ width: `${(chillCount / (reports.length || 1)) * 100}%` }} />
+                            </div>
+                            <div className="flex justify-between mt-1">
+                              <span className="text-[9px] opacity-40 font-mono">REPORTS: {reports.length}</span>
+                              <span className="text-[9px] opacity-40 font-mono">STATUS: {getRemainingTime(b)}</span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                      {broadcasts.length === 0 && (
+                        <div className="text-center py-8 opacity-40 text-xs italic">NO_ACTIVE_SIGNALS_DETECTED</div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="bg-white/5 border border-white/10 p-6">
+                    <h3 className="text-sm font-bold text-hud-green mb-4 tracking-widest uppercase">MY_ACTIVE_HUBS</h3>
+                    <div className="space-y-4">
+                      {nodes.filter(n => broadcasts.some(b => b.node_id === n.id)).map(node => {
+                        const nodeTaps = taps.filter(t => t.node_id === node.id).length;
+                        const activeBroadcasts = broadcasts.filter(b => b.node_id === node.id);
+                        
+                        return (
+                          <div key={node.id} className="border-l-2 border-hud-green/20 pl-4 py-2">
+                            <div className="flex justify-between items-center mb-1">
+                              <span className="text-xs font-bold text-hud-green">{node.name}</span>
+                              <span className="text-[10px] opacity-40 font-mono uppercase">{node.type}</span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                              <span className="text-[9px] opacity-40 font-mono">TOTAL_TAPS: {nodeTaps}</span>
+                              <span className="text-[9px] opacity-40 font-mono">SIGNALS: {activeBroadcasts.length}</span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                      {broadcasts.length === 0 && (
+                        <div className="text-center py-8 opacity-40 text-xs italic">NO_HUB_ACTIVITY_DETECTED</div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </main>

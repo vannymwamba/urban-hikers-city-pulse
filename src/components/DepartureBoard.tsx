@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { Broadcast, Node, UserProfile } from '../types';
-import { Zap, Music, Palette, Calendar, Clock, ShieldCheck, MapPin, Home, Lock, LayoutGrid, ExternalLink, Share2, ArrowRight, Mic, Users, Ticket } from 'lucide-react';
+import { Zap, Music, Palette, Calendar, Clock, ShieldCheck, MapPin, Home, Lock, LayoutGrid, ExternalLink, Share2, ArrowRight, Mic, Users, Ticket, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { getDistance } from '../utils/geo';
 import { MiniVibeTrend } from './MiniVibeTrend';
+import { WalletCard } from './WalletCard';
+import { BroadcastCountdown } from './BroadcastCountdown';
 
 interface DepartureBoardProps {
   nodeName: string;
@@ -18,6 +20,11 @@ interface DepartureBoardProps {
   accessVector?: 'nfc' | 'direct' | 'qr';
   onShareNode: () => void;
   onShareEvent: (broadcast: Broadcast) => void;
+  onSaveToWallet?: (node?: Node) => void;
+  isSaved?: boolean;
+  activeTab?: 'feed' | 'wallet';
+  onTabChange?: (tab: 'feed' | 'wallet') => void;
+  savedHubs?: Node[];
 }
 
 export const DepartureBoard: React.FC<DepartureBoardProps> = ({ 
@@ -32,20 +39,54 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
   onTapToggle,
   accessVector = 'direct',
   onShareNode,
-  onShareEvent
+  onShareEvent,
+  onSaveToWallet,
+  isSaved = false,
+  activeTab = 'feed',
+  onTabChange,
+  savedHubs = []
 }) => {
   const [time, setTime] = useState(new Date());
   const [showConfirmation, setShowConfirmation] = useState(false);
+  const [tapConfirmAction, setTapConfirmAction] = useState<'in' | 'out' | null>(null);
+  const [uptime, setUptime] = useState(99.9);
 
   useEffect(() => {
     const timer = setInterval(() => setTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
 
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setUptime(prev => {
+        const change = (Math.random() - 0.5) * 0.02;
+        const newVal = prev + change;
+        return Number(Math.min(100, Math.max(99.7, newVal)).toFixed(2));
+      });
+    }, 3000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Calculate real stats
+  const activeNodesCount = new Set(broadcasts.map(b => `${b.latitude},${b.longitude}`)).size || 1;
+  
+  const maxRadiusMeters = broadcasts.length > 0 && currentNode
+    ? Math.max(...broadcasts.map(b => getDistance(currentNode.latitude, currentNode.longitude, b.latitude, b.longitude)))
+    : 0;
+    
+  // Convert meters to miles (approx)
+  const radiusInMiles = maxRadiusMeters > 0 ? (maxRadiusMeters / 1609.34).toFixed(1) : "0.0";
+
   const handleTapOut = () => {
     onTapToggle(false);
     setShowConfirmation(true);
+    setTapConfirmAction(null);
     setTimeout(() => setShowConfirmation(false), 5000);
+  };
+
+  const handleTapIn = () => {
+    onTapToggle(true);
+    setTapConfirmAction(null);
   };
 
   const handleDirections = (item: Broadcast) => {
@@ -97,15 +138,49 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
   };
 
   const getBadgeStyle = (item: Broadcast) => {
-    const { isLive } = getEventStatus(item);
+    const now = new Date();
+    const start = new Date(item.starts_at);
+    const end = new Date(item.expires_at);
+    const isLive = now >= start && now < end;
     const vibe = item.current_vibe;
-    const title = item.title;
 
-    if (!isLive) return 'bg-[#F0EEE8] text-[#888780]';
-    if (title.includes('BTW26') || title.includes('LIVE')) return 'bg-[#FCEBEB] text-[#A32D2D]';
-    if (vibe === 'packed') return 'bg-[#EEEDFE] text-[#3C3489]';
-    if (vibe === 'buzzing') return 'bg-[#FFF3CC] text-[#854F0B]';
-    return 'bg-[#EAF3DE] text-[#3B6D11]';
+    if (!isLive) {
+      const diffToStart = start.getTime() - now.getTime();
+      const hrsToStart = diffToStart / (1000 * 60 * 60);
+      if (hrsToStart < 2) return 'bg-[#EAF3DE] text-[#3B6D11]'; // CHILL
+      return 'bg-[#E6F1FB] text-[#185FA5]'; // UPCOMING
+    }
+    
+    if (vibe === 'packed') return 'bg-[#FCEBEB] text-[#A32D2D]'; // LIVE
+    if (vibe === 'buzzing') return 'bg-[#FFF3CC] text-[#BA7517]'; // BUZZING
+    return 'bg-[#EAF3DE] text-[#3B6D11]'; // CHILL
+  };
+
+  const getBadgeLabel = (item: Broadcast) => {
+    const now = new Date();
+    const start = new Date(item.starts_at);
+    const end = new Date(item.expires_at);
+    const isLive = now >= start && now < end;
+    const vibe = item.current_vibe;
+
+    if (!isLive) {
+      const diffToStart = start.getTime() - now.getTime();
+      const hrsToStart = diffToStart / (1000 * 60 * 60);
+      if (hrsToStart < 2) return 'CHILL';
+      return 'UPCOMING';
+    }
+
+    if (vibe === 'packed') return 'LIVE';
+    if (vibe === 'buzzing') return 'BUZZING';
+    return 'CHILL';
+  };
+
+  const getDotColor = (item: Broadcast) => {
+    const label = getBadgeLabel(item);
+    if (label === 'LIVE') return 'bg-[#A32D2D]';
+    if (label === 'BUZZING') return 'bg-[#BA7517]';
+    if (label === 'CHILL') return 'bg-[#3B6D11]';
+    return 'bg-[#185FA5]';
   };
 
   const renderSection = (title: string, items: Broadcast[]) => {
@@ -149,12 +224,15 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className={`badge text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider ${getBadgeStyle(item)}`}>
-                      {getEventStatus(item).isLive ? (item.title.includes('BTW26') ? 'LIVE' : item.current_vibe) : 'UPCOMING'}
+                    <span className={`badge text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider flex items-center gap-1.5 ${getBadgeStyle(item)}`}>
+                      <div className={`w-1.5 h-1.5 rounded-full ${getDotColor(item)}`} />
+                      {getBadgeLabel(item)}
                     </span>
                     {getEventStatus(item).isLive && <MiniVibeTrend broadcastId={item.id} />}
                   </div>
                 </div>
+
+                <BroadcastCountdown broadcast={item} />
               </div>
 
               <div className="flex items-center justify-between px-4 py-3 bg-[#F8F7F4] border-t border-[#F0EEE8]">
@@ -168,9 +246,6 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
                   <div className="flex items-center gap-2">
                     <div className="flex items-center gap-1 bg-[#1A2B4A] px-2 py-0.5 rounded-full">
                       <span className="text-[9px] font-black text-hud-yellow uppercase tracking-tighter">{walkTime} MIN WALK</span>
-                    </div>
-                    <div className="text-[10px] text-[#B4B2A9] font-medium uppercase">
-                      {getEventStatus(item).time}
                     </div>
                   </div>
                 </div>
@@ -275,9 +350,25 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
           </div>
         </div>
 
+        <div className="flex gap-2 mb-3">
+          <motion.button
+            whileTap={{ scale: 0.95 }}
+            whileHover={{ scale: 1.02 }}
+            onClick={() => onSaveToWallet?.()}
+            className={`flex-1 py-2 rounded-xl text-[10px] font-black tracking-[0.2em] uppercase border transition-all flex items-center justify-center gap-2 ${
+              isSaved 
+                ? 'bg-hud-yellow text-hud-bg border-hud-yellow shadow-[0_0_15px_rgba(245,200,0,0.4)]' 
+                : 'bg-hud-yellow/5 text-hud-yellow border-hud-yellow/30 hover:bg-hud-yellow/10'
+            }`}
+          >
+            <LayoutGrid size={14} />
+            {isSaved ? 'HUB_SAVED_IN_WALLET' : 'SAVE_HUB_TO_WALLET'}
+          </motion.button>
+        </div>
+
         <div className="flex gap-2">
           <button
-            onClick={() => onTapToggle(true)}
+            onClick={() => setTapConfirmAction('in')}
             className={`flex-1 py-3 rounded-xl text-[12px] font-bold tracking-widest uppercase transition-all ${
               isTappedIn 
                 ? 'bg-hud-green text-hud-bg shadow-[0_4px_15px_rgba(76,217,138,0.3)]' 
@@ -287,7 +378,7 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
             TAP IN {isTappedIn && '✓'}
           </button>
           <button
-            onClick={handleTapOut}
+            onClick={() => setTapConfirmAction('out')}
             className={`flex-1 py-3 rounded-xl text-[12px] font-bold tracking-widest uppercase border transition-all ${
               !isTappedIn 
                 ? 'bg-hud-magenta text-white border-hud-magenta shadow-[0_4px_15px_rgba(226,75,74,0.3)]' 
@@ -318,8 +409,53 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
       </div>
 
       {/* Feed Area */}
-      <div className={`flex-1 overflow-y-auto bg-feed-bg p-4 transition-all duration-500 ${!isTappedIn ? 'opacity-60 grayscale' : ''}`}>
-        {currentNode?.type === 'conference_center' && (
+      <div className={`flex-1 overflow-y-auto bg-feed-bg p-4 transition-all duration-500 ${!isTappedIn && activeTab === 'feed' ? 'opacity-60 grayscale' : ''}`}>
+        {activeTab === 'wallet' ? (
+          <div className="flex flex-col gap-6 py-4">
+            <div className="flex items-center gap-3 mb-2">
+              <span className="text-[10px] font-black tracking-[0.2em] text-[#888780] uppercase whitespace-nowrap">MY_SECURED_HUBS</span>
+              <div className="flex-1 h-[1px] bg-[#D3D1C7]" />
+            </div>
+            
+            {savedHubs.length === 0 ? (
+              <div className="py-12 text-center flex flex-col items-center justify-center">
+                <div className="text-[#888780] italic mb-4 tracking-[0.2em] text-[10px] uppercase leading-relaxed max-w-[280px]">
+                  WALLET_EMPTY.
+                </div>
+                <div className="text-hud-bg font-black tracking-[0.1em] text-sm uppercase leading-relaxed max-w-[280px]">
+                  SAVE_HUBS_TO_ACCESS_THEM_QUICKLY_LATER.
+                </div>
+              </div>
+            ) : (
+              savedHubs.map((hub, index) => (
+                <motion.div 
+                  key={hub.id} 
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: index * 0.1 }}
+                  className="relative group"
+                >
+                  <WalletCard sector={hub} />
+                  <button 
+                    onClick={() => onSaveToWallet?.(hub)}
+                    className="absolute top-4 right-4 p-2 bg-hud-magenta text-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
+                    title="Remove from Wallet"
+                  >
+                    <Lock size={14} />
+                  </button>
+                  <a 
+                    href={`/tap/${hub.id}`}
+                    className="absolute bottom-4 right-16 p-2 bg-hud-green text-hud-bg rounded-lg opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 text-[10px] font-black"
+                  >
+                    GO_TO_HUB
+                  </a>
+                </motion.div>
+              ))
+            )}
+          </div>
+        ) : (
+          <>
+            {currentNode?.type === 'conference_center' && (
           <div className="mb-6">
             <div className="bg-[#1A2B4A] rounded-2xl p-4 flex items-center justify-between shadow-lg border border-white/5">
               <div className="flex items-center gap-3">
@@ -378,21 +514,23 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
             {renderSection('CONFERENCE FEED', conferenceFeed)}
           </>
         )}
-      </div>
+      </>
+    )}
+  </div>
 
       {/* Footer Stats */}
       <div className="bg-hud-bg px-5 py-4 flex justify-between items-center border-t border-white/5 shrink-0">
         <div className="flex gap-6">
           <div className="text-center">
-            <div className="text-[16px] font-black text-hud-yellow leading-none">12</div>
+            <div className="text-[16px] font-black text-hud-yellow leading-none">{activeNodesCount}</div>
             <div className="text-[9px] text-white/35 font-bold tracking-[0.15em] uppercase mt-1">NODES ACTIVE</div>
           </div>
           <div className="text-center">
-            <div className="text-[16px] font-black text-hud-yellow leading-none">99.9%</div>
+            <div className="text-[16px] font-black text-hud-yellow leading-none">{uptime}%</div>
             <div className="text-[9px] text-white/35 font-bold tracking-[0.15em] uppercase mt-1">UPTIME</div>
           </div>
           <div className="text-center">
-            <div className="text-[16px] font-black text-hud-yellow leading-none">3 MI</div>
+            <div className="text-[16px] font-black text-hud-yellow leading-none">{radiusInMiles} MI</div>
             <div className="text-[9px] text-white/35 font-bold tracking-[0.15em] uppercase mt-1">RADIUS</div>
           </div>
         </div>
@@ -411,10 +549,21 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
           <span className="text-[9px] font-bold tracking-widest text-white/30 uppercase group-hover:text-white/60">HOME</span>
         </a>
         <button 
-          className="flex flex-col items-center gap-1 px-3 py-1.5 rounded-xl transition-colors"
+          onClick={() => onTabChange?.('feed')}
+          className="flex flex-col items-center gap-1 px-3 py-1.5 rounded-xl transition-colors group"
         >
-          <LayoutGrid size={20} className="text-hud-yellow" />
-          <span className="text-[9px] font-bold tracking-widest text-hud-yellow uppercase">FEED</span>
+          <LayoutGrid size={20} className={activeTab === 'feed' ? 'text-hud-yellow' : 'text-white/30 group-hover:text-white/60'} />
+          <span className={`text-[9px] font-bold tracking-widest uppercase ${activeTab === 'feed' ? 'text-hud-yellow' : 'text-white/30 group-hover:text-white/60'}`}>FEED</span>
+        </button>
+        <button 
+          onClick={() => onTabChange?.('wallet')}
+          className="flex flex-col items-center gap-1 px-3 py-1.5 rounded-xl transition-colors group relative"
+        >
+          <Ticket size={20} className={activeTab === 'wallet' ? 'text-hud-yellow' : 'text-white/30 group-hover:text-white/60'} />
+          {savedHubs.length > 0 && (
+            <div className="absolute top-1 right-3 w-1.5 h-1.5 bg-hud-magenta rounded-full shadow-[0_0_5px_#ff2d78]" />
+          )}
+          <span className={`text-[9px] font-bold tracking-widest uppercase ${activeTab === 'wallet' ? 'text-hud-yellow' : 'text-white/30 group-hover:text-white/60'}`}>WALLET</span>
         </button>
         <a 
           href="/dashboard"
@@ -431,6 +580,50 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
           <span className="text-[9px] font-bold tracking-widest text-white/30 uppercase group-hover:text-white/60">CONTROL</span>
         </a>
       </div>
+
+      <AnimatePresence>
+        {tapConfirmAction && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="absolute inset-0 z-[100] flex items-center justify-center p-6 bg-hud-bg/90 backdrop-blur-sm"
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              className="w-full max-w-[280px] bg-hud-bg border border-hud-green/30 p-6 rounded-3xl shadow-[0_0_50px_rgba(0,0,0,0.5)] text-center"
+            >
+              <div className="w-12 h-12 rounded-full bg-hud-yellow/10 flex items-center justify-center mx-auto mb-4">
+                <AlertCircle className="text-hud-yellow" size={24} />
+              </div>
+              <h3 className="text-sm font-black tracking-widest uppercase mb-2">Confirm Action</h3>
+              <p className="text-[11px] text-white/60 leading-relaxed mb-6 uppercase tracking-wider">
+                {tapConfirmAction === 'in' 
+                  ? 'Are you sure you want to tap in to this sector?' 
+                  : 'Are you sure you want to tap out? Your active session will be terminated.'}
+              </p>
+              <div className="flex flex-col gap-2">
+                <button
+                  onClick={tapConfirmAction === 'in' ? handleTapIn : handleTapOut}
+                  className={`w-full py-3 rounded-xl text-[10px] font-black tracking-[0.2em] uppercase transition-all ${
+                    tapConfirmAction === 'in' ? 'bg-hud-green text-hud-bg' : 'bg-hud-magenta text-white'
+                  }`}
+                >
+                  Confirm {tapConfirmAction}
+                </button>
+                <button
+                  onClick={() => setTapConfirmAction(null)}
+                  className="w-full py-3 rounded-xl text-[10px] font-black tracking-[0.2em] uppercase text-white/40 hover:text-white transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

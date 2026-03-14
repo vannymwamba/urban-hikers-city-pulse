@@ -8,9 +8,9 @@ const seedData = async () => {
   try {
     // Seed Nodes
     const nodes = [
-      { id: 'sector-alpha', name: 'ALPHA_PLAZA_HUB', type: 'street', address: 'Main St & E 13th St, Cincinnati, OH', latitude: 40.7128, longitude: -74.0060, radius_limit: 5000 },
-      { id: 'sector-beta', name: 'BETA_CONCOURSE', type: 'conference_center', address: '525 Elm St, Cincinnati, OH', latitude: 40.7589, longitude: -73.9851, radius_limit: 2000 },
-      { id: 'sector-gamma', name: 'GAMMA_GARDENS', type: 'street', address: '1230 Elm St, Cincinnati, OH', latitude: 40.7829, longitude: -73.9654, radius_limit: 3000 }
+      { id: 'sector-alpha', name: 'ALPHA_PLAZA_HUB', type: 'street', address: 'Main St & E 13th St, Cincinnati, OH', latitude: 39.1092, longitude: -84.5125, radius_limit: 5000 },
+      { id: 'sector-beta', name: 'BETA_CONCOURSE', type: 'conference_center', address: '525 Elm St, Cincinnati, OH', latitude: 39.1015, longitude: -84.5165, radius_limit: 2000 },
+      { id: 'sector-gamma', name: 'GAMMA_GARDENS', type: 'street', address: '1230 Elm St, Cincinnati, OH', latitude: 39.1115, longitude: -84.5185, radius_limit: 3000 }
     ];
 
     for (const node of nodes) {
@@ -25,8 +25,8 @@ const seedData = async () => {
         title: 'FLASH_TACO_DEAL_50%',
         type: 'flash_deal',
         address: '1401 Vine St, Cincinnati, OH',
-        latitude: 40.7125,
-        longitude: -74.0055,
+        latitude: 39.1105,
+        longitude: -84.5145,
         starts_at: new Date().toISOString(),
         expires_at: addHours(new Date(), 1).toISOString(),
         current_vibe: 'buzzing'
@@ -36,8 +36,8 @@ const seedData = async () => {
         title: 'LIVE_JAZZ_QUARTET',
         type: 'event',
         address: '1230 Elm St, Cincinnati, OH',
-        latitude: 40.7130,
-        longitude: -74.0062,
+        latitude: 39.1115,
+        longitude: -84.5185,
         starts_at: new Date().toISOString(),
         expires_at: addHours(new Date(), 2).toISOString(),
         current_vibe: 'chill'
@@ -47,8 +47,8 @@ const seedData = async () => {
         title: 'STREET_ART_EXPO',
         type: 'event',
         address: '1400 Vine St, Cincinnati, OH',
-        latitude: 40.7135,
-        longitude: -74.0065,
+        latitude: 39.1100,
+        longitude: -84.5150,
         starts_at: new Date().toISOString(),
         expires_at: addHours(new Date(), 4).toISOString(),
         current_vibe: 'packed'
@@ -58,8 +58,8 @@ const seedData = async () => {
         title: 'BTW26_KEYNOTE_HALL_B',
         type: 'conference_panel',
         address: '525 Elm St, Cincinnati, OH',
-        latitude: 40.7590,
-        longitude: -73.9852,
+        latitude: 39.1016,
+        longitude: -84.5166,
         starts_at: new Date().toISOString(),
         expires_at: addHours(new Date(), 1.5).toISOString(),
         current_vibe: 'buzzing'
