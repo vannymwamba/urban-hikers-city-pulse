@@ -25,7 +25,11 @@
         "latitude": { "type": "number" },
         "longitude": { "type": "number" },
         "owner_uid": { "type": "string", "description": "Firebase Auth UID of the partner owner" },
-        "owner_email": { "type": "string", "description": "Email address of the partner owner" }
+        "owner_email": { "type": "string", "description": "Email address of the partner owner" },
+        "logo_url": { "type": "string" },
+        "brand_color": { "type": "string" },
+        "deal_text": { "type": "string" },
+        "sponsor_zones": { "type": "array", "items": { "type": "string" } }
       },
       "required": ["id", "name", "tier", "latitude", "longitude"]
     },

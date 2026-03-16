@@ -64,6 +64,14 @@ service cloud.firestore {
     }
 
     function isAdmin() {
+      return isAuthenticated() && (
+        isDefaultAdmin() || 
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
+      );
+    }
+
+    function isDefaultAdmin() {
       return isAuthenticated() && 
              (request.auth.token.email == "vannymwamba@gmail.com" && request.auth.token.email_verified == true);
     }
@@ -132,7 +140,10 @@ service cloud.firestore {
     }
 
     match /taps/{tapId} {
-      allow create: if true; // Anonymous taps allowed
+      allow create: if request.resource.data.keys().hasOnly(['node_id', 'session_uuid', 'access_vector', 'timestamp']) &&
+                    request.resource.data.node_id is string &&
+                    request.resource.data.session_uuid is string &&
+                    request.resource.data.session_uuid.size() < 64;
       allow read: if isAdmin() || isPartner();
     }
 
@@ -148,13 +159,15 @@ service cloud.firestore {
     }
     
     match /users/{userId} {
-      allow read: if isAuthenticated(); 
+      allow read: if isAuthenticated() && (request.auth.uid == userId || isAdmin()); 
       allow create: if isAuthenticated() && request.auth.uid == userId && isValidUser(request.resource.data) && 
                     (request.resource.data.role == 'user' || 
+                     isDefaultAdmin() ||
                      (request.resource.data.role == 'partner' && 
                       get(/databases/$(database)/documents/partners/$(request.resource.data.partner_id)).data.owner_email == request.auth.token.email));
       allow update: if (isAuthenticated() && request.auth.uid == userId && isValidUser(request.resource.data) && 
                        (request.resource.data.role == resource.data.role || 
+                        isDefaultAdmin() ||
                         (request.resource.data.role == 'partner' && 
                          get(/databases/$(database)/documents/partners/$(request.resource.data.partner_id)).data.owner_email == request.auth.token.email))) || 
                     (isAdmin() && isValidUser(request.resource.data));

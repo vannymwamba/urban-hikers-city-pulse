@@ -22,24 +22,24 @@ export const BroadcastCountdown: React.FC<BroadcastCountdownProps> = ({ broadcas
   if (now >= end) return null;
 
   let label = "STARTS IN";
-  let colorClass = "text-[#185FA5]"; // Default Blue
-  let barColorClass = "bg-[#185FA5]";
+  let colorClass = "text-[#378ADD]"; // DORMANT Blue
+  let barColorClass = "bg-[#378ADD]";
   let timeRemaining = 0;
   let progress = 0;
 
   if (isLive) {
     if (broadcast.current_vibe === 'packed') {
       label = "ENDS IN";
-      colorClass = "text-[#A32D2D]"; // Red
-      barColorClass = "bg-[#A32D2D]";
+      colorClass = "text-[#E24B4A]"; // LIVE Red
+      barColorClass = "bg-[#E24B4A]";
     } else if (broadcast.current_vibe === 'buzzing') {
       label = "DEAL EXPIRES IN";
-      colorClass = "text-[#BA7517]"; // Amber
-      barColorClass = "bg-[#BA7517]";
+      colorClass = "text-[#EF9F27]"; // BUZZING Amber
+      barColorClass = "bg-[#EF9F27]";
     } else {
       label = "ENDS IN";
-      colorClass = "text-[#3B6D11]"; // Green
-      barColorClass = "bg-[#3B6D11]";
+      colorClass = "text-[#639922]"; // CHILL Green
+      barColorClass = "bg-[#639922]";
     }
     timeRemaining = end.getTime() - now.getTime();
     const totalDuration = end.getTime() - start.getTime();
@@ -50,14 +50,14 @@ export const BroadcastCountdown: React.FC<BroadcastCountdownProps> = ({ broadcas
     
     if (hrsToStart < 2) { // Chill event (starts soon)
       label = "STARTS IN";
-      colorClass = "text-[#3B6D11]"; // Green
-      barColorClass = "bg-[#3B6D11]";
+      colorClass = "text-[#639922]"; // CHILL Green
+      barColorClass = "bg-[#639922]";
       // Progress fills from 0 to 100 as we approach start (last 2 hours)
       progress = Math.max(0, Math.min(100, (1 - (diffToStart / (2 * 60 * 60 * 1000))) * 100));
     } else { // Upcoming (far out)
       label = "STARTS IN";
-      colorClass = "text-[#185FA5]"; // Blue
-      barColorClass = "bg-[#185FA5]";
+      colorClass = "text-[#378ADD]"; // DORMANT Blue
+      barColorClass = "bg-[#378ADD]";
       // Progress fills from 0 to 100 as we approach start (last 24 hours)
       progress = Math.max(0, Math.min(100, (1 - (diffToStart / (24 * 60 * 60 * 1000))) * 100));
     }
@@ -70,8 +70,16 @@ export const BroadcastCountdown: React.FC<BroadcastCountdownProps> = ({ broadcas
 
   return (
     <div className="bg-[#F8F7F4] p-4 rounded-xl border border-black/5 mt-3 mb-1">
-      <div className={`text-[10px] font-black tracking-[0.15em] uppercase mb-3 ${colorClass}`}>
-        {label}
+      <div className="flex justify-between items-center mb-3">
+        <div className={`text-[10px] font-black tracking-[0.15em] uppercase ${colorClass}`}>
+          {label}
+        </div>
+        <div className="text-[10px] font-bold text-[#1A1A1A]/40 uppercase tracking-widest">
+          {isLive 
+            ? end.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })
+            : start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })
+          }
+        </div>
       </div>
       <div className="flex items-center gap-4 mb-4">
         <div className="flex flex-col items-center">

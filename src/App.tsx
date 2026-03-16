@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { auth, db } from './firebase';
 import { signInWithPopup, GoogleAuthProvider, onAuthStateChanged, User } from 'firebase/auth';
 import { collection, onSnapshot, query, where, addDoc, doc, getDoc, setDoc, getDocs, orderBy, getDocFromServer } from 'firebase/firestore';
-import { Node, Broadcast, Vibe, UserProfile, UserRole } from './types';
+import { Node, Broadcast, Vibe, UserProfile, UserRole, Partner } from './types';
 import { DepartureBoard } from './components/DepartureBoard';
 import { VibeCheck } from './components/VibeCheck';
 import { VibeTrend } from './components/VibeTrend';
@@ -83,6 +83,7 @@ export default function App() {
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [currentNode, setCurrentNode] = useState<Node | null>(null);
   const [broadcasts, setBroadcasts] = useState<Broadcast[]>([]);
+  const [partnersMap, setPartnersMap] = useState<Record<string, Partner>>({});
   const [selectedBroadcast, setSelectedBroadcast] = useState<Broadcast | null>(null);
   const [isTappedIn, setIsTappedIn] = useState(true);
   const [loading, setLoading] = useState(true);
@@ -92,11 +93,15 @@ export default function App() {
   const [hudMessage, setHudMessage] = useState<{ text: string; type: 'error' | 'info' } | null>(null);
   const [path, setPath] = useState(window.location.pathname);
   const [now, setNow] = useState(new Date());
-  const [currentTab, setCurrentTab] = useState<'feed' | 'wallet'>(() => {
+  const [currentTab, setCurrentTab] = useState<'feed' | 'wallet' | 'map'>(() => {
     const initial = localStorage.getItem('uh_initial_tab');
     if (initial === 'wallet') {
       localStorage.removeItem('uh_initial_tab');
       return 'wallet';
+    }
+    if (initial === 'map') {
+      localStorage.removeItem('uh_initial_tab');
+      return 'map';
     }
     return 'feed';
   });
@@ -240,6 +245,23 @@ export default function App() {
 
     return () => unsubProfile();
   }, [user]);
+
+  useEffect(() => {
+    const unsub = onSnapshot(
+      collection(db, 'partners'),
+      (snap) => {
+        const map: Record<string, Partner> = {};
+        snap.docs.forEach(doc => {
+          map[doc.id] = { id: doc.id, ...doc.data() } as Partner;
+        });
+        setPartnersMap(map);
+      },
+      (err) => {
+        handleFirestoreError(err, OperationType.LIST, 'partners');
+      }
+    );
+    return () => unsub();
+  }, []);
 
   const handleLogin = async () => {
     try {
@@ -616,6 +638,7 @@ export default function App() {
           activeTab={currentTab}
           onTabChange={setCurrentTab}
           savedHubs={savedHubs}
+          partnersMap={partnersMap}
         />
 
         {/* HUD Notifications */}
@@ -625,7 +648,7 @@ export default function App() {
               initial={{ opacity: 0, y: -20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0 }}
-              className={`absolute top-24 left-1/2 -translate-x-1/2 z-[60] px-4 py-2 border font-bold text-[10px] tracking-widest shadow-lg ${
+              className={`absolute top-24 left-1/2 -translate-x-1/2 z-[2100] px-4 py-2 border font-bold text-[10px] tracking-widest shadow-lg ${
                 hudMessage.type === 'error' 
                   ? 'bg-hud-magenta/20 border-hud-magenta text-hud-magenta' 
                   : 'bg-hud-green/20 border-hud-green text-hud-green'
@@ -640,7 +663,7 @@ export default function App() {
         <button 
           onClick={handleSeed}
           disabled={isSeeding}
-          className="absolute bottom-2 right-2 text-[8px] text-hud-green/20 hover:text-hud-green/60 transition-colors"
+          className="absolute bottom-2 right-2 text-[8px] text-hud-green/20 hover:text-hud-green/60 transition-colors z-[2100]"
         >
           {isSeeding ? 'SEEDING...' : '[INIT_DB]'}
         </button>
@@ -652,7 +675,7 @@ export default function App() {
               animate={{ y: 0 }}
               exit={{ y: '100%' }}
               transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-              className="absolute inset-x-0 bottom-0 z-20"
+              className="absolute inset-x-0 bottom-0 z-[2000]"
             >
               <div className="p-6 bg-hud-bg border-t border-hud-green/40 shadow-[0_-10px_30px_rgba(0,255,0,0.1)]">
                 <div className="flex justify-between items-start mb-6">

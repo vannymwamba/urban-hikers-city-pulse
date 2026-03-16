@@ -44,6 +44,16 @@ export interface Partner {
   longitude: number;
   owner_uid?: string;
   owner_email?: string;
+  logo_url?: string;
+  brand_color?: string;
+  deal_text?: string;
+  sponsor_zones?: string[];
+}
+
+export interface SponsorBadgeProps {
+  partner: Partner | null;
+  zone: 'A' | 'B' | 'C' | 'D' | 'E';
+  compact?: boolean;
 }
 
 export interface VibeReport {
