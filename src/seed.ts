@@ -18,10 +18,46 @@ const seedData = async () => {
       console.log(`NODE_INITIALIZED: ${node.id}`);
     }
 
+    // Seed Partners
+    const partners = [
+      {
+        id: 'partner-kroger',
+        name: 'KROGER_FRESH_MARKET',
+        tier: 'anchor',
+        address: '1401 Vine St, Cincinnati, OH',
+        latitude: 39.1105,
+        longitude: -84.5145,
+        owner_email: 'vannymwamba@gmail.com',
+        logo_url: 'https://picsum.photos/seed/kroger/200/200',
+        brand_color: '#002D72',
+        deal_text: 'Show NFC stamp — $2 off select items',
+        sponsor_zones: ['A', 'D']
+      },
+      {
+        id: 'partner-fotofocus',
+        name: 'FOTOFOCUS_ARTS',
+        tier: 'premium',
+        address: '1230 Elm St, Cincinnati, OH',
+        latitude: 39.1115,
+        longitude: -84.5185,
+        owner_email: 'arts@example.com',
+        logo_url: 'https://picsum.photos/seed/arts/200/200',
+        brand_color: '#1A1A2E',
+        deal_text: 'Free Biennial Passport — tap 8 venues',
+        sponsor_zones: ['A', 'B', 'D']
+      }
+    ];
+
+    for (const partner of partners) {
+      await setDoc(doc(db, 'partners', partner.id), partner);
+      console.log(`PARTNER_INITIALIZED: ${partner.id}`);
+    }
+
     // Seed Broadcasts
     const broadcasts = [
       {
         node_id: 'sector-alpha',
+        partner_id: 'partner-kroger',
         title: 'FLASH_TACO_DEAL_50%',
         type: 'flash_deal',
         address: '1401 Vine St, Cincinnati, OH',
@@ -29,10 +65,12 @@ const seedData = async () => {
         longitude: -84.5145,
         starts_at: new Date().toISOString(),
         expires_at: addHours(new Date(), 1).toISOString(),
-        current_vibe: 'buzzing'
+        current_vibe: 'buzzing',
+        description: 'Exclusive flash deal for Urban Hikers! Get 50% off any taco order at Kroger Fresh Market. Just show your NFC stamp at the counter. Valid for the next hour only!'
       },
       {
         node_id: 'sector-alpha',
+        partner_id: 'partner-fotofocus',
         title: 'LIVE_JAZZ_QUARTET',
         type: 'event',
         address: '1230 Elm St, Cincinnati, OH',
@@ -40,7 +78,8 @@ const seedData = async () => {
         longitude: -84.5185,
         starts_at: new Date().toISOString(),
         expires_at: addHours(new Date(), 2).toISOString(),
-        current_vibe: 'chill'
+        current_vibe: 'chill',
+        description: 'Enjoy a relaxing evening with the Blue Note Quartet. Live jazz performance in the heart of the city. Open to all, no tickets required. Grab a seat early!'
       },
       {
         node_id: 'sector-alpha',
@@ -51,7 +90,8 @@ const seedData = async () => {
         longitude: -84.5150,
         starts_at: new Date().toISOString(),
         expires_at: addHours(new Date(), 4).toISOString(),
-        current_vibe: 'packed'
+        current_vibe: 'packed',
+        description: 'Local artists showcase their latest murals and installations. Interactive art walk through the Vine Street corridor. Meet the artists and discover the stories behind the walls.'
       },
       {
         node_id: 'sector-alpha',
@@ -62,7 +102,8 @@ const seedData = async () => {
         longitude: -84.5166,
         starts_at: new Date().toISOString(),
         expires_at: addHours(new Date(), 1.5).toISOString(),
-        current_vibe: 'buzzing'
+        current_vibe: 'buzzing',
+        description: 'The future of urban infrastructure and NFC technology. Join industry leaders for a deep dive into the BTW26 keynote session. Hall B, limited seating available.'
       }
     ];
 

@@ -49,10 +49,13 @@ export const BroadcastCard: React.FC<BroadcastCardProps> = ({
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: idx * 0.05 }}
-      className={`bg-white rounded-2xl mb-3 border border-black/5 shadow-sm hover:shadow-md transition-all cursor-pointer group overflow-hidden ${!status.isLive ? 'opacity-70' : ''}`}
-      style={hasSponsorship && partner.brand_color ? {
-        borderColor: `${partner.brand_color}40`
-      } : {}}
+      className={`bg-white mb-3 shadow-sm hover:shadow-md transition-all cursor-pointer group overflow-hidden ${!status.isLive ? 'opacity-70' : ''}`}
+      style={{
+        borderRadius: '10px',
+        border: hasSponsorship 
+          ? `2px solid var(--color-sponsored-border)` 
+          : '1px solid var(--md-sys-color-outline)'
+      }}
     >
       {/* Zone A: Sponsor Bar */}
       <SponsorBadge partner={partner} zone="A" />
@@ -64,8 +67,8 @@ export const BroadcastCard: React.FC<BroadcastCardProps> = ({
               {getIcon(item)}
             </div>
             <div>
-              <div className="text-[14px] font-bold text-[#1A1A1A] leading-tight mb-0.5">{item.title}</div>
-              <div className="text-[11px] text-[#888780] font-medium uppercase tracking-wide flex items-center gap-2">
+              <div className="text-[14px] font-bold text-[#1A1A1A] leading-tight mb-0.5 font-sans">{item.title}</div>
+              <div className="text-[11px] text-[#888780] font-medium uppercase tracking-wide flex items-center gap-2 font-mono">
                 <span>{item.partner_id === 'admin' ? 'SYSTEM_ADMIN' : (partner?.name || item.partner_id || 'LOCAL_PARTNER')}</span>
                 <span className="w-1 h-1 rounded-full bg-[#888780]/30" />
                 <span className="text-[#1A1A1A]/60">
@@ -75,7 +78,7 @@ export const BroadcastCard: React.FC<BroadcastCardProps> = ({
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <span className={`badge text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider flex items-center gap-1.5 ${getBadgeStyle(item)}`}>
+            <span className={`badge text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider flex items-center gap-1.5 font-mono ${getBadgeStyle(item)}`}>
               <div className={`w-1.5 h-1.5 rounded-full ${getDotColor(item)}`} />
               {getBadgeLabel(item)}
             </span>
@@ -92,19 +95,28 @@ export const BroadcastCard: React.FC<BroadcastCardProps> = ({
       <div className="flex items-center justify-between px-4 py-3 bg-[#F8F7F4] border-t border-[#F0EEE8]">
         <div className="flex flex-col gap-1">
           {item.address && (
-            <div className="flex items-center gap-1.5 text-[11px] text-[#2C2C2A] font-semibold">
+            <div className="flex items-center gap-1.5 text-[11px] text-[#2C2C2A] font-semibold font-sans">
               <MapPin size={12} className="text-[#888780]" />
               {item.address.split(',')[0]}
             </div>
           )}
           <div className="flex items-center gap-2">
             <div className="flex items-center gap-1 bg-[#1A2B4A] px-2 py-0.5 rounded-full">
-              <span className="text-[9px] font-black text-hud-yellow uppercase tracking-tighter">{walkTime} MIN WALK</span>
+              <span className="text-[9px] font-black text-hud-yellow uppercase tracking-tighter font-mono">{walkTime} MIN WALK</span>
             </div>
           </div>
         </div>
         
         <div className="flex items-center gap-2">
+          <button 
+            onClick={(e) => {
+              e.stopPropagation();
+              onSelect(item);
+            }}
+            className="flex items-center gap-1.5 bg-white border border-[#D3D1C7] text-[#1A1A1A] px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-[#F0EEE8] transition-colors"
+          >
+            READ MORE
+          </button>
           <button 
             onClick={(e) => {
               e.stopPropagation();

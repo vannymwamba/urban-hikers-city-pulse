@@ -33,6 +33,7 @@ export interface Broadcast {
   starts_at: string;
   expires_at: string;
   current_vibe: Vibe;
+  description?: string;
 }
 
 export interface Partner {

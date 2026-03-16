@@ -130,52 +130,50 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
   };
 
   return (
-    <div className="flex flex-col h-full bg-[#0f1e2e] text-white relative overflow-hidden">
-      {/* Top Bar */}
-      <div className="bg-[#F5C518] px-4 py-2.5 flex justify-between items-center shrink-0">
+    <div className="flex flex-col h-full bg-hud-bg text-white relative overflow-hidden">
+      {/* Top Bar — Full Brand Yellow */}
+      <div className="bg-hud-yellow px-4 py-2.5 flex justify-between items-center shrink-0">
         <div className="flex flex-col">
-          <div className="text-[10px] font-black tracking-[0.2em] text-[#0f1e2e] uppercase">URBAN HIKERS</div>
-          <div className="text-[9px] font-bold text-[#0f1e2e]/60 uppercase tracking-widest">FLUX_PROTOCOL_OS</div>
+          <div className="text-[12px] font-black tracking-[0.08em] text-hud-dark uppercase font-mono">URBAN HIKERS</div>
+          <div className="text-[8px] font-bold text-hud-dark/50 uppercase tracking-[0.06em] font-mono">FLUX_PROTOCOL_OS</div>
         </div>
         <div className="flex gap-1.5">
           {['ANONYMOUS', 'NO GPS', 'ENCRYPTED'].map(tag => (
-            <span key={tag} className="bg-[#0f1e2e]/10 text-[#0f1e2e] text-[9px] font-bold px-2 py-1 rounded-full tracking-wider whitespace-nowrap">
+            <span key={tag} className="border border-hud-dark/25 text-hud-dark/60 text-[9px] font-bold px-2 py-1 rounded-full tracking-wider whitespace-nowrap font-mono">
               {tag}
             </span>
           ))}
         </div>
       </div>
 
-      {/* Redesigned Compact Hero Section */}
-      <div className="p-4 bg-[#0f1e2e] border-b border-white/5 shrink-0">
-        {/* Row 1: Sector Info & Time */}
+      {/* SectorHub — Node Header */}
+      <div className="p-4 bg-navy-mid border-b border-white/5 shrink-0">
         <div className="flex justify-between items-center mb-3">
           <div className="flex items-center gap-3">
-            <div className="w-2 h-2 rounded-full bg-[#4ade80] animate-pulse shadow-[0_0_8px_#4ade80]" />
+            <div className="w-1.5 h-1.5 rounded-full bg-hud-green animate-pulse shadow-[0_0_8px_var(--color-live)]" />
             <div className="flex items-baseline gap-2">
-              <span className="text-[9px] font-bold tracking-widest text-white/40 uppercase">SECTOR_HUB:</span>
-              <h1 className="text-[18px] font-black tracking-tighter text-[#F5C518] uppercase leading-none">
+              <span className="text-[9px] font-bold tracking-widest text-white/40 uppercase font-mono">SECTOR_HUB:</span>
+              <h1 className="text-[20px] font-black tracking-tighter text-hud-yellow uppercase leading-none font-mono">
                 {nodeName}
               </h1>
             </div>
           </div>
           <div className="text-right">
-            <div className="text-[16px] font-bold text-white tracking-widest tabular-nums leading-none font-mono">
+            <div className="text-[14px] font-bold text-white/60 tracking-widest tabular-nums leading-none font-mono">
               {time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })}
             </div>
           </div>
         </div>
 
-        {/* Row 2: Address & Actions */}
         <div className="flex justify-between items-center">
-          <div className="flex items-center gap-2 text-[10px] text-white/40 font-medium truncate max-w-[60%]">
+          <div className="flex items-center gap-2 text-[10px] text-white/40 font-medium truncate max-w-[60%] font-sans">
             <MapPin size={12} className="shrink-0" />
             <span className="truncate">{currentNode?.address || 'LOCATION_PENDING'}</span>
           </div>
           <div className="flex items-center gap-2">
             <button 
               onClick={onShareNode}
-              className="p-1.5 text-white/40 hover:text-[#F5C518] transition-colors"
+              className="p-1.5 text-white/40 hover:text-hud-yellow transition-colors"
               title="Share Sector"
             >
               <Share2 size={16} />
@@ -183,7 +181,7 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
             {currentNode && (
               <button 
                 onClick={() => handleDirections({ address: currentNode.address, latitude: currentNode.latitude, longitude: currentNode.longitude } as any)}
-                className="flex items-center gap-1 bg-[#F5C518]/10 text-[#F5C518] px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest border border-[#F5C518]/20"
+                className="flex items-center gap-1 bg-hud-yellow/10 text-hud-yellow px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest border border-hud-yellow/20 font-mono"
               >
                 DIRECTIONS
               </button>
@@ -193,14 +191,13 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
       </div>
 
       {/* Tap & Login Section */}
-      <div className="p-4 bg-[#0f1e2e] shrink-0 border-b border-white/5">
-        {/* Micro-hint row */}
+      <div className="p-4 bg-hud-bg shrink-0 border-b border-white/5">
         <div className="grid grid-cols-2 gap-4 mb-3">
-          <div className="text-[9px] font-bold text-[#4ade80]/60 uppercase tracking-widest flex items-center gap-1.5">
-            <div className="w-1 h-1 rounded-full bg-[#4ade80]" />
+          <div className="text-[9px] font-bold text-hud-green/60 uppercase tracking-widest flex items-center gap-1.5 font-mono">
+            <div className="w-1 h-1 rounded-full bg-hud-green" />
             Tap in · anonymous · here now
           </div>
-          <div className="text-[9px] font-bold text-[#5BB8F5]/60 uppercase tracking-widest flex items-center gap-1.5">
+          <div className="text-[9px] font-bold text-[#5BB8F5]/60 uppercase tracking-widest flex items-center gap-1.5 font-mono">
             <div className="w-1 h-1 rounded-full bg-[#5BB8F5]" />
             Login · persistent · everywhere
           </div>
@@ -209,19 +206,19 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
         <div className="flex gap-2 mb-3">
           <button
             onClick={() => setTapConfirmAction('in')}
-            className={`flex-1 py-3 rounded-xl text-[12px] font-bold tracking-widest uppercase transition-all ${
+            className={`flex-1 py-3 rounded-xl text-[12px] font-bold tracking-widest uppercase transition-all font-mono ${
               isTappedIn 
-                ? 'bg-[#4ade80] text-[#0f1e2e] shadow-[0_4px_15px_rgba(74,222,128,0.3)]' 
-                : 'bg-[#4ade80]/15 text-[#4ade80]/50'
+                ? 'bg-hud-green text-hud-dark shadow-[0_4px_15px_rgba(29,158,117,0.3)]' 
+                : 'bg-hud-green/15 text-hud-green/50'
             }`}
           >
             TAP IN {isTappedIn && '✓'}
           </button>
           <button
             onClick={() => setTapConfirmAction('out')}
-            className={`flex-1 py-3 rounded-xl text-[12px] font-bold tracking-widest uppercase border transition-all ${
+            className={`flex-1 py-3 rounded-xl text-[12px] font-bold tracking-widest uppercase border transition-all font-mono ${
               !isTappedIn 
-                ? 'bg-[#E24B4A] text-white border-[#E24B4A] shadow-[0_4px_15px_rgba(226,75,74,0.3)]' 
+                ? 'bg-hud-magenta text-white border-hud-magenta shadow-[0_4px_15px_rgba(226,75,74,0.3)]' 
                 : 'bg-white/5 text-white/40 border-white/10'
             }`}
           >
@@ -229,12 +226,11 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
           </button>
         </div>
 
-        {/* Option C Escalation */}
         <div className="mt-2">
           {!user ? (
-            <div className="text-[10px] font-medium text-white/40 flex items-center justify-between">
+            <div className="text-[10px] font-medium text-white/40 flex items-center justify-between font-sans">
               <div className="flex items-center gap-1.5">
-                <ShieldCheck size={12} className="text-[#4ade80]" />
+                <ShieldCheck size={12} className="text-hud-green" />
                 Anonymous by default.
               </div>
               <button 
@@ -245,7 +241,7 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
               </button>
             </div>
           ) : (
-            <div className="text-[10px] font-medium text-[#4ade80] flex items-center gap-1.5">
+            <div className="text-[10px] font-medium text-hud-green flex items-center gap-1.5 font-sans">
               <ShieldCheck size={12} />
               Identity verified. Wallet & History active.
             </div>
@@ -262,7 +258,7 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
                 <div className="bg-white/5 rounded-2xl p-4 border border-white/10">
                   <div className="grid grid-cols-2 gap-2 mb-4">
                     {['wallet', 'bookings', 'history', 'saved hubs'].map(perk => (
-                      <div key={perk} className="bg-white/5 px-2 py-1.5 rounded-lg text-[8px] font-bold text-white/60 uppercase tracking-widest flex items-center gap-1.5 border border-white/5">
+                      <div key={perk} className="bg-white/5 px-2 py-1.5 rounded-lg text-[8px] font-bold text-white/60 uppercase tracking-widest flex items-center gap-1.5 border border-white/5 font-mono">
                         <div className="w-1 h-1 rounded-full bg-[#5BB8F5]" />
                         {perk}
                       </div>
@@ -270,7 +266,7 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
                   </div>
                   <button 
                     onClick={onLogin}
-                    className="w-full py-2.5 bg-[#5BB8F5] text-[#0f1e2e] rounded-xl text-[10px] font-black uppercase tracking-[0.2em] shadow-[0_4px_15px_rgba(91,184,245,0.3)]"
+                    className="w-full py-2.5 bg-[#5BB8F5] text-hud-dark rounded-xl text-[10px] font-black uppercase tracking-[0.2em] shadow-[0_4px_15px_rgba(91,184,245,0.3)] font-mono"
                   >
                     SECURE_SIGN_IN
                   </button>
@@ -281,10 +277,10 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
         </div>
       </div>
 
-      {/* Open Bar */}
-      <div className="bg-[#0E2A1A] px-4 py-2.5 flex items-center gap-2.5 border-y border-hud-green/15 shrink-0">
-        <div className="w-1.5 h-1.5 rounded-full bg-hud-green" />
-        <div className="text-[11px] text-hud-green font-bold tracking-wide">
+      {/* Open Bar — System Declaration */}
+      <div className="bg-hud-green/10 px-4 py-2.5 flex items-center gap-2.5 border-y border-hud-green/20 shrink-0">
+        <div className="w-1.5 h-1.5 rounded-full bg-hud-green animate-pulse" />
+        <div className="text-[10px] text-hud-green font-bold tracking-[0.12em] font-mono uppercase">
           OPEN FEED — ALL LIVE EVENTS VISIBLE. NO ACCOUNT REQUIRED.
         </div>
       </div>
@@ -339,6 +335,7 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
             currentNode={currentNode} 
             broadcasts={broadcasts} 
             onSelect={onSelect} 
+            partnersMap={partnersMap}
           />
         ) : (
           <div className="p-4">
@@ -405,49 +402,49 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
     )}
   </div>
 
-      {/* Footer Stats */}
+      {/* Footer Stats — System Health */}
       <div className="bg-hud-bg px-5 py-4 flex justify-between items-center border-t border-white/5 shrink-0">
         <div className="flex gap-6">
           <div className="text-center">
-            <div className="text-[16px] font-black text-hud-yellow leading-none">{activeNodesCount}</div>
-            <div className="text-[9px] text-white/35 font-bold tracking-[0.15em] uppercase mt-1">NODES ACTIVE</div>
+            <div className="text-[16px] font-black text-hud-yellow leading-none font-mono">{activeNodesCount}</div>
+            <div className="text-[9px] text-white/35 font-bold tracking-[0.15em] uppercase mt-1 font-mono">NODES ACTIVE</div>
           </div>
           <div className="text-center">
-            <div className="text-[16px] font-black text-hud-yellow leading-none">{uptime}%</div>
-            <div className="text-[9px] text-white/35 font-bold tracking-[0.15em] uppercase mt-1">UPTIME</div>
+            <div className="text-[16px] font-black text-hud-yellow leading-none font-mono">{uptime}%</div>
+            <div className="text-[9px] text-white/35 font-bold tracking-[0.15em] uppercase mt-1 font-mono">UPTIME</div>
           </div>
           <div className="text-center">
-            <div className="text-[16px] font-black text-hud-yellow leading-none">{radiusInMiles} MI</div>
-            <div className="text-[9px] text-white/35 font-bold tracking-[0.15em] uppercase mt-1">RADIUS</div>
+            <div className="text-[16px] font-black text-hud-yellow leading-none font-mono">{radiusInMiles} MI</div>
+            <div className="text-[9px] text-white/35 font-bold tracking-[0.15em] uppercase mt-1 font-mono">RADIUS</div>
           </div>
         </div>
-        <div className="text-[9px] text-white/20 font-bold tracking-widest uppercase text-right">
-          LOCAL_PULSE_OS v1.0
+        <div className="text-[9px] text-white/20 font-bold tracking-widest uppercase text-right font-mono">
+          FLUX_PROTOCOL_OS v1.0
         </div>
       </div>
 
-      {/* Bottom Navigation */}
+      {/* Bottom Navigation — Utility Rail */}
       <div className="bg-hud-dark px-4 py-2.5 flex justify-between items-center border-t border-white/5 shrink-0">
         <a 
           href="/"
           className="flex flex-col items-center gap-1 px-3 py-1.5 rounded-xl transition-colors group"
         >
           <Home size={20} className="text-white/30 group-hover:text-white/60" />
-          <span className="text-[9px] font-bold tracking-widest text-white/30 uppercase group-hover:text-white/60">HOME</span>
+          <span className="text-[9px] font-bold tracking-widest text-white/30 uppercase group-hover:text-white/60 font-mono">HOME</span>
         </a>
         <button 
           onClick={() => onTabChange?.('feed')}
           className="flex flex-col items-center gap-1 px-3 py-1.5 rounded-xl transition-colors group"
         >
           <Clock size={20} className={activeTab === 'feed' ? 'text-hud-yellow' : 'text-white/30 group-hover:text-white/60'} />
-          <span className={`text-[9px] font-bold tracking-widest uppercase ${activeTab === 'feed' ? 'text-hud-yellow' : 'text-white/30 group-hover:text-white/60'}`}>FEED</span>
+          <span className={`text-[9px] font-bold tracking-widest uppercase font-mono ${activeTab === 'feed' ? 'text-hud-yellow' : 'text-white/30 group-hover:text-white/60'}`}>FEED</span>
         </button>
         <button 
           onClick={() => onTabChange?.('map')}
           className="flex flex-col items-center gap-1 px-3 py-1.5 rounded-xl transition-colors group"
         >
           <MapIcon size={20} className={activeTab === 'map' ? 'text-hud-yellow' : 'text-white/30 group-hover:text-white/60'} />
-          <span className={`text-[9px] font-bold tracking-widest uppercase ${activeTab === 'map' ? 'text-hud-yellow' : 'text-white/30 group-hover:text-white/60'}`}>MAP</span>
+          <span className={`text-[9px] font-bold tracking-widest uppercase font-mono ${activeTab === 'map' ? 'text-hud-yellow' : 'text-white/30 group-hover:text-white/60'}`}>MAP</span>
         </button>
         <button 
           onClick={() => onTabChange?.('wallet')}
@@ -457,21 +454,21 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
           {savedHubs.length > 0 && (
             <div className="absolute top-1 right-3 w-1.5 h-1.5 bg-hud-magenta rounded-full shadow-[0_0_5px_#ff2d78]" />
           )}
-          <span className={`text-[9px] font-bold tracking-widest uppercase ${activeTab === 'wallet' ? 'text-hud-yellow' : 'text-white/30 group-hover:text-white/60'}`}>WALLET</span>
+          <span className={`text-[9px] font-bold tracking-widest uppercase font-mono ${activeTab === 'wallet' ? 'text-hud-yellow' : 'text-white/30 group-hover:text-white/60'}`}>WALLET</span>
         </button>
         <a 
           href="/dashboard"
           className="flex flex-col items-center gap-1 px-3 py-1.5 rounded-xl transition-colors group"
         >
           <Lock size={20} className="text-white/30 group-hover:text-white/60" />
-          <span className="text-[9px] font-bold tracking-widest text-white/30 uppercase group-hover:text-white/60">PARTNER</span>
+          <span className="text-[9px] font-bold tracking-widest text-white/30 uppercase group-hover:text-white/60 font-mono">PARTNER</span>
         </a>
         <a 
           href="/dashboard"
           className="flex flex-col items-center gap-1 px-3 py-1.5 rounded-xl transition-colors group"
         >
           <ShieldCheck size={20} className="text-white/30 group-hover:text-white/60" />
-          <span className="text-[9px] font-bold tracking-widest text-white/30 uppercase group-hover:text-white/60">CONTROL</span>
+          <span className="text-[9px] font-bold tracking-widest text-white/30 uppercase group-hover:text-white/60 font-mono">CONTROL</span>
         </a>
       </div>
 

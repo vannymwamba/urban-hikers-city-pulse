@@ -158,146 +158,154 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginSuccess, userPr
       </nav>
 
       {/* HERO */}
-      <section className="relative min-h-screen flex items-center px-6 md:px-12 pt-16 overflow-hidden">
+      <section className="relative min-h-[90vh] lg:min-h-screen flex items-center px-6 md:px-12 pt-28 pb-12 lg:py-20 overflow-hidden">
         <div className="absolute inset-0 bg-[linear-gradient(rgba(245,200,0,0.04)_1px,transparent_1px),linear-gradient(90deg,rgba(245,200,0,0.04)_1px,transparent_1px)] bg-[size:60px_60px] [mask-image:radial-gradient(ellipse_80%_80%_at_50%_50%,black,transparent)]"></div>
-        <div className="absolute w-[800px] h-[800px] rounded-full bg-[radial-gradient(circle,rgba(245,200,0,0.06)_0%,transparent:70%)] -top-1/4 -right-1/4 pointer-events-none"></div>
+        <div className="absolute w-[800px] h-[800px] rounded-full bg-[radial-gradient(circle,rgba(245,200,0,0.06)_0%,transparent_70%)] -top-1/4 -right-1/4 pointer-events-none"></div>
         <div className="absolute w-[600px] h-[600px] rounded-full bg-[radial-gradient(circle,rgba(245,200,0,0.08)_0%,transparent_70%)] top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none"></div>
 
-        <div className="relative z-10 max-w-[720px]">
-          <motion.div 
-            initial={{ opacity: 0, y: 24 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            className="inline-flex items-center gap-2 bg-yellow/10 border border-yellow/25 rounded-full px-3.5 py-1.5 mb-7"
-          >
-            <div className="w-1.5 h-1.5 bg-yellow rounded-full animate-pulse"></div>
-            <span className="font-mono text-[10px] font-medium text-yellow tracking-[2px] uppercase">NFC Civic Infrastructure · Cincinnati, OH</span>
-          </motion.div>
+        <div className="relative z-10 max-w-7xl mx-auto w-full grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-20 items-center">
+          <div className="max-w-[640px] text-center lg:text-left">
+            <motion.div 
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              className="inline-flex items-center gap-2 bg-yellow/10 border border-yellow/25 rounded-full px-3.5 py-1.5 mb-6"
+            >
+              <div className="w-1.5 h-1.5 bg-yellow rounded-full animate-pulse"></div>
+              <span className="font-mono text-[10px] font-medium text-yellow tracking-[2px] uppercase">NFC Civic Infrastructure · Cincinnati, OH</span>
+            </motion.div>
 
-          <motion.h1 
-            initial={{ opacity: 0, y: 24 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ delay: 0.1 }}
-            className="font-bebas text-[clamp(64px,9vw,112px)] leading-[0.92] tracking-[2px] text-white mb-3"
-          >
-            The City's <span className="text-yellow block">Pulse.</span> One Tap.
-          </motion.h1>
+            <motion.h1 
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ delay: 0.1 }}
+              className="font-bebas text-[clamp(56px,10vw,112px)] leading-[0.9] tracking-[1px] text-white mb-4"
+            >
+              The City's <span className="text-yellow block lg:inline">Pulse.</span> <span className="block lg:inline">One Tap.</span>
+            </motion.h1>
 
-          <motion.p 
-            initial={{ opacity: 0, y: 24 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ delay: 0.2 }}
-            className="text-lg font-light text-white/45 leading-[1.7] max-w-[500px] mb-10"
-          >
-            Urban Hikers Local Pulse turns <b className="text-white font-medium">physical NFC nodes</b> into a live city feed —
-            flash deals, events, and civic broadcasts. No app. No login. No GPS.
-            <b className="text-white font-medium"> Just tap and discover what's happening within walking distance.</b>
-          </motion.p>
+            <motion.p 
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ delay: 0.2 }}
+              className="text-base md:text-lg font-light text-white/45 leading-[1.6] max-w-[500px] mx-auto lg:mx-0 mb-8"
+            >
+              Urban Hikers Local Pulse turns <b className="text-white font-medium">physical NFC nodes</b> into a live city feed —
+              flash deals, events, and civic broadcasts. No app. No login. No GPS.
+              <b className="text-white font-medium"> Just tap and discover what's happening within walking distance.</b>
+            </motion.p>
 
-          <motion.div 
-            initial={{ opacity: 0, y: 24 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ delay: 0.3 }}
-            className="flex items-center gap-3.5 mb-14"
-          >
-            {userProfile ? (
-              <a href="/dashboard" className="inline-flex items-center gap-2 px-8 py-4 rounded-xl bg-yellow text-navy-deep text-[15px] font-bold tracking-[0.3px] hover:bg-[#FFD700] hover:-translate-y-0.5 transition-all">
-                Go to Dashboard
-                <ArrowRight size={16} />
+            <motion.div 
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ delay: 0.3 }}
+              className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-3.5 mb-12"
+            >
+              {userProfile ? (
+                <a href="/dashboard" className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-8 py-4 rounded-xl bg-yellow text-navy-deep text-[15px] font-bold tracking-[0.3px] hover:bg-[#FFD700] hover:-translate-y-0.5 transition-all">
+                  Go to Dashboard
+                  <ArrowRight size={16} />
+                </a>
+              ) : (
+                <a href="#signup" className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-8 py-4 rounded-xl bg-yellow text-navy-deep text-[15px] font-bold tracking-[0.3px] hover:bg-[#FFD700] hover:-translate-y-0.5 transition-all">
+                  List Your Business
+                  <ArrowRight size={16} />
+                </a>
+              )}
+              <a href="#how" className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-8 py-4 rounded-xl border border-white/20 bg-transparent text-white text-[15px] font-medium hover:border-white/40 hover:bg-white/5 transition-all">
+                See How It Works
               </a>
-            ) : (
-              <a href="#signup" className="inline-flex items-center gap-2 px-8 py-4 rounded-xl bg-yellow text-navy-deep text-[15px] font-bold tracking-[0.3px] hover:bg-[#FFD700] hover:-translate-y-0.5 transition-all">
-                List Your Business
-                <ArrowRight size={16} />
-              </a>
-            )}
-            <a href="#how" className="inline-flex items-center gap-2 px-8 py-4 rounded-xl border border-white/20 bg-transparent text-white text-[15px] font-medium hover:border-white/40 hover:bg-white/5 transition-all">
-              See How It Works
-            </a>
-          </motion.div>
+            </motion.div>
 
-          <motion.div 
-            initial={{ opacity: 0, y: 24 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ delay: 0.4 }}
-            className="flex gap-9 pt-8 border-t border-white/10"
-          >
-            <div>
-              <div className="font-bebas text-4xl text-yellow leading-none tracking-[1px]">12</div>
-              <div className="text-xs text-white/45 mt-1 tracking-[0.3px]">Live Nodes · OTR &amp; Northside</div>
-            </div>
-            <div>
-              <div className="font-bebas text-4xl text-yellow leading-none tracking-[1px]">847</div>
-              <div className="text-xs text-white/45 mt-1 tracking-[0.3px]">Taps Today</div>
-            </div>
-            <div>
-              <div className="font-bebas text-4xl text-yellow leading-none tracking-[1px]">0</div>
-              <div className="text-xs text-white/45 mt-1 tracking-[0.3px]">Data Points Collected</div>
-            </div>
-          </motion.div>
-        </div>
-
-        {/* Phone Mockup */}
-        <div className="absolute right-[-20px] top-1/2 -translate-y-1/2 w-[420px] z-10 hidden xl:block">
-          <div className="bg-[#0A1628] rounded-[40px] border border-white/10 p-4 shadow-[0_40px_120px_rgba(0,0,0,0.6),0_0_0_1px_rgba(255,255,255,0.04)]">
-            <div className="w-[100px] h-7 bg-[#0A1628] rounded-full mx-auto mb-3 border border-white/5 flex items-center justify-center gap-2">
-              <div className="w-2 h-2 bg-[#1A2B4A] rounded-full"></div>
-              <div className="w-10 h-1 bg-[#1A2B4A] rounded-full"></div>
-            </div>
-            <div className="bg-yellow rounded-[28px] overflow-hidden">
-              <div className="bg-yellow px-4 pt-3 pb-2.5 flex justify-between items-center">
-                <div className="font-bebas text-base tracking-[2px] text-navy">Urban Hikers</div>
-                <div className="flex gap-1">
-                  <span className="bg-navy/10 text-navy text-[8px] font-bold px-1.5 py-0.5 rounded-full">No Login</span>
-                  <span className="bg-navy/10 text-navy text-[8px] font-bold px-1.5 py-0.5 rounded-full">No GPS</span>
-                </div>
+            <motion.div 
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ delay: 0.4 }}
+              className="grid grid-cols-3 gap-4 md:gap-9 pt-8 border-t border-white/10"
+            >
+              <div>
+                <div className="font-bebas text-3xl md:text-4xl text-yellow leading-none tracking-[1px]">12</div>
+                <div className="text-[10px] md:text-xs text-white/45 mt-1 tracking-[0.3px] uppercase">Live Nodes</div>
               </div>
-              <div className="bg-navy p-3.5 pb-3">
-                <div className="text-[8px] font-bold tracking-[1.5px] text-white/40 uppercase mb-1 flex items-center gap-1.5">
-                  <div className="w-1.5 h-1.5 bg-green rounded-full"></div>Sector Hub
-                </div>
-                <div className="font-bebas text-[22px] text-yellow tracking-[1px] mb-2.5">OTR-ALPHA-01</div>
-                <div className="flex gap-1.5">
-                  <div className="flex-1 bg-green text-[#0D1F14] p-2 rounded-lg text-[9px] font-bold text-center tracking-[0.5px]">Tap In ✓</div>
-                  <div className="flex-1 bg-white/10 text-white/35 p-2 rounded-lg text-[9px] font-bold text-center tracking-[0.5px]">Tap Out</div>
-                </div>
+              <div>
+                <div className="font-bebas text-3xl md:text-4xl text-yellow leading-none tracking-[1px]">847</div>
+                <div className="text-[10px] md:text-xs text-white/45 mt-1 tracking-[0.3px] uppercase">Taps Today</div>
               </div>
-              <div className="bg-[#EEEDE8] p-2.5 px-3">
-                <div className="text-[8px] font-extrabold tracking-[2px] text-[#888780] uppercase mb-1.5">Flash Deals</div>
-                <div className="bg-white rounded-lg p-2 px-2.5 mb-1.5 flex justify-between items-center">
-                  <div>
-                    <div className="text-[10px] font-bold text-[#1A1A1A] mb-0.5">⚡ Taco Deal — 50% Off</div>
-                    <div className="text-[8px] text-[#888780]">1401 Vine St · 4 min walk</div>
-                  </div>
-                  <span className="text-[7px] font-bold px-1.5 py-0.5 rounded-full bg-[#FFF3CC] text-[#854F0B]">Buzzing</span>
-                </div>
-                <div className="text-[8px] font-extrabold tracking-[2px] text-[#888780] uppercase mb-1.5 mt-2">Live Events</div>
-                <div className="bg-white rounded-lg p-2 px-2.5 mb-1.5 flex justify-between items-center">
-                  <div>
-                    <div className="text-[10px] font-bold text-[#1A1A1A] mb-0.5">Live Jazz Quartet</div>
-                    <div className="text-[8px] text-[#888780]">Washington Park · 4 min walk</div>
-                  </div>
-                  <span className="text-[7px] font-bold px-1.5 py-0.5 rounded-full bg-[#EAF3DE] text-[#3B6D11]">Chill</span>
-                </div>
-                <div className="bg-white rounded-lg p-2 px-2.5 mb-1.5 flex justify-between items-center">
-                  <div>
-                    <div className="text-[10px] font-bold text-[#1A1A1A] mb-0.5">BTW26 — Keynote</div>
-                    <div className="text-[8px] text-[#888780]">525 Elm St · 2 min walk</div>
-                  </div>
-                  <span className="text-[7px] font-bold px-1.5 py-0.5 rounded-full bg-[#FCEBEB] text-[#A32D2D]">Live</span>
-                </div>
+              <div>
+                <div className="font-bebas text-3xl md:text-4xl text-yellow leading-none tracking-[1px]">0</div>
+                <div className="text-[10px] md:text-xs text-white/45 mt-1 tracking-[0.3px] uppercase">Data Collected</div>
               </div>
-            </div>
+            </motion.div>
           </div>
+
+          {/* iPhone Mockup */}
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95 }}
+            whileInView={{ opacity: 1, scale: 1 }}
+            viewport={{ once: true }}
+            transition={{ delay: 0.5, duration: 0.8 }}
+            className="relative flex justify-center lg:justify-end"
+          >
+            <div className="relative w-[280px] sm:w-[320px] h-[580px] sm:h-[650px] bg-black rounded-[45px] sm:rounded-[55px] border-[6px] sm:border-[8px] border-[#1a1a1a] shadow-[0_40px_120px_rgba(0,0,0,0.8),0_0_0_1px_rgba(255,255,255,0.1)] overflow-hidden">
+              {/* Dynamic Island */}
+              <div className="absolute top-3 sm:top-4 left-1/2 -translate-x-1/2 w-[70px] sm:w-[90px] h-6 sm:h-7 bg-black rounded-full z-50 flex items-center justify-center gap-1 sm:gap-1.5">
+                <div className="w-1 h-1 sm:w-1.5 sm:h-1.5 bg-[#1a1a1a] rounded-full"></div>
+                <div className="w-6 sm:w-8 h-1 bg-[#1a1a1a] rounded-full"></div>
+              </div>
+
+              {/* Screen Content */}
+              <div className="h-full w-full bg-[#0f1e2e] overflow-hidden flex flex-col">
+                <div className="bg-yellow px-4 sm:px-5 pt-8 sm:pt-10 pb-3 sm:pb-4 flex justify-between items-center shrink-0">
+                  <div className="font-bebas text-base sm:text-lg tracking-[2px] text-navy-deep">Urban Hikers</div>
+                  <div className="flex gap-1">
+                    <span className="bg-navy-deep/10 text-navy-deep text-[7px] sm:text-[8px] font-bold px-1.5 sm:px-2 py-0.5 rounded-full">No Login</span>
+                  </div>
+                </div>
+
+                <div className="bg-navy-deep p-4 sm:p-5 pb-3 sm:pb-4 shrink-0">
+                  <div className="text-[8px] sm:text-[9px] font-bold tracking-[2px] text-white/40 uppercase mb-1 sm:mb-1.5 flex items-center gap-1.5 sm:gap-2">
+                    <div className="w-1 h-1 sm:w-1.5 sm:h-1.5 bg-hud-green rounded-full animate-pulse shadow-[0_0_8px_var(--color-live)]"></div>
+                    Sector Hub
+                  </div>
+                  <div className="font-bebas text-[24px] sm:text-[28px] text-yellow tracking-[1px] mb-3 sm:mb-4 leading-none">OTR-ALPHA-01</div>
+                  <div className="flex gap-2">
+                    <div className="flex-1 bg-hud-green text-hud-dark p-2 sm:p-2.5 rounded-lg sm:rounded-xl text-[9px] sm:text-[10px] font-black text-center tracking-[1px] uppercase">Tap In ✓</div>
+                    <div className="flex-1 bg-white/5 text-white/30 p-2 sm:p-2.5 rounded-lg sm:rounded-xl text-[9px] sm:text-[10px] font-black text-center tracking-[1px] uppercase border border-white/5">Tap Out</div>
+                  </div>
+                </div>
+
+                <div className="flex-1 bg-[#EEEDE8] p-3 sm:p-4 overflow-y-auto">
+                  <div className="text-[8px] sm:text-[9px] font-black tracking-[2px] text-[#888780] uppercase mb-2 sm:mb-3">Flash Deals</div>
+                  <div className="bg-white rounded-xl sm:rounded-2xl p-3 sm:p-3.5 mb-2 sm:mb-3 flex justify-between items-center shadow-sm">
+                    <div>
+                      <div className="text-[10px] sm:text-[11px] font-bold text-[#1A1A1A] mb-0.5">⚡ Taco Deal — 50% Off</div>
+                      <div className="text-[8px] sm:text-[9px] text-[#888780]">1401 Vine St · 4 min walk</div>
+                    </div>
+                  </div>
+
+                  <div className="text-[8px] sm:text-[9px] font-black tracking-[2px] text-[#888780] uppercase mb-2 sm:mb-3 mt-3 sm:mt-4">Live Events</div>
+                  <div className="bg-white rounded-xl sm:rounded-2xl p-3 sm:p-3.5 mb-2 sm:mb-3 flex justify-between items-center shadow-sm">
+                    <div>
+                      <div className="text-[10px] sm:text-[11px] font-bold text-[#1A1A1A] mb-0.5">Live Jazz Quartet</div>
+                      <div className="text-[8px] sm:text-[9px] text-[#888780]">Washington Park · 4 min walk</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Decorative Elements */}
+            <div className="absolute -z-10 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[350px] sm:w-[450px] h-[350px] sm:h-[450px] bg-yellow/5 rounded-full blur-[80px] sm:blur-[100px]"></div>
+          </motion.div>
         </div>
       </section>
 
       {/* HOW IT WORKS */}
-      <section id="how" className="relative z-10 px-6 md:px-12 py-24">
+      <section id="how" className="relative z-10 px-6 md:px-12 py-16 lg:py-24">
         <div className="font-mono text-[10px] tracking-[3px] text-yellow uppercase mb-4">How It Works</div>
         <h2 className="font-bebas text-[clamp(40px,5vw,64px)] tracking-[2px] text-white leading-none mb-4">5 Seconds Digital.<br />5 Hours Real.</h2>
         <p className="text-base text-white/45 max-w-[520px] leading-[1.7]">

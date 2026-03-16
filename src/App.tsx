@@ -15,7 +15,7 @@ import { handleFirestoreError, OperationType } from './utils/firebaseErrors';
 
 import { v4 as uuidv4 } from 'uuid';
 import { motion, AnimatePresence } from 'motion/react';
-import { Loader2, AlertTriangle, Share2 } from 'lucide-react';
+import { Loader2, AlertTriangle, Share2, MapPin } from 'lucide-react';
 
 // Session UUID for anonymous tracking
 const SESSION_ID = (() => {
@@ -421,7 +421,19 @@ export default function App() {
         return distance <= currentNode.radius_limit;
       });
 
-      setBroadcasts(filtered);
+      // Improvement 2: Sort sponsored broadcasts first
+      const sortedBroadcasts = [...filtered].sort((a, b) => {
+        const partnerA = partnersMap[a.partner_id || ''];
+        const partnerB = partnersMap[b.partner_id || ''];
+        const aSponsored = !!(partnerA?.logo_url || partnerA?.brand_color);
+        const bSponsored = !!(partnerB?.logo_url || partnerB?.brand_color);
+        
+        if (aSponsored && !bSponsored) return -1;
+        if (!aSponsored && bSponsored) return 1;
+        return new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime();
+      });
+
+      setBroadcasts(sortedBroadcasts);
       setLoading(false);
     }, (err) => {
       handleFirestoreError(err, OperationType.LIST, 'broadcasts');
@@ -677,7 +689,7 @@ export default function App() {
               transition={{ type: 'spring', damping: 25, stiffness: 200 }}
               className="absolute inset-x-0 bottom-0 z-[2000]"
             >
-              <div className="p-6 bg-hud-bg border-t border-hud-green/40 shadow-[0_-10px_30px_rgba(0,255,0,0.1)]">
+              <div className="p-6 bg-hud-bg border-t border-hud-green/40 shadow-[0_-10px_30px_rgba(0,255,0,0.1)] max-h-[85vh] overflow-y-auto">
                 <div className="flex justify-between items-start mb-6">
                   <div className="min-w-0 flex-1">
                     <div className="text-[10px] text-hud-green/60 mb-1">SELECTED_EVENT</div>
@@ -690,10 +702,10 @@ export default function App() {
                         `Check out this event at ${currentNode?.name}!`,
                         `${window.location.origin}/tap/${nodeId}`
                       )}
-                      className="flex items-center gap-2 bg-hud-green/10 text-hud-green px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-hud-green/20 transition-colors"
+                      className="flex items-center justify-center w-10 h-10 bg-hud-green/10 text-hud-green rounded-xl hover:bg-hud-green/20 transition-colors"
+                      title="Share Signal"
                     >
-                      <Share2 size={14} />
-                      SHARE_SIGNAL
+                      <Share2 size={18} />
                     </button>
                     <button 
                       onClick={() => setSelectedBroadcast(null)}
@@ -703,10 +715,33 @@ export default function App() {
                     </button>
                   </div>
                 </div>
+
+                <div className="mb-6">
+                  <div className="text-[10px] font-black tracking-[0.2em] text-hud-green/40 uppercase mb-2">SIGNAL_INTEL</div>
+                  <div className="bg-white/5 rounded-2xl p-4 border border-white/5">
+                    <p className="text-[13px] text-white/80 leading-relaxed font-sans">
+                      {selectedBroadcast.description || "NO_ADDITIONAL_INTEL_AVAILABLE_FOR_THIS_SIGNAL."}
+                    </p>
+                    {selectedBroadcast.address && (
+                      <div className="mt-4 pt-4 border-t border-white/5 flex items-center gap-2 text-[11px] text-white/40">
+                        <MapPin size={12} className="text-hud-yellow" />
+                        <span>{selectedBroadcast.address}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
                 
-                <VibeCheck onReport={handleVibeReport} isReporting={isReporting} />
-                
-                <VibeTrend broadcastId={selectedBroadcast.id} />
+                <div className="grid grid-cols-1 gap-6">
+                  <div>
+                    <div className="text-[10px] font-black tracking-[0.2em] text-hud-green/40 uppercase mb-3">VIBE_CHECK</div>
+                    <VibeCheck onReport={handleVibeReport} isReporting={isReporting} />
+                  </div>
+                  
+                  <div>
+                    <div className="text-[10px] font-black tracking-[0.2em] text-hud-green/40 uppercase mb-3">VIBE_TREND_ANALYSIS</div>
+                    <VibeTrend broadcastId={selectedBroadcast.id} />
+                  </div>
+                </div>
               </div>
             </motion.div>
           )}

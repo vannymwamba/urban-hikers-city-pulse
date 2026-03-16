@@ -10,6 +10,7 @@
 //   - latitude: number (required)
 //   - longitude: number (required)
 //   - radius_limit: number (required)
+//   - tap_count: number (optional)
 //
 // Collection: broadcasts
 // Fields:
@@ -22,13 +23,15 @@
 //   - current_vibe: string (required, enum: chill, buzzing, packed)
 //   - partner_id: string (optional)
 //   - node_id: string (optional)
+//   - active: boolean (optional)
 //
 // Collection: taps
 // Fields:
 //   - id: string (required)
 //   - node_id: string (required)
-//   - session_uuid: string (required)
+//   - session_id: string (required)
 //   - tapped_at: timestamp (required)
+//   - sponsor_id: string (optional)
 //
 // Collection: vibe_reports
 // Fields:
@@ -45,6 +48,8 @@
 //   - latitude: number (required)
 //   - longitude: number (required)
 //   - owner_email: string (required, email format)
+//   - logo_url: string (optional)
+//   - logo_updated_at: timestamp (optional)
 //
 // Collection: users
 // Fields:
@@ -102,9 +107,10 @@ service cloud.firestore {
              data.type in ['flash_deal', 'event', 'conference_panel'] &&
              data.latitude is number && data.latitude >= -90 && data.latitude <= 90 &&
              data.longitude is number && data.longitude >= -180 && data.longitude <= 180 &&
-             data.expires_at is string &&
+             (data.expires_at is string || data.expires_at is timestamp) &&
              data.current_vibe in ['chill', 'buzzing', 'packed'] &&
-             (data.partner_id is string || !('partner_id' in data));
+             (data.partner_id is string || !('partner_id' in data)) &&
+             (data.active is bool || !('active' in data));
     }
 
     function isValidPartner(data) {
@@ -140,11 +146,12 @@ service cloud.firestore {
     }
 
     match /taps/{tapId} {
-      allow create: if request.resource.data.keys().hasOnly(['node_id', 'session_uuid', 'access_vector', 'timestamp']) &&
+      allow create: if request.resource.data.keys().hasAll(['node_id', 'session_id', 'tapped_at']) &&
                     request.resource.data.node_id is string &&
-                    request.resource.data.session_uuid is string &&
-                    request.resource.data.session_uuid.size() < 64;
+                    request.resource.data.session_id is string &&
+                    (request.resource.data.tapped_at is timestamp || request.resource.data.tapped_at is string);
       allow read: if isAdmin() || isPartner();
+      allow delete: if false; // Only functions should delete (admin can though)
     }
 
     match /vibe_reports/{reportId} {
@@ -154,7 +161,10 @@ service cloud.firestore {
 
     match /partners/{partnerId} {
       allow read: if true;
-      allow create, update: if isAdmin() && isValidPartner(request.resource.data);
+      allow create: if isAdmin() && isValidPartner(request.resource.data);
+      allow update: if (isAdmin() && isValidPartner(request.resource.data)) || 
+                    (isAuthenticated() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.partner_id == partnerId &&
+                     request.resource.data.diff(resource.data).affectedKeys().hasOnly(['logo_url', 'brand_color', 'deal_text', 'logo_updated_at']));
       allow delete: if isAdmin();
     }
     
@@ -172,6 +182,18 @@ service cloud.firestore {
                          get(/databases/$(database)/documents/partners/$(request.resource.data.partner_id)).data.owner_email == request.auth.token.email))) || 
                     (isAdmin() && isValidUser(request.resource.data));
       allow delete: if isAdmin();
+    }
+  }
+}
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /sponsors/{partnerId}/{allPaths=**} {
+      allow read: if true;
+      allow write: if request.auth != null && (
+        firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+        firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.partner_id == partnerId
+      );
     }
   }
 }

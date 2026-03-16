@@ -1,28 +1,29 @@
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&family=Inter:wght@300;400;500;600;700&display=swap');
+@import "./tokens.css";
 @import "tailwindcss";
 
 @theme {
-  --font-mono: "DM Mono", "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
-  --font-sans: "DM Sans", ui-sans-serif, system-ui, sans-serif;
-  --font-bebas: "Bebas Neue", sans-serif;
+  --font-mono: var(--font-system);
+  --font-sans: var(--font-content);
 
-  --color-hud-bg: #1A2B4A;
-  --color-hud-yellow: #F5C800;
-  --color-hud-green: #4CD98A;
-  --color-hud-magenta: #E24B4A;
-  --color-hud-dark: #112035;
+  --color-hud-bg: var(--md-sys-color-background);
+  --color-hud-yellow: var(--color-brand);
+  --color-hud-green: var(--color-live);
+  --color-hud-magenta: var(--color-alert);
+  --color-hud-dark: var(--md-sys-color-surface);
   --color-feed-bg: #F0EEE8;
 
-  --color-navy: #1A2B4A;
-  --color-navy-deep: #0D1825;
-  --color-navy-mid: #243D5C;
-  --color-yellow: #F5C800;
-  --color-green: #4CD98A;
+  --color-navy: var(--md-sys-color-surface-container);
+  --color-navy-deep: var(--md-sys-color-surface);
+  --color-navy-mid: var(--md-sys-color-surface-variant);
+  --color-yellow: var(--color-brand);
+  --color-green: var(--color-live);
 }
 
 @layer base {
   body {
     @apply bg-hud-bg text-white font-sans selection:bg-hud-yellow selection:text-hud-bg;
+    font-family: var(--font-content);
   }
 }
 

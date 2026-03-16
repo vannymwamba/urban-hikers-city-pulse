@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../firebase';
-import { collection, addDoc, onSnapshot, query, where, doc, setDoc, getDocs, updateDoc } from 'firebase/firestore';
+import { collection, addDoc, onSnapshot, query, where, doc, setDoc, getDocs, updateDoc, deleteDoc } from 'firebase/firestore';
 import { Node, Broadcast, UserProfile, Partner, BroadcastType, HubType, VibeReport, Tap } from '../types';
-import { Plus, MapPin, Link as LinkIcon, Send, LayoutDashboard, LogOut, ChevronRight, Globe, ShieldCheck, RefreshCw, BarChart3 } from 'lucide-react';
+import { Plus, MapPin, Link as LinkIcon, Send, LayoutDashboard, LogOut, ChevronRight, Globe, ShieldCheck, RefreshCw, BarChart3, Image as ImageIcon, Trash2 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { handleFirestoreError, OperationType } from '../utils/firebaseErrors';
+import { LogoUpload } from './LogoUpload';
+import { SponsorBadge } from './SponsorBadge';
 
 interface DashboardProps {
   userProfile: UserProfile;
@@ -31,11 +33,22 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
     partnerId: '',
     locationSource: 'node' as 'node' | 'partner'
   });
-  const [newPartner, setNewPartner] = useState({ name: '', tier: 'standard' as Partner['tier'], address: '', lat: 0, lng: 0, ownerEmail: '' });
+  const [newPartner, setNewPartner] = useState({ 
+    name: '', 
+    tier: 'standard' as Partner['tier'], 
+    address: '', 
+    lat: 0, 
+    lng: 0, 
+    ownerEmail: '',
+    logoUrl: '',
+    brandColor: '#00FF00',
+    dealText: '',
+    sponsorZones: [] as string[]
+  });
   const [isGeocoding, setIsGeocoding] = useState(false);
   const [isSeeding, setIsSeeding] = useState(false);
   
-  const [activeTab, setActiveTab] = useState<'hubs' | 'broadcasts' | 'partners' | 'analytics'>(userProfile.role === 'admin' ? 'hubs' : 'broadcasts');
+  const [activeTab, setActiveTab] = useState<'hubs' | 'broadcasts' | 'partners' | 'analytics' | 'profile'>(userProfile.role === 'admin' ? 'hubs' : 'broadcasts');
   const [hudMessage, setHudMessage] = useState<{ text: string; type: 'info' | 'error' } | null>(null);
 
   const [now, setNow] = useState(new Date());
@@ -304,7 +317,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
     e.preventDefault();
     if (userProfile.role !== 'admin') return;
 
-    const id = newPartner.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+    const id = generatePartnerId(newPartner.name);
     
     if (!id) {
       setHudMessage({ text: "INVALID_PARTNER_NAME", type: 'error' });
@@ -318,7 +331,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
         tier: newPartner.tier,
         latitude: Number(newPartner.lat),
         longitude: Number(newPartner.lng),
-        owner_email: newPartner.ownerEmail.toLowerCase().trim()
+        owner_email: newPartner.ownerEmail.toLowerCase().trim(),
+        logo_url: newPartner.logoUrl,
+        brand_color: newPartner.brandColor,
+        deal_text: newPartner.dealText,
+        sponsor_zones: newPartner.sponsorZones
       });
 
       // 2. Update User Profile if a user with this email already exists
@@ -344,11 +361,50 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
       }
 
       setHudMessage({ text: `PARTNER_ONBOARDED: ${newPartner.name.toUpperCase()}`, type: 'info' });
-      setNewPartner({ name: '', tier: 'standard', address: '', lat: 0, lng: 0, ownerEmail: '' });
+      setNewPartner({ 
+        name: '', 
+        tier: 'standard', 
+        address: '', 
+        lat: 0, 
+        lng: 0, 
+        ownerEmail: '',
+        logoUrl: '',
+        brandColor: '#00FF00',
+        dealText: '',
+        sponsorZones: []
+      });
     } catch (err) {
       console.error("Partner creation error:", err);
       setHudMessage({ text: "PARTNER_CREATION_FAILED", type: 'error' });
     }
+  };
+
+  const handleDeletePartner = async (partnerId: string, partnerName: string) => {
+    if (userProfile.role !== 'admin') return;
+    if (!window.confirm(`CRITICAL: Are you sure you want to terminate the partnership with ${partnerName.toUpperCase()}? This will remove their access and branding from the network.`)) return;
+
+    try {
+      await deleteDoc(doc(db, 'partners', partnerId));
+      
+      // Also find and update the user who was the owner
+      const userQuery = query(collection(db, 'users'), where('partner_id', '==', partnerId));
+      const userSnap = await getDocs(userQuery);
+      
+      for (const userDoc of userSnap.docs) {
+        await updateDoc(doc(db, 'users', userDoc.id), {
+          role: 'user',
+          partner_id: null
+        });
+      }
+
+      setHudMessage({ text: `PARTNER_TERMINATED: ${partnerName.toUpperCase()}`, type: 'info' });
+    } catch (err) {
+      handleFirestoreError(err, OperationType.DELETE, `partners/${partnerId}`);
+    }
+  };
+
+  const generatePartnerId = (name: string) => {
+    return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
   };
 
   return (
@@ -406,6 +462,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
               className={`flex items-center gap-3 p-3 text-sm font-bold transition-all ${activeTab === 'analytics' ? 'bg-hud-green text-black' : 'hover:bg-white/5 text-hud-green/60'}`}
             >
               <BarChart3 size={18} /> {userProfile.role === 'admin' ? 'SYSTEM_ANALYTICS' : 'SIGNAL_ANALYTICS'}
+            </button>
+          )}
+          {userProfile.role === 'partner' && (
+            <button 
+              onClick={() => setActiveTab('profile')}
+              className={`flex items-center gap-3 p-3 text-sm font-bold transition-all ${activeTab === 'profile' ? 'bg-hud-green text-black' : 'hover:bg-white/5 text-hud-green/60'}`}
+            >
+              <ShieldCheck size={18} /> MY_PROFILE
             </button>
           )}
         </nav>
@@ -712,6 +776,69 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
                   <p className="text-[8px] opacity-40 mt-1">USER_WILL_GAIN_PARTNER_ACCESS_UPON_LOGIN</p>
                 </div>
 
+                {/* Sponsor Branding Section */}
+                <div className="col-span-2 border-t border-white/10 pt-4 mt-2">
+                  <div className="text-[10px] text-hud-yellow font-bold mb-4 tracking-widest uppercase">Sponsor_Branding_Config</div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="flex flex-col gap-1">
+                      <label className="text-[9px] opacity-40 font-bold uppercase">Logo_Upload</label>
+                      <LogoUpload 
+                        partnerId={generatePartnerId(newPartner.name) || 'temp'} 
+                        currentLogoUrl={newPartner.logoUrl}
+                        onUploadComplete={(url) => setNewPartner({...newPartner, logoUrl: url})}
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <label className="text-[9px] opacity-40 font-bold uppercase">Brand_Color</label>
+                      <div className="flex gap-2">
+                        <input 
+                          type="color"
+                          className="w-12 h-11 bg-black border border-white/20 p-1 cursor-pointer"
+                          value={newPartner.brandColor}
+                          onChange={e => setNewPartner({...newPartner, brandColor: e.target.value})}
+                        />
+                        <input 
+                          className="flex-1 bg-black border border-white/20 p-3 text-sm focus:border-hud-yellow outline-none font-mono"
+                          value={newPartner.brandColor}
+                          onChange={e => setNewPartner({...newPartner, brandColor: e.target.value})}
+                        />
+                      </div>
+                    </div>
+                    <div className="col-span-2 flex flex-col gap-1">
+                      <label className="text-[9px] opacity-40 font-bold uppercase">Deal_Text (Zone_D)</label>
+                      <input 
+                        placeholder="e.g. 20% off with NFC tap"
+                        className="bg-black border border-white/20 p-3 text-sm focus:border-hud-yellow outline-none"
+                        value={newPartner.dealText}
+                        onChange={e => setNewPartner({...newPartner, dealText: e.target.value})}
+                      />
+                    </div>
+                    <div className="col-span-2 flex flex-col gap-1">
+                      <label className="text-[9px] opacity-40 font-bold uppercase">Active_Sponsor_Zones</label>
+                      <div className="flex gap-4">
+                        {['A', 'B', 'C', 'D'].map(zone => (
+                          <label key={zone} className="flex items-center gap-2 cursor-pointer group">
+                            <input 
+                              type="checkbox"
+                              className="hidden"
+                              checked={newPartner.sponsorZones.includes(zone)}
+                              onChange={e => {
+                                const zones = e.target.checked 
+                                  ? [...newPartner.sponsorZones, zone]
+                                  : newPartner.sponsorZones.filter(z => z !== zone);
+                                setNewPartner({...newPartner, sponsorZones: zones});
+                              }}
+                            />
+                            <div className={`w-8 h-8 border flex items-center justify-center font-bold text-xs transition-all ${newPartner.sponsorZones.includes(zone) ? 'bg-hud-yellow text-black border-hud-yellow' : 'border-white/20 text-white/40 group-hover:border-hud-yellow/50'}`}>
+                              {zone}
+                            </div>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
                 <button type="submit" className="bg-hud-yellow text-black font-black p-3 hover:bg-hud-yellow/80 transition-all flex items-center justify-center gap-2 col-span-2 mt-2">
                   <ShieldCheck size={18} /> AUTHORIZE_PARTNER
                 </button>
@@ -722,15 +849,36 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
                 {partners.map(partner => (
                   <div key={partner.id} className="bg-white/5 border border-white/10 p-4 flex justify-between items-center group hover:border-hud-yellow/40 transition-all">
                     <div>
-                      <div className="text-xs font-bold text-hud-yellow mb-1">{partner.name}</div>
+                      <div className="flex items-center gap-3 mb-1">
+                        {partner.logo_url && (
+                          <img src={partner.logo_url} alt="" className="w-8 h-8 border border-white/10 object-contain bg-black" referrerPolicy="no-referrer" />
+                        )}
+                        <div className="text-xs font-bold text-hud-yellow">{partner.name}</div>
+                        {partner.brand_color && (
+                          <div className="w-3 h-3 rounded-full" style={{ backgroundColor: partner.brand_color }} />
+                        )}
+                      </div>
                       <div className="text-[10px] opacity-40 font-mono">
                         TIER: {partner.tier.toUpperCase()} // 
-                        OWNER: {partner.owner_email || 'UNASSIGNED'}
+                        OWNER: {partner.owner_email || 'UNASSIGNED'} //
+                        ZONES: {partner.sponsor_zones?.join(', ') || 'NONE'}
                       </div>
+                      {partner.deal_text && (
+                        <div className="text-[9px] text-hud-yellow/60 mt-1 italic">DEAL: {partner.deal_text}</div>
+                      )}
                     </div>
-                    <div className="text-right">
-                      <div className="text-[10px] opacity-40">LOCATION</div>
-                      <div className="text-[10px] font-mono">{partner.latitude.toFixed(4)}, {partner.longitude.toFixed(4)}</div>
+                    <div className="flex items-center gap-4">
+                      <div className="text-right">
+                        <div className="text-[10px] opacity-40">LOCATION</div>
+                        <div className="text-[10px] font-mono">{partner.latitude.toFixed(4)}, {partner.longitude.toFixed(4)}</div>
+                      </div>
+                      <button 
+                        onClick={() => handleDeletePartner(partner.id, partner.name)}
+                        className="p-2 border border-white/10 hover:border-hud-magenta hover:text-hud-magenta transition-all"
+                        title="Terminate Partnership"
+                      >
+                        <Trash2 size={16} />
+                      </button>
                     </div>
                   </div>
                 ))}
@@ -868,7 +1016,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
                             'bg-hud-green shadow-[0_0_8px_rgba(76,217,138,0.5)]'
                           }`} />
                           <div>
-                            <div className="text-xs font-bold text-hud-magenta mb-1">{b.title}</div>
+                            <div className="flex items-center gap-2 mb-1">
+                              <div className="text-xs font-bold text-hud-magenta">{b.title}</div>
+                              {partner && <SponsorBadge partner={partner} zone="A" />}
+                            </div>
                             {b.address && (
                               <div className="text-[10px] text-white/60 mb-1 flex items-center gap-1">
                                 <MapPin size={10} />
@@ -881,6 +1032,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
                               PARTNER: {partner?.name || (b.partner_id === 'admin' ? 'SYSTEM_ADMIN' : b.partner_id || 'UNKNOWN')} //
                               VIBE: {b.current_vibe.toUpperCase()}
                             </div>
+                            {partner && <SponsorBadge partner={partner} zone="D" />}
                           </div>
                         </div>
                         <div className="flex items-center gap-4">
@@ -905,6 +1057,101 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
               </div>
             </div>
           )}
+          {activeTab === 'profile' && userProfile.role === 'partner' && (
+            <div className="max-w-4xl mx-auto">
+              <div className="flex justify-between items-end mb-8 border-b border-hud-yellow/20 pb-4">
+                <h2 className="text-2xl font-black tracking-tighter text-hud-yellow">PARTNER_PROFILE_CONFIG</h2>
+                <div className="text-[10px] text-hud-yellow/40 font-bold">PARTNER_ID: {userProfile.partner_id}</div>
+              </div>
+
+              {partners.find(p => p.id === userProfile.partner_id) ? (
+                <div className="bg-white/5 border border-white/10 p-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <div>
+                      <label className="text-[10px] text-hud-yellow font-bold mb-4 block tracking-widest uppercase">Brand_Identity</label>
+                      <div className="space-y-6">
+                        <div className="flex flex-col gap-2">
+                          <label className="text-[9px] opacity-40 font-bold uppercase">Partner_Logo</label>
+                          <LogoUpload 
+                            partnerId={userProfile.partner_id!} 
+                            currentLogoUrl={partners.find(p => p.id === userProfile.partner_id)?.logo_url}
+                            onUploadComplete={async (url) => {
+                              try {
+                                await updateDoc(doc(db, 'partners', userProfile.partner_id!), { logo_url: url });
+                                setHudMessage({ text: 'LOGO_UPDATED_SUCCESSFULLY', type: 'info' });
+                              } catch (err) {
+                                handleFirestoreError(err, OperationType.UPDATE, `partners/${userProfile.partner_id}`);
+                              }
+                            }}
+                          />
+                        </div>
+                        
+                        <div className="flex flex-col gap-2">
+                          <label className="text-[9px] opacity-40 font-bold uppercase">Brand_Color</label>
+                          <div className="flex gap-3 items-center">
+                            <input 
+                              type="color"
+                              className="w-12 h-12 bg-transparent border-none cursor-pointer"
+                              value={partners.find(p => p.id === userProfile.partner_id)?.brand_color || '#C4832A'}
+                              onChange={async (e) => {
+                                try {
+                                  await updateDoc(doc(db, 'partners', userProfile.partner_id!), { brand_color: e.target.value });
+                                } catch (err) {
+                                  handleFirestoreError(err, OperationType.UPDATE, `partners/${userProfile.partner_id}`);
+                                }
+                              }}
+                            />
+                            <span className="text-xs font-mono opacity-60 uppercase">{partners.find(p => p.id === userProfile.partner_id)?.brand_color || '#C4832A'}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="text-[10px] text-hud-yellow font-bold mb-4 block tracking-widest uppercase">Promotional_Content</label>
+                      <div className="space-y-6">
+                        <div className="flex flex-col gap-2">
+                          <label className="text-[9px] opacity-40 font-bold uppercase">Deal_Text (Call-to-Action)</label>
+                          <textarea 
+                            className="bg-black border border-white/20 p-3 text-sm focus:border-hud-yellow outline-none min-h-[100px]"
+                            placeholder="e.g. Show this card for 10% off your first cold brew!"
+                            value={partners.find(p => p.id === userProfile.partner_id)?.deal_text || ''}
+                            onChange={async (e) => {
+                              try {
+                                await updateDoc(doc(db, 'partners', userProfile.partner_id!), { deal_text: e.target.value });
+                              } catch (err) {
+                                handleFirestoreError(err, OperationType.UPDATE, `partners/${userProfile.partner_id}`);
+                              }
+                            }}
+                          />
+                        </div>
+
+                        <div className="bg-hud-yellow/5 border border-hud-yellow/20 p-4 rounded-xl">
+                          <div className="text-[9px] text-hud-yellow font-bold mb-2 uppercase tracking-widest">Live_Preview</div>
+                          <div className="border border-white/10 rounded-lg overflow-hidden bg-white">
+                            <SponsorBadge partner={partners.find(p => p.id === userProfile.partner_id) || null} zone="A" compact />
+                            <div className="p-3">
+                              <div className="h-2 w-24 bg-black/10 rounded mb-2" />
+                              <div className="h-1.5 w-32 bg-black/5 rounded" />
+                              <SponsorBadge partner={partners.find(p => p.id === userProfile.partner_id) || null} zone="D" />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="py-20 text-center border border-dashed border-white/10 bg-white/[0.02]">
+                  <div className="text-hud-magenta font-black tracking-[0.2em] mb-2">PARTNER_ENTITY_NOT_FOUND</div>
+                  <div className="text-[10px] opacity-40 uppercase max-w-xs mx-auto leading-relaxed">
+                    Your account is not correctly linked to a partner entity. Please contact a system administrator.
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           {activeTab === 'analytics' && (
             <div className="max-w-4xl mx-auto">
               <div className="flex justify-between items-end mb-8 border-b border-hud-magenta/20 pb-4">

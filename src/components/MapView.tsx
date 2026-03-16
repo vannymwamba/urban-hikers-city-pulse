@@ -2,14 +2,16 @@ import React from 'react';
 import { MapContainer, TileLayer, Marker, Popup, Circle, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { Broadcast, Node } from '../types';
+import { Broadcast, Node, Partner } from '../types';
 import { MapPin, Zap, Music, Palette, Calendar, Mic, Ticket } from 'lucide-react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { SponsorBadge } from './SponsorBadge';
 
 interface MapViewProps {
   currentNode: Node | null;
   broadcasts: Broadcast[];
   onSelect: (broadcast: Broadcast) => void;
+  partnersMap?: Record<string, Partner>;
 }
 
 // Fix for default marker icons in Leaflet
@@ -80,7 +82,7 @@ const RecenterMap = ({ coords }: { coords: [number, number] }) => {
   return null;
 };
 
-export const MapView: React.FC<MapViewProps> = ({ currentNode, broadcasts, onSelect }) => {
+export const MapView: React.FC<MapViewProps> = ({ currentNode, broadcasts, onSelect, partnersMap = {} }) => {
   if (!currentNode) return (
     <div className="h-full flex items-center justify-center bg-hud-bg/50 text-white/50 uppercase tracking-widest text-xs">
       Awaiting Location Data...
@@ -132,34 +134,44 @@ export const MapView: React.FC<MapViewProps> = ({ currentNode, broadcasts, onSel
         </Marker>
 
         {/* Broadcast Markers */}
-        {broadcasts.map((b) => (
-          <Marker 
-            key={b.id} 
-            position={[b.latitude, b.longitude]} 
-            icon={createCustomIcon(getBroadcastType(b), getBroadcastColor(b))}
-          >
-            <Popup className="hud-popup">
-              <div className="p-2 text-hud-bg min-w-[150px]">
-                <div className="flex justify-between items-start mb-2">
-                  <div className="font-black text-[9px] uppercase tracking-widest opacity-60">
-                    {b.type.replace('_', ' ')}
+        {broadcasts.map((b) => {
+          const partner = b.partner_id ? partnersMap[b.partner_id] : null;
+          
+          return (
+            <Marker 
+              key={b.id} 
+              position={[b.latitude, b.longitude]} 
+              icon={createCustomIcon(getBroadcastType(b), getBroadcastColor(b))}
+            >
+              <Popup className="hud-popup">
+                <div className="p-2 text-hud-bg min-w-[150px]">
+                  <div className="flex justify-between items-start mb-2">
+                    <div className="flex flex-col gap-1">
+                      <div className="font-black text-[9px] uppercase tracking-widest opacity-60">
+                        {b.type.replace('_', ' ')}
+                      </div>
+                      {partner && <SponsorBadge partner={partner} zone="A" />}
+                    </div>
+                    <div className="text-[9px] font-bold bg-hud-bg/10 px-1.5 py-0.5 rounded">
+                      {b.current_vibe.toUpperCase()}
+                    </div>
                   </div>
-                  <div className="text-[9px] font-bold bg-hud-bg/10 px-1.5 py-0.5 rounded">
-                    {b.current_vibe.toUpperCase()}
+                  <div className="font-bold text-sm mb-1">{b.title}</div>
+                  <div className="text-[10px] mb-1 opacity-80">{b.address?.split(',')[0]}</div>
+                  {partner && <SponsorBadge partner={partner} zone="D" />}
+                  <div className="mt-3">
+                    <button 
+                      onClick={() => onSelect(b)}
+                      className="w-full py-1.5 bg-hud-bg text-white text-[9px] font-black uppercase tracking-widest rounded hover:bg-hud-bg/80 transition-colors"
+                    >
+                      VIEW_DETAILS
+                    </button>
                   </div>
                 </div>
-                <div className="font-bold text-sm mb-1">{b.title}</div>
-                <div className="text-[10px] mb-3 opacity-80">{b.address?.split(',')[0]}</div>
-                <button 
-                  onClick={() => onSelect(b)}
-                  className="w-full py-1.5 bg-hud-bg text-white text-[9px] font-black uppercase tracking-widest rounded hover:bg-hud-bg/80 transition-colors"
-                >
-                  VIEW_DETAILS
-                </button>
-              </div>
-            </Popup>
-          </Marker>
-        ))}
+              </Popup>
+            </Marker>
+          );
+        })}
 
         {/* Visual Range Circle */}
         <Circle 

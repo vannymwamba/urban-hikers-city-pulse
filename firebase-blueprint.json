@@ -10,7 +10,8 @@
         "type": { "type": "string", "enum": ["street", "conference_center"], "description": "Category of the hub" },
         "latitude": { "type": "number", "description": "WGS84 Latitude" },
         "longitude": { "type": "number", "description": "WGS84 Longitude" },
-        "radius_limit": { "type": "number", "description": "Radius in meters for broadcasts" }
+        "radius_limit": { "type": "number", "description": "Radius in meters for broadcasts" },
+        "tap_count": { "type": "integer", "description": "Total number of NFC taps recorded" }
       },
       "required": ["id", "name", "type", "latitude", "longitude", "radius_limit"]
     },
@@ -26,10 +27,11 @@
         "longitude": { "type": "number" },
         "owner_uid": { "type": "string", "description": "Firebase Auth UID of the partner owner" },
         "owner_email": { "type": "string", "description": "Email address of the partner owner" },
-        "logo_url": { "type": "string" },
+        "logo_url": { "type": "string", "description": "Download URL from Firebase Storage (sponsors/{id}/logo.*)" },
         "brand_color": { "type": "string" },
         "deal_text": { "type": "string" },
-        "sponsor_zones": { "type": "array", "items": { "type": "string" } }
+        "sponsor_zones": { "type": "array", "items": { "type": "string" } },
+        "logo_updated_at": { "type": "string", "format": "date-time" }
       },
       "required": ["id", "name", "tier", "latitude", "longitude"]
     },
@@ -59,7 +61,8 @@
         "latitude": { "type": "number" },
         "longitude": { "type": "number" },
         "expires_at": { "type": "string", "format": "date-time" },
-        "current_vibe": { "type": "string", "enum": ["chill", "buzzing", "packed"] }
+        "current_vibe": { "type": "string", "enum": ["chill", "buzzing", "packed"] },
+        "active": { "type": "boolean", "description": "Whether the broadcast is currently live" }
       },
       "required": ["id", "title", "type", "latitude", "longitude", "expires_at", "current_vibe"]
     },
@@ -70,10 +73,11 @@
       "properties": {
         "id": { "type": "string" },
         "node_id": { "type": "string" },
-        "session_uuid": { "type": "string" },
-        "tapped_at": { "type": "string", "format": "date-time" }
+        "session_id": { "type": "string" },
+        "tapped_at": { "type": "string", "format": "date-time" },
+        "sponsor_id": { "type": "string" }
       },
-      "required": ["id", "node_id", "session_uuid", "tapped_at"]
+      "required": ["id", "node_id", "session_id", "tapped_at"]
     },
     "VibeReport": {
       "title": "Crowdsourced Vibe Check",
