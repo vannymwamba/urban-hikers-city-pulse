@@ -22,8 +22,8 @@ export const getIconBg = (item: Broadcast) => {
 
 export const getEventStatus = (item: Broadcast) => {
   const now = new Date();
-  const start = new Date(item.starts_at);
-  const end = new Date(item.expires_at);
+  const start = new Date(item.startsAt);
+  const end = new Date(item.expiresAt);
 
   if (now < start) {
     return { 
@@ -42,10 +42,10 @@ export const getEventStatus = (item: Broadcast) => {
 
 export const getBadgeLabel = (item: Broadcast) => {
   const now = new Date();
-  const start = new Date(item.starts_at);
-  const end = new Date(item.expires_at);
+  const start = new Date(item.startsAt);
+  const end = new Date(item.expiresAt);
   const isLive = now >= start && now < end;
-  const vibe = item.current_vibe;
+  const vibe = item.currentVibe;
 
   if (!isLive) {
     const diffToStart = start.getTime() - now.getTime();
@@ -61,10 +61,10 @@ export const getBadgeLabel = (item: Broadcast) => {
 
 export const getBadgeStyle = (item: Broadcast) => {
   const now = new Date();
-  const start = new Date(item.starts_at);
-  const end = new Date(item.expires_at);
+  const start = new Date(item.startsAt);
+  const end = new Date(item.expiresAt);
   const isLive = now >= start && now < end;
-  const vibe = item.current_vibe;
+  const vibe = item.currentVibe;
 
   if (!isLive) {
     const diffToStart = start.getTime() - now.getTime();

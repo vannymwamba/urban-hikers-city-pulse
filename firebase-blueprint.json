@@ -42,7 +42,7 @@
       "properties": {
         "uid": { "type": "string" },
         "email": { "type": "string" },
-        "role": { "type": "string", "enum": ["admin", "partner", "user"] },
+        "role": { "type": "string", "enum": ["admin", "partner", "user", "partner_admin", "partner_viewer", "partner_content_editor"] },
         "name": { "type": "string" },
         "partner_id": { "type": "string" }
       },
@@ -73,11 +73,25 @@
       "properties": {
         "id": { "type": "string" },
         "node_id": { "type": "string" },
-        "session_id": { "type": "string" },
-        "tapped_at": { "type": "string", "format": "date-time" },
+        "session_uuid": { "type": "string" },
+        "access_vector": { "type": "string", "enum": ["nfc", "direct", "qr"] },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "tab": { "type": "string", "enum": ["feed", "wallet", "map"] },
         "sponsor_id": { "type": "string" }
       },
-      "required": ["id", "node_id", "session_id", "tapped_at"]
+      "required": ["id", "node_id", "session_uuid", "timestamp"]
+    },
+    "TabView": {
+      "title": "Tab Navigation Event",
+      "description": "Analytics for tab switches.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "session_id": { "type": "string" },
+        "tab": { "type": "string", "enum": ["feed", "wallet", "map"] },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "session_id", "tab", "timestamp"]
     },
     "VibeReport": {
       "title": "Crowdsourced Vibe Check",
@@ -117,6 +131,10 @@
     "/vibe_reports/{reportId}": {
       "schema": "VibeReport",
       "description": "User vibe reports."
+    },
+    "/tab_views/{viewId}": {
+      "schema": "TabView",
+      "description": "Tab navigation logs."
     }
   }
 }

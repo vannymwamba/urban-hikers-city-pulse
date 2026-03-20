@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion } from 'motion/react';
 import { MapPin, Share2, ArrowRight } from 'lucide-react';
-import { Broadcast, Partner, Node } from '../types';
+import { Broadcast, Partner, Node, Sponsor } from '../types';
 import { getDistance } from '../utils/geo';
 import { MiniVibeTrend } from './MiniVibeTrend';
 import { BroadcastCountdown } from './BroadcastCountdown';
@@ -23,6 +23,7 @@ interface BroadcastCardProps {
   onShareEvent: (broadcast: Broadcast) => void;
   handleDirections: (broadcast: Broadcast) => void;
   partner: Partner | null;
+  sponsor?: Sponsor | null;
 }
 
 export const BroadcastCard: React.FC<BroadcastCardProps> = ({
@@ -32,7 +33,8 @@ export const BroadcastCard: React.FC<BroadcastCardProps> = ({
   onSelect,
   onShareEvent,
   handleDirections,
-  partner
+  partner,
+  sponsor
 }) => {
   const distance = currentNode ? getDistance(
     currentNode.latitude,
@@ -43,6 +45,7 @@ export const BroadcastCard: React.FC<BroadcastCardProps> = ({
   const walkTime = Math.ceil(distance / 80);
   const status = getEventStatus(item);
   const hasSponsorship = partner && (partner.logo_url || partner.brand_color);
+  const brandColor = partner?.brand_color ?? '#FFE01A';
 
   return (
     <motion.div
@@ -53,7 +56,7 @@ export const BroadcastCard: React.FC<BroadcastCardProps> = ({
       style={{
         borderRadius: '10px',
         border: hasSponsorship 
-          ? `2px solid var(--color-sponsored-border)` 
+          ? `2px solid ${brandColor}99` // ~60% opacity hex
           : '1px solid var(--md-sys-color-outline)'
       }}
     >

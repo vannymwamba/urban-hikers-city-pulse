@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { auth, db } from '../firebase';
 import { signInWithPopup, GoogleAuthProvider, signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
 import { UserRole, UserProfile } from '../types';
 import { motion } from 'motion/react';
 import { Shield, User as UserIcon, Lock, Mail, ChevronRight, Globe, ArrowLeft } from 'lucide-react';
@@ -31,13 +31,14 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
         user = res.user;
         
         // Create initial profile
+        const role = email === 'vannymwamba@gmail.com' ? 'super_admin' : (isPartnerMode ? 'partner_admin' : 'hiker');
         const profile: UserProfile = {
           uid: user.uid,
           email: user.email!,
-          role: isPartnerMode ? 'partner' : 'user'
+          role: role
         };
         try {
-          await setDoc(doc(db, 'users', user.uid), profile);
+          await setDoc(doc(db, 'users', user.uid), profile, { merge: true });
         } catch (err) {
           handleFirestoreError(err, OperationType.WRITE, `users/${user.uid}`);
         }
@@ -56,16 +57,23 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
         }
         
         if (profileDoc.exists()) {
-          onLoginSuccess(profileDoc.data() as UserProfile);
+          const data = profileDoc.data() as UserProfile;
+          // Role Repair: Ensure bootstrap admin always has super_admin role
+          if (data.email === 'vannymwamba@gmail.com' && data.role !== 'super_admin') {
+            await updateDoc(doc(db, 'users', user.uid), { role: 'super_admin' });
+            data.role = 'super_admin';
+          }
+          onLoginSuccess(data);
         } else {
           // Fallback/Create if missing
+          const role = user.email === 'vannymwamba@gmail.com' ? 'super_admin' : 'hiker';
           const profile: UserProfile = {
             uid: user.uid,
             email: user.email!,
-            role: 'user'
+            role: role
           };
           try {
-            await setDoc(doc(db, 'users', user.uid), profile);
+            await setDoc(doc(db, 'users', user.uid), profile, { merge: true });
           } catch (err) {
             handleFirestoreError(err, OperationType.WRITE, `users/${user.uid}`);
           }
@@ -96,15 +104,22 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
       }
       
       if (profileDoc.exists()) {
-        onLoginSuccess(profileDoc.data() as UserProfile);
+        const data = profileDoc.data() as UserProfile;
+        // Role Repair: Ensure bootstrap admin always has super_admin role
+        if (data.email === 'vannymwamba@gmail.com' && data.role !== 'super_admin') {
+          await updateDoc(doc(db, 'users', user.uid), { role: 'super_admin' });
+          data.role = 'super_admin';
+        }
+        onLoginSuccess(data);
       } else {
+        const role = user.email === 'vannymwamba@gmail.com' ? 'super_admin' : 'hiker';
         const profile: UserProfile = {
           uid: user.uid,
           email: user.email!,
-          role: 'user'
+          role: role
         };
         try {
-          await setDoc(doc(db, 'users', user.uid), profile);
+          await setDoc(doc(db, 'users', user.uid), profile, { merge: true });
         } catch (err) {
           handleFirestoreError(err, OperationType.WRITE, `users/${user.uid}`);
         }
@@ -118,9 +133,9 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
   };
 
   return (
-    <div className="min-h-screen bg-[#050505] flex items-center justify-center p-6 relative overflow-hidden font-sans">
+    <div className="min-h-screen bg-yellow flex items-center justify-center p-6 relative overflow-hidden font-sans">
       {/* Background Grid */}
-      <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:40px_40px]" />
+      <div className="absolute inset-0 bg-[linear-gradient(to_right,#1a160012_1px,transparent_1px),linear-gradient(to_bottom,#1a160012_1px,transparent_1px)] bg-[size:40px_40px]" />
       
       {/* Back Button */}
       <button 
@@ -128,7 +143,7 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
           window.history.pushState({}, '', '/');
           window.dispatchEvent(new PopStateEvent('popstate'));
         }}
-        className="absolute top-8 left-8 z-20 flex items-center gap-2 text-hud-green/40 hover:text-hud-green transition-colors text-[10px] font-bold tracking-widest uppercase"
+        className="absolute top-8 left-8 z-20 flex items-center gap-2 text-navy-deep/40 hover:text-navy-deep transition-colors text-[10px] font-bold tracking-widest uppercase"
       >
         <ArrowLeft size={16} />
         Back to Home
@@ -138,57 +153,57 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
         {/* Left Side: Branding */}
         <div className="hidden md:block">
           <div className="flex items-center gap-4 mb-12">
-            <div className="bg-hud-yellow text-black p-3 font-black text-2xl">U</div>
+            <div className="bg-navy-deep text-yellow p-3 font-black text-2xl rounded-lg">U</div>
             <div>
-              <div className="text-lg font-black tracking-tighter">URBAN HIKERS</div>
-              <div className="text-[10px] text-hud-green font-bold tracking-[0.3em]">FLUX PROTOCOL // CIN-OH</div>
+              <div className="text-lg font-black tracking-tighter text-navy-deep">URBAN HIKERS</div>
+              <div className="text-[10px] text-navy-deep/60 font-bold tracking-[0.3em]">FLUX PROTOCOL // CIN-OH</div>
             </div>
           </div>
 
-          <h1 className="text-6xl font-black tracking-tighter leading-[0.9] mb-8">
+          <h1 className="text-6xl font-black tracking-tighter leading-[0.9] mb-8 text-navy-deep">
             EMPOWERING URBAN <br />
-            <span className="text-hud-yellow">MOBILITY.</span>
+            <span className="bg-navy-deep text-yellow px-2">MOBILITY.</span>
           </h1>
 
-          <p className="text-hud-green/60 text-sm max-w-sm leading-relaxed mb-12">
+          <p className="text-navy-deep/60 text-sm max-w-sm leading-relaxed mb-12">
             NFC-enabled discovery network connecting corporate capital to Cincinnati neighborhood vitality. 
             Built for city-scale accountability and neighborhood warmth.
           </p>
 
           <div className="flex gap-12">
             <div>
-              <div className="text-4xl font-black text-hud-yellow">8</div>
-              <div className="text-[10px] text-hud-green font-bold tracking-widest uppercase opacity-60">Active Nodes</div>
+              <div className="text-4xl font-black text-navy-deep">8</div>
+              <div className="text-[10px] text-navy-deep/40 font-bold tracking-widest uppercase opacity-60">Active Nodes</div>
             </div>
             <div>
-              <div className="text-4xl font-black text-hud-yellow">5</div>
-              <div className="text-[10px] text-hud-green font-bold tracking-widest uppercase opacity-60">Partners</div>
+              <div className="text-4xl font-black text-navy-deep">5</div>
+              <div className="text-[10px] text-navy-deep/40 font-bold tracking-widest uppercase opacity-60">Partners</div>
             </div>
             <div>
-              <div className="text-4xl font-black text-hud-yellow">847</div>
-              <div className="text-[10px] text-hud-green font-bold tracking-widest uppercase opacity-60">Taps Today</div>
+              <div className="text-4xl font-black text-navy-deep">847</div>
+              <div className="text-[10px] text-navy-deep/40 font-bold tracking-widest uppercase opacity-60">Taps Today</div>
             </div>
           </div>
         </div>
 
         {/* Right Side: Login Form */}
-        <div className="bg-[#0a0a0a] border border-white/10 p-10 shadow-2xl relative">
-          <div className="absolute top-0 left-0 w-1 h-full bg-hud-yellow" />
+        <div className="bg-white border border-navy-deep/10 p-10 shadow-2xl relative rounded-3xl">
+          <div className="absolute top-0 left-0 w-1 h-full bg-navy-deep rounded-l-3xl" />
           
           <div className="mb-8">
-            <div className="text-[10px] text-hud-green font-bold tracking-[0.3em] mb-2">SECURE ACCESS</div>
-            <h2 className="text-4xl font-black tracking-tighter">{isRegistering ? 'Sign Up' : 'Login'}</h2>
+            <div className="text-[10px] text-navy-deep/40 font-bold tracking-[0.3em] mb-2">SECURE ACCESS</div>
+            <h2 className="text-4xl font-black tracking-tighter text-navy-deep">{isRegistering ? 'Sign Up' : 'Login'}</h2>
           </div>
 
           <form onSubmit={handleAuth} className="space-y-6">
             <div>
-              <label className="block text-[10px] text-hud-green/40 font-bold tracking-widest uppercase mb-2">Email Architecture</label>
+              <label className="block text-[10px] text-navy-deep/40 font-bold tracking-widest uppercase mb-2">Email Architecture</label>
               <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-hud-green/40" size={16} />
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-navy-deep/40" size={16} />
                 <input 
                   type="email"
                   placeholder="you@example.com"
-                  className="w-full bg-black border border-white/10 p-4 pl-10 text-sm focus:border-hud-yellow outline-none transition-all"
+                  className="w-full bg-navy-deep/5 border border-navy-deep/10 p-4 pl-10 text-sm focus:border-navy-deep outline-none transition-all rounded-xl text-navy-deep"
                   value={email}
                   onChange={e => setEmail(e.target.value)}
                   required
@@ -197,13 +212,13 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
             </div>
 
             <div>
-              <label className="block text-[10px] text-hud-green/40 font-bold tracking-widest uppercase mb-2">Cryptographic Pass</label>
+              <label className="block text-[10px] text-navy-deep/40 font-bold tracking-widest uppercase mb-2">Cryptographic Pass</label>
               <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-hud-green/40" size={16} />
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-navy-deep/40" size={16} />
                 <input 
                   type="password"
                   placeholder="********"
-                  className="w-full bg-black border border-white/10 p-4 pl-10 text-sm focus:border-hud-yellow outline-none transition-all"
+                  className="w-full bg-navy-deep/5 border border-navy-deep/10 p-4 pl-10 text-sm focus:border-navy-deep outline-none transition-all rounded-xl text-navy-deep"
                   value={password}
                   onChange={e => setPassword(e.target.value)}
                   required
@@ -215,17 +230,17 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
               <input 
                 type="checkbox" 
                 id="partnerMode"
-                className="accent-hud-yellow"
+                className="accent-navy-deep"
                 checked={isPartnerMode}
                 onChange={e => setIsPartnerMode(e.target.checked)}
               />
-              <label htmlFor="partnerMode" className="text-[10px] text-hud-green/60 font-bold tracking-widest uppercase cursor-pointer">
+              <label htmlFor="partnerMode" className="text-[10px] text-navy-deep/60 font-bold tracking-widest uppercase cursor-pointer">
                 Partner Access Mode
               </label>
             </div>
 
             {error && (
-              <div className="p-3 bg-hud-magenta/10 border border-hud-magenta text-hud-magenta text-[10px] font-bold tracking-widest">
+              <div className="p-3 bg-hud-magenta/10 border border-hud-magenta text-hud-magenta text-[10px] font-bold tracking-widest rounded-lg">
                 ERROR: {error.toUpperCase()}
               </div>
             )}
@@ -233,29 +248,29 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
             <button 
               type="submit" 
               disabled={loading}
-              className="w-full bg-hud-yellow text-black font-black p-4 hover:bg-hud-yellow/80 transition-all text-xs tracking-[0.2em] uppercase flex items-center justify-center gap-2"
+              className="w-full bg-navy-deep text-yellow font-black p-4 hover:bg-navy-deep/90 transition-all text-xs tracking-[0.2em] uppercase flex items-center justify-center gap-2 rounded-xl shadow-lg"
             >
               {loading ? 'PROCESSING...' : isRegistering ? 'Create Account' : 'Email Secure Login'}
             </button>
 
             <div className="relative py-4">
-              <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-white/10"></div></div>
-              <div className="relative flex justify-center text-[10px] uppercase font-bold text-hud-green/40"><span className="bg-[#0a0a0a] px-4">Network Auth</span></div>
+              <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-navy-deep/10"></div></div>
+              <div className="relative flex justify-center text-[10px] uppercase font-bold text-navy-deep/40"><span className="bg-white px-4">Network Auth</span></div>
             </div>
 
             <button 
               type="button"
               onClick={handleGoogleLogin}
               disabled={loading}
-              className="w-full border border-white/10 p-4 hover:bg-white/5 transition-all text-[10px] font-bold tracking-[0.2em] uppercase flex items-center justify-center gap-3"
+              className="w-full border border-navy-deep/10 p-4 hover:bg-navy-deep/5 transition-all text-[10px] font-bold tracking-[0.2em] uppercase flex items-center justify-center gap-3 rounded-xl text-navy-deep"
             >
-              <Globe size={16} className="text-hud-green" /> Google Network
+              <Globe size={16} className="text-navy-deep" /> Google Network
             </button>
           </form>
 
           <button 
             onClick={() => setIsRegistering(!isRegistering)}
-            className="mt-8 w-full text-[10px] text-hud-yellow font-bold tracking-widest uppercase hover:underline"
+            className="mt-8 w-full text-[10px] text-navy-deep/60 font-bold tracking-widest uppercase hover:underline"
           >
             {isRegistering ? 'Already have an account? Login' : 'Need an account? Sign Up'}
           </button>

@@ -8,21 +8,21 @@
 
   --color-hud-bg: var(--md-sys-color-background);
   --color-hud-yellow: var(--color-brand);
-  --color-hud-green: var(--color-live);
+  --color-hud-green: var(--md-sys-color-secondary);
   --color-hud-magenta: var(--color-alert);
   --color-hud-dark: var(--md-sys-color-surface);
-  --color-feed-bg: #F0EEE8;
+  --color-feed-bg: var(--md-sys-color-background);
 
   --color-navy: var(--md-sys-color-surface-container);
   --color-navy-deep: var(--md-sys-color-surface);
   --color-navy-mid: var(--md-sys-color-surface-variant);
   --color-yellow: var(--color-brand);
-  --color-green: var(--color-live);
+  --color-green: var(--md-sys-color-secondary);
 }
 
 @layer base {
   body {
-    @apply bg-hud-bg text-white font-sans selection:bg-hud-yellow selection:text-hud-bg;
+    @apply bg-hud-dark text-white font-sans selection:bg-hud-yellow selection:text-hud-dark;
     font-family: var(--font-content);
   }
 }

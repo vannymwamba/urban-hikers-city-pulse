@@ -20,362 +20,292 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginSuccess, userPr
   }, [userProfile]);
 
   return (
-    <div className="bg-navy-deep text-white font-sans selection:bg-yellow selection:text-navy-deep overflow-x-hidden relative">
+    <div className="bg-[#0A0A0A] text-white font-sans selection:bg-yellow selection:text-black overflow-x-hidden relative min-h-screen">
+      {/* Grid Background */}
+      <div className="fixed inset-0 z-0 pointer-events-none opacity-[0.03]" 
+           style={{ backgroundImage: `linear-gradient(to right, #ffffff 1px, transparent 1px), linear-gradient(to bottom, #ffffff 1px, transparent 1px)`, backgroundSize: '40px 40px' }}>
+      </div>
+
       {/* Noise Overlay */}
-      <div className="fixed inset-0 pointer-events-none z-0 opacity-40" style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E")` }}></div>
+      <div className="fixed inset-0 pointer-events-none z-0 opacity-20" style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E")` }}></div>
 
       {/* NAV */}
-      <nav className="fixed top-0 left-0 right-0 z-[100] px-6 md:px-12 h-16 flex items-center justify-between bg-navy-deep/85 backdrop-blur-lg border-b border-white/10">
-        <a href="#" className="flex items-center gap-2.5 no-underline">
-          <div className="w-8 h-8 bg-yellow rounded-lg flex items-center justify-center">
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <path d="M8 1L2 5v9h12V5L8 1z" fill="#1A2B4A"/>
-              <path d="M5.5 14v-5h5v5" fill="#1A2B4A" opacity=".6"/>
+      <nav className="fixed top-0 left-0 right-0 z-[100] px-6 md:px-12 h-20 flex items-center justify-between bg-black/40 backdrop-blur-xl border-b border-white/5">
+        <a href="#" className="flex items-center gap-3 no-underline group">
+          <div className="w-10 h-10 bg-yellow rounded-full flex items-center justify-center transition-transform group-hover:rotate-12">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M12 2L4.5 20.29L5.21 21L12 18L18.79 21L19.5 20.29L12 2Z" fill="#0A0A0A"/>
             </svg>
           </div>
           <div className="flex flex-col leading-none">
-            <span className="font-bebas text-lg tracking-[2px] text-white">Urban Hikers</span>
-            <span className="font-mono text-[9px] text-yellow tracking-[2px] uppercase">Local Pulse</span>
+            <span className="font-bebas text-2xl tracking-[2px] text-white group-hover:text-yellow transition-colors">Urban Hikers</span>
+            <span className="font-mono text-[10px] text-white/40 tracking-[2px] uppercase">Local Pulse</span>
           </div>
         </a>
 
-        <ul className="hidden lg:flex items-center gap-8 list-none">
-          <li><a href="#how" className="text-[13px] font-medium text-white/45 hover:text-white transition-colors">How It Works</a></li>
-          <li><button onClick={onOpenWallet} className="text-[13px] font-medium text-white/45 hover:text-white transition-colors">My Wallet</button></li>
-          <li><a href="#services" className="text-[13px] font-medium text-white/45 hover:text-white transition-colors">Services</a></li>
-          <li><a href="#partners" className="text-[13px] font-medium text-white/45 hover:text-white transition-colors">Partners</a></li>
-          <li><a href="#signup" className="text-[13px] font-medium text-white/45 hover:text-white transition-colors">Get Listed</a></li>
-        </ul>
-
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-4">
           {userProfile ? (
             <button 
               onClick={() => {
                 window.history.pushState({}, '', '/dashboard');
                 window.dispatchEvent(new PopStateEvent('popstate'));
               }}
-              className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-lg bg-yellow text-navy-deep text-[13px] font-bold tracking-[0.3px] hover:bg-[#FFD700] hover:-translate-y-0.5 transition-all"
+              className="px-6 py-2.5 rounded-full bg-yellow text-black text-[13px] font-bold tracking-[0.5px] hover:scale-105 transition-all shadow-lg"
             >
-              Go to Dashboard &rarr;
+              Dashboard
             </button>
           ) : (
-            <>
-              <button 
-                onClick={() => {
-                  window.history.pushState({}, '', '/login');
-                  window.dispatchEvent(new PopStateEvent('popstate'));
-                }}
-                className="hidden sm:inline-flex items-center gap-1.5 px-5 py-2.5 rounded-lg border border-white/20 bg-transparent text-white text-[13px] font-semibold tracking-[0.3px] hover:border-white/50 hover:bg-white/5 transition-all"
-              >
-                <Lock size={14} />
-                Partner Login
-              </button>
-              <a href="#signup" className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-lg bg-yellow text-navy-deep text-[13px] font-bold tracking-[0.3px] hover:bg-[#FFD700] hover:-translate-y-0.5 transition-all">
-                Get Listed &rarr;
-              </a>
-            </>
+            <button 
+              onClick={() => {
+                window.history.pushState({}, '', '/login');
+                window.dispatchEvent(new PopStateEvent('popstate'));
+              }}
+              className="px-6 py-2.5 rounded-full border border-white/20 text-white text-[13px] font-bold tracking-[0.5px] hover:bg-white hover:text-black transition-all"
+            >
+              Login
+            </button>
           )}
         </div>
       </nav>
 
-      {/* HERO */}
-      <section className="relative min-h-[90vh] lg:min-h-screen flex items-center px-6 md:px-12 pt-28 pb-12 lg:py-20 overflow-hidden">
-        <div className="absolute inset-0 bg-[linear-gradient(rgba(245,200,0,0.04)_1px,transparent_1px),linear-gradient(90deg,rgba(245,200,0,0.04)_1px,transparent_1px)] bg-[size:60px_60px] [mask-image:radial-gradient(ellipse_80%_80%_at_50%_50%,black,transparent)]"></div>
-        <div className="absolute w-[800px] h-[800px] rounded-full bg-[radial-gradient(circle,rgba(245,200,0,0.06)_0%,transparent_70%)] -top-1/4 -right-1/4 pointer-events-none"></div>
-        <div className="absolute w-[600px] h-[600px] rounded-full bg-[radial-gradient(circle,rgba(245,200,0,0.08)_0%,transparent_70%)] top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none"></div>
-
-        <div className="relative z-10 max-w-7xl mx-auto w-full grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-20 items-center">
-          <div className="max-w-[640px] text-center lg:text-left">
-            <motion.div 
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              className="inline-flex items-center gap-2 bg-yellow/10 border border-yellow/25 rounded-full px-3.5 py-1.5 mb-6"
-            >
-              <div className="w-1.5 h-1.5 bg-yellow rounded-full animate-pulse"></div>
-              <span className="font-mono text-[10px] font-medium text-yellow tracking-[2px] uppercase">NFC Civic Infrastructure · Cincinnati, OH</span>
-            </motion.div>
-
-            <motion.h1 
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ delay: 0.1 }}
-              className="font-bebas text-[clamp(56px,10vw,112px)] leading-[0.9] tracking-[1px] text-white mb-4"
-            >
-              The City's <span className="text-yellow block lg:inline">Pulse.</span> <span className="block lg:inline">One Tap.</span>
-            </motion.h1>
-
-            <motion.p 
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ delay: 0.2 }}
-              className="text-base md:text-lg font-light text-white/45 leading-[1.6] max-w-[500px] mx-auto lg:mx-0 mb-8"
-            >
-              Urban Hikers Local Pulse turns <b className="text-white font-medium">physical NFC nodes</b> into a live city feed —
-              flash deals, events, and civic broadcasts. No app. No login. No GPS.
-              <b className="text-white font-medium"> Just tap and discover what's happening within walking distance.</b>
-            </motion.p>
-
-            <motion.div 
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ delay: 0.3 }}
-              className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-3.5 mb-12"
-            >
-              {userProfile ? (
-                <button 
-                  onClick={() => {
-                    window.history.pushState({}, '', '/dashboard');
-                    window.dispatchEvent(new PopStateEvent('popstate'));
-                  }}
-                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-8 py-4 rounded-xl bg-yellow text-navy-deep text-[15px] font-bold tracking-[0.3px] hover:bg-[#FFD700] hover:-translate-y-0.5 transition-all"
-                >
-                  Go to Dashboard
-                  <ArrowRight size={16} />
-                </button>
-              ) : (
-                <a href="#signup" className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-8 py-4 rounded-xl bg-yellow text-navy-deep text-[15px] font-bold tracking-[0.3px] hover:bg-[#FFD700] hover:-translate-y-0.5 transition-all">
-                  List Your Business
-                  <ArrowRight size={16} />
-                </a>
-              )}
-              <a href="#how" className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-8 py-4 rounded-xl border border-white/20 bg-transparent text-white text-[15px] font-medium hover:border-white/40 hover:bg-white/5 transition-all">
-                See How It Works
-              </a>
-            </motion.div>
-
-            <motion.div 
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ delay: 0.4 }}
-              className="grid grid-cols-3 gap-4 md:gap-9 pt-8 border-t border-white/10"
-            >
-              <div>
-                <div className="font-bebas text-3xl md:text-4xl text-yellow leading-none tracking-[1px]">12</div>
-                <div className="text-[10px] md:text-xs text-white/45 mt-1 tracking-[0.3px] uppercase">Live Nodes</div>
-              </div>
-              <div>
-                <div className="font-bebas text-3xl md:text-4xl text-yellow leading-none tracking-[1px]">847</div>
-                <div className="text-[10px] md:text-xs text-white/45 mt-1 tracking-[0.3px] uppercase">Taps Today</div>
-              </div>
-              <div>
-                <div className="font-bebas text-3xl md:text-4xl text-yellow leading-none tracking-[1px]">0</div>
-                <div className="text-[10px] md:text-xs text-white/45 mt-1 tracking-[0.3px] uppercase">Data Collected</div>
-              </div>
-            </motion.div>
-          </div>
-
-          {/* iPhone Mockup */}
-          <motion.div 
-            initial={{ opacity: 0, scale: 0.95 }}
-            whileInView={{ opacity: 1, scale: 1 }}
-            viewport={{ once: true }}
-            transition={{ delay: 0.5, duration: 0.8 }}
-            className="relative flex justify-center lg:justify-end"
-          >
-            <div className="relative w-[280px] sm:w-[320px] h-[580px] sm:h-[650px] bg-black rounded-[45px] sm:rounded-[55px] border-[6px] sm:border-[8px] border-[#1a1a1a] shadow-[0_40px_120px_rgba(0,0,0,0.8),0_0_0_1px_rgba(255,255,255,0.1)] overflow-hidden">
-              {/* Dynamic Island */}
-              <div className="absolute top-3 sm:top-4 left-1/2 -translate-x-1/2 w-[70px] sm:w-[90px] h-6 sm:h-7 bg-black rounded-full z-50 flex items-center justify-center gap-1 sm:gap-1.5">
-                <div className="w-1 h-1 sm:w-1.5 sm:h-1.5 bg-[#1a1a1a] rounded-full"></div>
-                <div className="w-6 sm:w-8 h-1 bg-[#1a1a1a] rounded-full"></div>
-              </div>
-
-              {/* Screen Content */}
-              <div className="h-full w-full bg-[#0f1e2e] overflow-hidden flex flex-col">
-                <div className="bg-yellow px-4 sm:px-5 pt-8 sm:pt-10 pb-3 sm:pb-4 flex justify-between items-center shrink-0">
-                  <div className="font-bebas text-base sm:text-lg tracking-[2px] text-navy-deep">Urban Hikers</div>
-                  <div className="flex gap-1">
-                    <span className="bg-navy-deep/10 text-navy-deep text-[7px] sm:text-[8px] font-bold px-1.5 sm:px-2 py-0.5 rounded-full">No Login</span>
-                  </div>
-                </div>
-
-                <div className="bg-navy-deep p-4 sm:p-5 pb-3 sm:pb-4 shrink-0">
-                  <div className="text-[8px] sm:text-[9px] font-bold tracking-[2px] text-white/40 uppercase mb-1 sm:mb-1.5 flex items-center gap-1.5 sm:gap-2">
-                    <div className="w-1 h-1 sm:w-1.5 sm:h-1.5 bg-hud-green rounded-full animate-pulse shadow-[0_0_8px_var(--color-live)]"></div>
-                    Sector Hub
-                  </div>
-                  <div className="font-bebas text-[24px] sm:text-[28px] text-yellow tracking-[1px] mb-3 sm:mb-4 leading-none">OTR-ALPHA-01</div>
-                  <div className="flex gap-2">
-                    <div className="flex-1 bg-hud-green text-hud-dark p-2 sm:p-2.5 rounded-lg sm:rounded-xl text-[9px] sm:text-[10px] font-black text-center tracking-[1px] uppercase">Tap In ✓</div>
-                    <div className="flex-1 bg-white/5 text-white/30 p-2 sm:p-2.5 rounded-lg sm:rounded-xl text-[9px] sm:text-[10px] font-black text-center tracking-[1px] uppercase border border-white/5">Tap Out</div>
-                  </div>
-                </div>
-
-                <div className="flex-1 bg-[#EEEDE8] p-3 sm:p-4 overflow-y-auto">
-                  <div className="text-[8px] sm:text-[9px] font-black tracking-[2px] text-[#888780] uppercase mb-2 sm:mb-3">Flash Deals</div>
-                  <div className="bg-white rounded-xl sm:rounded-2xl p-3 sm:p-3.5 mb-2 sm:mb-3 flex justify-between items-center shadow-sm">
-                    <div>
-                      <div className="text-[10px] sm:text-[11px] font-bold text-[#1A1A1A] mb-0.5">⚡ Taco Deal — 50% Off</div>
-                      <div className="text-[8px] sm:text-[9px] text-[#888780]">1401 Vine St · 4 min walk</div>
-                    </div>
-                  </div>
-
-                  <div className="text-[8px] sm:text-[9px] font-black tracking-[2px] text-[#888780] uppercase mb-2 sm:mb-3 mt-3 sm:mt-4">Live Events</div>
-                  <div className="bg-white rounded-xl sm:rounded-2xl p-3 sm:p-3.5 mb-2 sm:mb-3 flex justify-between items-center shadow-sm">
-                    <div>
-                      <div className="text-[10px] sm:text-[11px] font-bold text-[#1A1A1A] mb-0.5">Live Jazz Quartet</div>
-                      <div className="text-[8px] sm:text-[9px] text-[#888780]">Washington Park · 4 min walk</div>
-                    </div>
-                  </div>
-                </div>
-              </div>
+      {/* HERO - Sophisticated Dark Redesign */}
+      <section className="relative min-h-screen flex flex-col items-center justify-center px-6 text-center pt-20 overflow-hidden">
+        {/* Background Accent */}
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-yellow/5 rounded-full blur-[120px] pointer-events-none"></div>
+        
+        <motion.div
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.8 }}
+          className="relative z-10 mb-12"
+        >
+          {/* Logo with Walking Figures */}
+          <div className="relative w-48 h-48 sm:w-64 sm:h-64 mx-auto mb-12 group">
+            <div className="absolute inset-0 bg-white/5 rounded-full border border-white/10 flex items-center justify-center transition-all group-hover:border-yellow/30 group-hover:bg-yellow/5">
+              <svg width="60%" height="60%" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                {/* Walking Figure 1 */}
+                <g transform="translate(15, 25) scale(0.7)">
+                  <circle cx="25" cy="15" r="8" fill="#FFE01A" />
+                  <path d="M25 25 L25 50 L10 75 M25 50 L40 75 M25 35 L10 50 M25 35 L40 50" stroke="#FFE01A" strokeWidth="6" strokeLinecap="round" />
+                </g>
+                {/* Walking Figure 2 (Backpack) */}
+                <g transform="translate(40, 20) scale(0.8)">
+                  <circle cx="25" cy="15" r="8" fill="#FFE01A" />
+                  <path d="M25 25 L25 50 L15 75 M25 50 L35 75 M25 35 L15 55 M25 35 L35 55" stroke="#FFE01A" strokeWidth="6" strokeLinecap="round" />
+                  <rect x="15" y="25" width="10" height="15" rx="2" fill="#FFE01A" />
+                </g>
+                {/* Walking Figure 3 (Stick) */}
+                <g transform="translate(65, 25) scale(0.7)">
+                  <circle cx="25" cy="15" r="8" fill="#FFE01A" />
+                  <path d="M25 25 L25 50 L10 75 M25 50 L40 75 M25 35 L10 50 M25 35 L40 50" stroke="#FFE01A" strokeWidth="6" strokeLinecap="round" />
+                  <path d="M45 30 L45 75" stroke="#FFE01A" strokeWidth="3" strokeLinecap="round" />
+                </g>
+              </svg>
             </div>
+            {/* Animated Ring */}
+            <div className="absolute inset-[-10px] border border-yellow/20 rounded-full animate-[spin_20s_linear_infinite]"></div>
+          </div>
+          
+          <h2 className="font-bebas text-5xl sm:text-7xl tracking-[8px] text-white mb-4 uppercase">Urban Hikers</h2>
+          <div className="w-32 h-[1px] bg-yellow mx-auto mb-8"></div>
+        </motion.div>
 
-            {/* Decorative Elements */}
-            <div className="absolute -z-10 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[350px] sm:w-[450px] h-[350px] sm:h-[450px] bg-yellow/5 rounded-full blur-[80px] sm:blur-[100px]"></div>
-          </motion.div>
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.4, duration: 0.8 }}
+          className="max-w-3xl relative z-10"
+        >
+          <h1 className="font-bebas text-4xl sm:text-6xl leading-tight tracking-[1px] text-white mb-10">
+            WALKING TO INSPIRE <br />
+            <span className="text-yellow italic">CURIOSITY OF EXPLORATION</span>
+          </h1>
+          
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-6">
+            <button 
+              onClick={() => {
+                window.history.pushState({}, '', '/tap/otr-alpha-01');
+                window.dispatchEvent(new PopStateEvent('popstate'));
+              }}
+              className="w-full sm:w-auto px-12 py-5 rounded-full bg-yellow text-black font-bold tracking-[2px] hover:scale-105 transition-all shadow-[0_0_30px_rgba(255,224,26,0.3)]"
+            >
+              TAP INTO THE PULSE
+            </button>
+            <a 
+              href="#how"
+              className="w-full sm:w-auto px-12 py-5 rounded-full border border-white/20 text-white font-bold tracking-[2px] hover:bg-white/5 transition-all"
+            >
+              LEARN MORE
+            </a>
+          </div>
+        </motion.div>
+
+        {/* Floating Text Elements */}
+        <div className="absolute bottom-12 left-12 hidden lg:block">
+          <div className="font-mono text-[10px] text-white/20 tracking-[4px] uppercase vertical-text rotate-180" style={{ writingMode: 'vertical-rl' }}>
+            ESTABLISHED_2026_CINCINNATI
+          </div>
+        </div>
+        <div className="absolute bottom-12 right-12 hidden lg:block">
+          <div className="font-mono text-[10px] text-white/20 tracking-[4px] uppercase vertical-text" style={{ writingMode: 'vertical-rl' }}>
+            HYPER_LOCAL_CIVIC_OS
+          </div>
         </div>
       </section>
 
       {/* HOW IT WORKS */}
-      <section id="how" className="relative z-10 px-6 md:px-12 py-16 lg:py-24">
-        <div className="font-mono text-[10px] tracking-[3px] text-yellow uppercase mb-4">How It Works</div>
-        <h2 className="font-bebas text-[clamp(40px,5vw,64px)] tracking-[2px] text-white leading-none mb-4">5 Seconds Digital.<br />5 Hours Real.</h2>
-        <p className="text-base text-white/45 max-w-[520px] leading-[1.7]">
+      <section id="how" className="relative z-10 px-6 md:px-12 py-16 lg:py-32 border-t border-white/5">
+        <div className="flex items-center gap-3 mb-6">
+          <div className="w-2 h-2 bg-yellow rounded-full"></div>
+          <div className="font-mono text-[10px] tracking-[3px] text-white/40 uppercase">How It Works</div>
+        </div>
+        <h2 className="font-bebas text-[clamp(40px,5vw,72px)] tracking-[1px] text-white leading-[0.9] mb-6">5 Seconds Digital.<br /><span className="text-white/20">5 Hours Real.</span></h2>
+        <p className="text-lg text-white/40 max-w-[520px] leading-[1.6] mb-16">
           We use digital technology for one moment so you can experience your city for the rest of the day. No app download. No account creation. No tracking. Ever.
         </p>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-0.5 mt-14 border border-white/10 rounded-2xl overflow-hidden">
-          <div className="bg-white/[0.02] p-10 px-8 border-r border-white/10 hover:bg-white/[0.04] transition-colors">
-            <div className="font-bebas text-[56px] text-yellow/15 leading-none mb-4">01</div>
-            <div className="w-11 h-11 bg-yellow/10 border border-yellow/20 rounded-xl flex items-center justify-center mb-5">
-              <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
-                <rect x="4" y="2" width="14" height="18" rx="3" stroke="#F5C800" strokeWidth="1.4"/>
-                <path d="M8 6h6M8 10h4" stroke="#F5C800" strokeWidth="1.2" strokeLinecap="round"/>
-                <circle cx="11" cy="15" r="1.5" fill="#F5C800"/>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+          <div className="group">
+            <div className="font-bebas text-[80px] text-white/5 leading-none mb-4 transition-colors group-hover:text-yellow/10">01</div>
+            <div className="w-14 h-14 bg-white/5 border border-white/10 rounded-2xl flex items-center justify-center mb-6 transition-all group-hover:border-yellow/30 group-hover:bg-yellow/5">
+              <svg width="24" height="24" viewBox="0 0 22 22" fill="none">
+                <rect x="4" y="2" width="14" height="18" rx="3" stroke="#FFE01A" strokeWidth="1.5"/>
+                <path d="M8 6h6M8 10h4" stroke="#FFE01A" strokeWidth="1.5" strokeLinecap="round"/>
+                <circle cx="11" cy="15" r="1.5" fill="#FFE01A"/>
               </svg>
             </div>
-            <div className="text-lg font-bold text-white mb-2.5 leading-tight">Tap the Pulse Cube</div>
-            <div className="text-sm text-white/45 leading-[1.7]">Find a matte-black Pulse Cube at any of our partner locations. One tap from any phone — NFC built-in, no app needed — opens the live neighborhood feed instantly.</div>
+            <div className="text-xl font-bold text-white mb-3 tracking-tight">Tap the Pulse Cube</div>
+            <div className="text-sm text-white/40 leading-[1.8]">Find a matte-black Pulse Cube at any of our partner locations. One tap from any phone — NFC built-in, no app needed — opens the live neighborhood feed instantly.</div>
           </div>
-          <div className="bg-white/[0.02] p-10 px-8 border-r border-white/10 hover:bg-white/[0.04] transition-colors">
-            <div className="font-bebas text-[56px] text-yellow/15 leading-none mb-4">02</div>
-            <div className="w-11 h-11 bg-yellow/10 border border-yellow/20 rounded-xl flex items-center justify-center mb-5">
-              <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
-                <path d="M11 3C7.13 3 4 6.13 4 10c0 5.25 7 12 7 12s7-6.75 7-12c0-3.87-3.13-7-7-7z" stroke="#F5C800" strokeWidth="1.4" fill="none"/>
-                <circle cx="11" cy="10" r="2.5" fill="#F5C800"/>
+          <div className="group">
+            <div className="font-bebas text-[80px] text-white/5 leading-none mb-4 transition-colors group-hover:text-yellow/10">02</div>
+            <div className="w-14 h-14 bg-white/5 border border-white/10 rounded-2xl flex items-center justify-center mb-6 transition-all group-hover:border-yellow/30 group-hover:bg-yellow/5">
+              <svg width="24" height="24" viewBox="0 0 22 22" fill="none">
+                <path d="M11 3C7.13 3 4 6.13 4 10c0 5.25 7 12 7 12s7-6.75 7-12c0-3.87-3.13-7-7-7z" stroke="#FFE01A" strokeWidth="1.5" fill="none"/>
+                <circle cx="11" cy="10" r="2.5" fill="#FFE01A"/>
               </svg>
             </div>
-            <div className="text-lg font-bold text-white mb-2.5 leading-tight">See What's Around You</div>
-            <div className="text-sm text-white/45 leading-[1.7]">A live 3-mile radius feed loads instantly — flash deals, live events, conference schedules, and civic broadcasts. Every item includes a street address and walking distance.</div>
+            <div className="text-xl font-bold text-white mb-3 tracking-tight">See What's Around You</div>
+            <div className="text-sm text-white/40 leading-[1.8]">A live 3-mile radius feed loads instantly — flash deals, live events, conference schedules, and civic broadcasts. Every item includes a street address and walking distance.</div>
           </div>
-          <div className="bg-white/[0.02] p-10 px-8 hover:bg-white/[0.04] transition-colors">
-            <div className="font-bebas text-[56px] text-yellow/15 leading-none mb-4">03</div>
-            <div className="w-11 h-11 bg-yellow/10 border border-yellow/20 rounded-xl flex items-center justify-center mb-5">
-              <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
-                <path d="M11 2L4 7v13h14V7L11 2z" stroke="#F5C800" strokeWidth="1.4" fill="none"/>
-                <path d="M8 20v-7h6v7" stroke="#F5C800" strokeWidth="1.2" strokeLinecap="round"/>
+          <div className="group">
+            <div className="font-bebas text-[80px] text-white/5 leading-none mb-4 transition-colors group-hover:text-yellow/10">03</div>
+            <div className="w-14 h-14 bg-white/5 border border-white/10 rounded-2xl flex items-center justify-center mb-6 transition-all group-hover:border-yellow/30 group-hover:bg-yellow/5">
+              <svg width="24" height="24" viewBox="0 0 22 22" fill="none">
+                <path d="M11 2L4 7v13h14V7L11 2z" stroke="#FFE01A" strokeWidth="1.5" fill="none"/>
+                <path d="M8 20v-7h6v7" stroke="#FFE01A" strokeWidth="1.5" strokeLinecap="round"/>
               </svg>
             </div>
-            <div className="text-lg font-bold text-white mb-2.5 leading-tight">Go Experience the City</div>
-            <div className="text-sm text-white/45 leading-[1.7]">Put your phone down. Walk over. The Pulse Cube did its job in 5 seconds. Now it's your turn. Discover the neighborhood businesses, events and culture that surrounds you.</div>
+            <div className="text-xl font-bold text-white mb-3 tracking-tight">Go Experience the City</div>
+            <div className="text-sm text-white/40 leading-[1.8]">Put your phone down. Walk over. The Pulse Cube did its job in 5 seconds. Now it's your turn. Discover the neighborhood businesses, events and culture that surrounds you.</div>
           </div>
         </div>
       </section>
 
       {/* SERVICES */}
-      <section id="services" className="relative z-10 px-6 md:px-12 py-24 bg-white/[0.015] border-y border-white/10">
-        <div className="font-mono text-[10px] tracking-[3px] text-yellow uppercase mb-4">For Local Businesses</div>
-        <h2 className="font-bebas text-[clamp(40px,5vw,64px)] tracking-[2px] text-white leading-none mb-4">Your Storefront<br />On Every Corner</h2>
-        <p className="text-base text-white/45 max-w-[520px] leading-[1.7]">
+      <section id="services" className="relative z-10 px-6 md:px-12 py-32 bg-white/[0.01] border-y border-white/5">
+        <div className="flex items-center gap-3 mb-6">
+          <div className="w-2 h-2 bg-yellow rounded-full"></div>
+          <div className="font-mono text-[10px] tracking-[3px] text-white/40 uppercase">For Local Businesses</div>
+        </div>
+        <h2 className="font-bebas text-[clamp(40px,5vw,72px)] tracking-[1px] text-white leading-[0.9] mb-6">Your Storefront<br /><span className="text-white/20">On Every Corner.</span></h2>
+        <p className="text-lg text-white/40 max-w-[520px] leading-[1.6] mb-16">
           List your business, publish flash deals, and reach pedestrians who are already within walking distance — with zero ads, zero algorithms, and zero tracking.
         </p>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-14">
-          <div className="group relative bg-white/[0.03] border border-white/10 rounded-2xl p-8 transition-all hover:border-yellow/20 hover:bg-yellow/[0.03]">
-            <div className="absolute top-0 left-0 right-0 h-[2px] bg-yellow scale-x-0 group-hover:scale-x-100 transition-transform origin-left"></div>
-            <div className="w-12 h-12 bg-yellow/10 border border-yellow/20 rounded-xl flex items-center justify-center mb-5">
-              <Zap size={24} className="text-yellow" />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="group relative bg-white/[0.02] border border-white/10 rounded-3xl p-10 transition-all hover:border-yellow/20 hover:bg-white/[0.04]">
+            <div className="w-14 h-14 bg-white/5 border border-white/10 rounded-2xl flex items-center justify-center mb-8 transition-all group-hover:border-yellow/30 group-hover:bg-yellow/5">
+              <Zap size={28} className="text-yellow" />
             </div>
-            <div className="text-xl font-bold text-white mb-2.5">Flash Deal Broadcast</div>
-            <div className="text-sm text-white/45 leading-[1.7] mb-5">Push a time-limited deal to every Pulse Cube within your zone. Your offer reaches people who are already on foot, within minutes of your door. Set it, activate it, watch them walk in.</div>
-            <div className="flex flex-wrap gap-1.5">
-              <span className="font-mono text-[10px] px-2.5 py-1 rounded-full bg-white/5 text-white/45 border border-white/10 tracking-[0.5px]">Real-time push</span>
-              <span className="font-mono text-[10px] px-2.5 py-1 rounded-full bg-white/5 text-white/45 border border-white/10 tracking-[0.5px]">Geo-radius targeting</span>
-              <span className="font-mono text-[10px] px-2.5 py-1 rounded-full bg-white/5 text-white/45 border border-white/10 tracking-[0.5px]">$299/mo</span>
-            </div>
-          </div>
-
-          <div className="group relative bg-white/[0.03] border border-white/10 rounded-2xl p-8 transition-all hover:border-yellow/20 hover:bg-yellow/[0.03]">
-            <div className="absolute top-0 left-0 right-0 h-[2px] bg-yellow scale-x-0 group-hover:scale-x-100 transition-transform origin-left"></div>
-            <div className="w-12 h-12 bg-yellow/10 border border-yellow/20 rounded-xl flex items-center justify-center mb-5">
-              <Calendar size={24} className="text-yellow" />
-            </div>
-            <div className="text-xl font-bold text-white mb-2.5">Event Listings</div>
-            <div className="text-sm text-white/45 leading-[1.7] mb-5">Publish concerts, pop-ups, workshops, and community gatherings directly into the neighborhood feed. Attach your venue address and let the walk-time calculation do the selling for you.</div>
-            <div className="flex flex-wrap gap-1.5">
-              <span className="font-mono text-[10px] px-2.5 py-1 rounded-full bg-white/5 text-white/45 border border-white/10 tracking-[0.5px]">Live + scheduled</span>
-              <span className="font-mono text-[10px] px-2.5 py-1 rounded-full bg-white/5 text-white/45 border border-white/10 tracking-[0.5px]">Walk time auto-calc</span>
-              <span className="font-mono text-[10px] px-2.5 py-1 rounded-full bg-white/5 text-white/45 border border-white/10 tracking-[0.5px]">Conference mode</span>
+            <div className="text-2xl font-bold text-white mb-4 tracking-tight">Flash Deal Broadcast</div>
+            <div className="text-base text-white/40 leading-[1.8] mb-8">Push a time-limited deal to every Pulse Cube within your zone. Your offer reaches people who are already on foot, within minutes of your door.</div>
+            <div className="flex flex-wrap gap-2">
+              <span className="font-mono text-[10px] px-3 py-1.5 rounded-full bg-white/5 text-white/40 border border-white/10 tracking-[1px] uppercase">Real-time push</span>
+              <span className="font-mono text-[10px] px-3 py-1.5 rounded-full bg-white/5 text-white/40 border border-white/10 tracking-[1px] uppercase">Geo-radius targeting</span>
+              <span className="font-mono text-[10px] px-3 py-1.5 rounded-full bg-yellow/10 text-yellow border border-yellow/20 tracking-[1px] uppercase">$299/mo</span>
             </div>
           </div>
 
-          <div className="group relative bg-white/[0.03] border border-white/10 rounded-2xl p-8 transition-all hover:border-yellow/20 hover:bg-yellow/[0.03]">
-            <div className="absolute top-0 left-0 right-0 h-[2px] bg-yellow scale-x-0 group-hover:scale-x-100 transition-transform origin-left"></div>
-            <div className="w-12 h-12 bg-yellow/10 border border-yellow/20 rounded-xl flex items-center justify-center mb-5">
-              <LayoutGrid size={24} className="text-yellow" />
+          <div className="group relative bg-white/[0.02] border border-white/10 rounded-3xl p-10 transition-all hover:border-yellow/20 hover:bg-white/[0.04]">
+            <div className="w-14 h-14 bg-white/5 border border-white/10 rounded-2xl flex items-center justify-center mb-8 transition-all group-hover:border-yellow/30 group-hover:bg-yellow/5">
+              <Calendar size={28} className="text-yellow" />
             </div>
-            <div className="text-xl font-bold text-white mb-2.5">Sponsor Node Branding</div>
-            <div className="text-sm text-white/45 leading-[1.7] mb-5">For enterprise partners — brand an entire Pulse Cube node with your identity. Every tap in your zone surfaces your brand first. Used by Kroger, Medpace, and corporate event sponsors to anchor the network.</div>
-            <div className="flex flex-wrap gap-1.5">
-              <span className="font-mono text-[10px] px-2.5 py-1 rounded-full bg-white/5 text-white/45 border border-white/10 tracking-[0.5px]">Enterprise tier</span>
-              <span className="font-mono text-[10px] px-2.5 py-1 rounded-full bg-white/5 text-white/45 border border-white/10 tracking-[0.5px]">Node ownership</span>
-              <span className="font-mono text-[10px] px-2.5 py-1 rounded-full bg-white/5 text-white/45 border border-white/10 tracking-[0.5px]">$12K/yr per node</span>
+            <div className="text-2xl font-bold text-white mb-4 tracking-tight">Event Listings</div>
+            <div className="text-base text-white/40 leading-[1.8] mb-8">Publish concerts, pop-ups, workshops, and community gatherings directly into the neighborhood feed. Attach your venue address and let the walk-time calculation do the selling.</div>
+            <div className="flex flex-wrap gap-2">
+              <span className="font-mono text-[10px] px-3 py-1.5 rounded-full bg-white/5 text-white/40 border border-white/10 tracking-[1px] uppercase">Live + scheduled</span>
+              <span className="font-mono text-[10px] px-3 py-1.5 rounded-full bg-white/5 text-white/40 border border-white/10 tracking-[1px] uppercase">Walk time auto-calc</span>
+              <span className="font-mono text-[10px] px-3 py-1.5 rounded-full bg-yellow/10 text-yellow border border-yellow/20 tracking-[1px] uppercase">Conference mode</span>
             </div>
           </div>
 
-          <div className="group relative bg-white/[0.03] border border-white/10 rounded-2xl p-8 transition-all hover:border-yellow/20 hover:bg-yellow/[0.03]">
-            <div className="absolute top-0 left-0 right-0 h-[2px] bg-yellow scale-x-0 group-hover:scale-x-100 transition-transform origin-left"></div>
-            <div className="w-12 h-12 bg-yellow/10 border border-yellow/20 rounded-xl flex items-center justify-center mb-5">
-              <ShieldCheck size={24} className="text-yellow" />
+          <div className="group relative bg-white/[0.02] border border-white/10 rounded-3xl p-10 transition-all hover:border-yellow/20 hover:bg-white/[0.04]">
+            <div className="w-14 h-14 bg-white/5 border border-white/10 rounded-2xl flex items-center justify-center mb-8 transition-all group-hover:border-yellow/30 group-hover:bg-yellow/5">
+              <LayoutGrid size={28} className="text-yellow" />
             </div>
-            <div className="text-xl font-bold text-white mb-2.5">Civic Data Licensing</div>
-            <div className="text-sm text-white/45 leading-[1.7] mb-5">Aggregate, GPS-free pedestrian flow data — Sidewalk Vibrancy intelligence — licensed to city planners, developers, and civic organizations. No personal data is ever collected. Pattern data only.</div>
-            <div className="flex flex-wrap gap-1.5">
-              <span className="font-mono text-[10px] px-2.5 py-1 rounded-full bg-white/5 text-white/45 border border-white/10 tracking-[0.5px]">Zero PII collected</span>
-              <span className="font-mono text-[10px] px-2.5 py-1 rounded-full bg-white/5 text-white/45 border border-white/10 tracking-[0.5px]">City planning use</span>
-              <span className="font-mono text-[10px] px-2.5 py-1 rounded-full bg-white/5 text-white/45 border border-white/10 tracking-[0.5px]">Developer intelligence</span>
+            <div className="text-2xl font-bold text-white mb-4 tracking-tight">Sponsor Node Branding</div>
+            <div className="text-base text-white/40 leading-[1.8] mb-8">For enterprise partners — brand an entire Pulse Cube node with your identity. Every tap in your zone surfaces your brand first.</div>
+            <div className="flex flex-wrap gap-2">
+              <span className="font-mono text-[10px] px-3 py-1.5 rounded-full bg-white/5 text-white/40 border border-white/10 tracking-[1px] uppercase">Enterprise tier</span>
+              <span className="font-mono text-[10px] px-3 py-1.5 rounded-full bg-white/5 text-white/40 border border-white/10 tracking-[1px] uppercase">Node ownership</span>
+              <span className="font-mono text-[10px] px-3 py-1.5 rounded-full bg-yellow/10 text-yellow border border-yellow/20 tracking-[1px] uppercase">$12K/yr</span>
+            </div>
+          </div>
+
+          <div className="group relative bg-white/[0.02] border border-white/10 rounded-3xl p-10 transition-all hover:border-yellow/20 hover:bg-white/[0.04]">
+            <div className="w-14 h-14 bg-white/5 border border-white/10 rounded-2xl flex items-center justify-center mb-8 transition-all group-hover:border-yellow/30 group-hover:bg-yellow/5">
+              <ShieldCheck size={28} className="text-yellow" />
+            </div>
+            <div className="text-2xl font-bold text-white mb-4 tracking-tight">Civic Data Licensing</div>
+            <div className="text-base text-white/40 leading-[1.8] mb-8">Aggregate, GPS-free pedestrian flow data — Sidewalk Vibrancy intelligence — licensed to city planners, developers, and civic organizations.</div>
+            <div className="flex flex-wrap gap-2">
+              <span className="font-mono text-[10px] px-3 py-1.5 rounded-full bg-white/5 text-white/40 border border-white/10 tracking-[1px] uppercase">Zero PII collected</span>
+              <span className="font-mono text-[10px] px-3 py-1.5 rounded-full bg-white/5 text-white/40 border border-white/10 tracking-[1px] uppercase">City planning use</span>
+              <span className="font-mono text-[10px] px-3 py-1.5 rounded-full bg-yellow/10 text-yellow border border-yellow/20 tracking-[1px] uppercase">Developer intel</span>
             </div>
           </div>
         </div>
       </section>
 
       {/* PARTNERS */}
-      <section id="partners" className="px-6 md:px-12 py-24 border-t border-white/10">
-        <div className="font-mono text-[10px] tracking-[3px] text-yellow uppercase mb-4">Network Expansion</div>
-        <h2 className="font-bebas text-[clamp(40px,5vw,64px)] tracking-[2px] text-white leading-none mb-4">Growing the Pulse.</h2>
-        <p className="text-base text-white/45 max-w-[520px] leading-[1.7] mb-12">We are strategically deploying nodes across Cincinnati's most vibrant corridors. Each node anchors a 3-mile radius of hyper-local discovery.</p>
+      <section id="partners" className="px-6 md:px-12 py-32 border-t border-white/5">
+        <div className="flex items-center gap-3 mb-6">
+          <div className="w-2 h-2 bg-yellow rounded-full"></div>
+          <div className="font-mono text-[10px] tracking-[3px] text-white/40 uppercase">Network Expansion</div>
+        </div>
+        <h2 className="font-bebas text-[clamp(40px,5vw,72px)] tracking-[1px] text-white leading-[0.9] mb-6">Growing the Pulse.</h2>
+        <p className="text-lg text-white/40 max-w-[520px] leading-[1.6] mb-16">We are strategically deploying nodes across Cincinnati's most vibrant corridors. Each node anchors a 3-mile radius of hyper-local discovery.</p>
         
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-16">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-24">
           {[
             { name: 'Over-the-Rhine', status: 'ACTIVE', nodes: 8, vibe: 'High' },
             { name: 'Northside', status: 'ACTIVE', nodes: 4, vibe: 'Artistic' },
             { name: 'Covington', status: 'EXPANDING', nodes: 2, vibe: 'Riverside' },
             { name: 'Walnut Hills', status: 'UPCOMING', nodes: 0, vibe: 'Historic' }
           ].map((area, i) => (
-            <div key={i} className="bg-white/[0.03] border border-white/10 p-6 rounded-2xl hover:border-yellow/20 transition-all">
-              <div className="flex justify-between items-start mb-4">
-                <div className={`text-[9px] font-black px-2 py-0.5 rounded ${
-                  area.status === 'ACTIVE' ? 'bg-green text-navy-deep' : 'bg-white/10 text-white/40'
+            <div key={i} className="bg-white/[0.02] border border-white/10 p-8 rounded-3xl hover:border-yellow/20 transition-all group">
+              <div className="flex justify-between items-start mb-6">
+                <div className={`text-[9px] font-black px-2 py-0.5 rounded tracking-wider ${
+                  area.status === 'ACTIVE' ? 'bg-green text-black' : 'bg-white/10 text-white/40'
                 }`}>
                   {area.status}
                 </div>
-                <div className="text-[10px] font-mono text-yellow/40">{area.nodes} NODES</div>
+                <div className="text-[10px] font-mono text-white/20 group-hover:text-yellow/60 transition-colors">{area.nodes} NODES</div>
               </div>
-              <div className="text-xl font-bold text-white mb-1">{area.name}</div>
-              <div className="text-xs text-white/30 uppercase tracking-widest">{area.vibe} Sector</div>
+              <div className="text-2xl font-bold text-white mb-1 tracking-tight">{area.name}</div>
+              <div className="text-xs text-white/20 uppercase tracking-[2px]">{area.vibe} Sector</div>
             </div>
           ))}
         </div>
 
-        <div className="font-mono text-[10px] tracking-[3px] text-yellow uppercase mb-4">Trusted By</div>
-        <div className="flex flex-col md:flex-row items-stretch gap-0 border border-white/10 rounded-xl overflow-hidden">
-          {['KROGER', 'MEDPACE', 'BLACK TECH WEEK', 'HEART OF NORTHSIDE', 'STRONG TOWNS', 'BLINK CINCINNATI'].map((p, i) => (
-            <div key={i} className="flex-1 p-7 px-5 border-r border-white/10 flex items-center justify-center font-bebas text-lg tracking-[2px] text-white/25 hover:text-yellow/60 transition-colors last:border-r-0">
+        <div className="flex items-center gap-3 mb-10">
+          <div className="w-2 h-2 bg-yellow rounded-full"></div>
+          <div className="font-mono text-[10px] tracking-[3px] text-white/40 uppercase">Trusted By</div>
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-6 gap-px bg-white/10 border border-white/10 rounded-2xl overflow-hidden">
+          {['KROGER', 'RHINEGEIST', 'BLACK TECH WEEK', 'CONTEMPORARY ARTS CENTER', 'MUSIC HALL', 'FOTOFOCUS'].map((p, i) => (
+            <div key={i} className="bg-[#0A0A0A] p-8 flex items-center justify-center font-bebas text-lg tracking-[2px] text-white/20 hover:text-yellow transition-colors text-center">
               {p}
             </div>
           ))}
@@ -383,33 +313,36 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginSuccess, userPr
       </section>
 
       {/* TESTIMONIALS */}
-      <section className="px-6 md:px-12 py-24 bg-white/[0.01] border-y border-white/10">
-        <div className="max-w-4xl mx-auto">
-          <div className="font-mono text-[10px] tracking-[3px] text-yellow uppercase mb-8 text-center">Citizen Stories</div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
+      <section className="px-6 md:px-12 py-32 bg-white/[0.01] border-y border-white/5">
+        <div className="max-w-5xl mx-auto">
+          <div className="flex items-center justify-center gap-3 mb-12">
+            <div className="w-2 h-2 bg-yellow rounded-full"></div>
+            <div className="font-mono text-[10px] tracking-[3px] text-white/40 uppercase">Citizen Stories</div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-16">
             <div className="relative">
-              <div className="text-[80px] font-bebas text-yellow/10 absolute -top-10 -left-4 leading-none select-none">"</div>
-              <p className="text-xl font-light text-white/80 leading-relaxed mb-6 italic">
+              <div className="text-[120px] font-bebas text-white/[0.03] absolute -top-16 -left-8 leading-none select-none">"</div>
+              <p className="text-2xl font-light text-white/60 leading-relaxed mb-10 italic relative z-10">
                 "I was walking through OTR and saw a Pulse Cube. Tapped it, and found a live jazz set happening two blocks away that wasn't on any of my usual apps. It felt like discovering a secret layer of the city."
               </p>
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-yellow/20 border border-yellow/30"></div>
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-full bg-white/5 border border-white/10 flex items-center justify-center font-bebas text-xl text-yellow">MT</div>
                 <div>
-                  <div className="text-sm font-bold text-white">Marcus T.</div>
-                  <div className="text-[10px] text-white/40 uppercase tracking-widest">Local Explorer</div>
+                  <div className="text-base font-bold text-white">Marcus T.</div>
+                  <div className="text-[10px] text-white/20 uppercase tracking-[2px]">Local Explorer</div>
                 </div>
               </div>
             </div>
             <div className="relative">
-              <div className="text-[80px] font-bebas text-yellow/10 absolute -top-10 -left-4 leading-none select-none">"</div>
-              <p className="text-xl font-light text-white/80 leading-relaxed mb-6 italic">
+              <div className="text-[120px] font-bebas text-white/[0.03] absolute -top-16 -left-8 leading-none select-none">"</div>
+              <p className="text-2xl font-light text-white/60 leading-relaxed mb-10 italic relative z-10">
                 "As a business owner, the Pulse Cube has been a game changer. We can push a 30-minute flash deal when we're slow and see people walk in within 5 minutes. It's hyper-local marketing that actually works."
               </p>
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-yellow/20 border border-yellow/30"></div>
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-full bg-white/5 border border-white/10 flex items-center justify-center font-bebas text-xl text-yellow">SL</div>
                 <div>
-                  <div className="text-sm font-bold text-white">Sarah L.</div>
-                  <div className="text-[10px] text-white/40 uppercase tracking-widest">Skyline Coffee Owner</div>
+                  <div className="text-base font-bold text-white">Sarah L.</div>
+                  <div className="text-[10px] text-white/20 uppercase tracking-[2px]">Skyline Coffee Owner</div>
                 </div>
               </div>
             </div>
@@ -418,21 +351,24 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginSuccess, userPr
       </section>
 
       {/* FAQ */}
-      <section className="px-6 md:px-12 py-24">
-        <div className="max-w-3xl mx-auto">
-          <div className="font-mono text-[10px] tracking-[3px] text-yellow uppercase mb-4 text-center">Common Questions</div>
-          <h2 className="font-bebas text-[48px] tracking-[2px] text-white leading-none mb-12 text-center">Everything You Need to Know.</h2>
+      <section className="px-6 md:px-12 py-32">
+        <div className="max-w-4xl mx-auto">
+          <div className="flex items-center justify-center gap-3 mb-6">
+            <div className="w-2 h-2 bg-yellow rounded-full"></div>
+            <div className="font-mono text-[10px] tracking-[3px] text-white/40 uppercase">Common Questions</div>
+          </div>
+          <h2 className="font-bebas text-[clamp(40px,5vw,64px)] tracking-[1px] text-white leading-none mb-20 text-center">Everything You Need to Know.</h2>
           
-          <div className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {[
               { q: "Do I really not need an app?", a: "Correct. We use standard NFC technology built into every modern smartphone. Just tap your phone against the Pulse Cube and the live feed opens in your default browser instantly." },
-              { q: "How is my privacy protected?", a: "We don't collect GPS data, IP addresses, or personal identifiers. The 'Tap In' creates a temporary anonymous session that expires as soon as you leave the sector or tap out. We only track aggregate 'vibrancy' patterns." },
-              { q: "Can any business join the network?", a: "We prioritize local, independent businesses that contribute to the unique character of their neighborhood. All partners go through a brief verification process to ensure high-quality broadcasts." },
+              { q: "How is my privacy protected?", a: "We don't collect GPS data, IP addresses, or personal identifiers. The 'Tap In' creates a temporary anonymous session that expires as soon as you leave the sector or tap out." },
+              { q: "Can any business join the network?", a: "We prioritize local, independent businesses that contribute to the unique character of their neighborhood. All partners go through a brief verification process." },
               { q: "What is a Pulse Cube?", a: "It's a matte-black, weather-resistant NFC node installed at partner storefronts and civic hubs. It acts as a physical anchor for the digital layer of the neighborhood." }
             ].map((item, i) => (
-              <div key={i} className="bg-white/[0.03] border border-white/10 rounded-xl p-6 hover:bg-white/[0.05] transition-all">
-                <div className="text-lg font-bold text-white mb-2">{item.q}</div>
-                <div className="text-sm text-white/45 leading-relaxed">{item.a}</div>
+              <div key={i} className="bg-white/[0.02] border border-white/10 rounded-3xl p-8 hover:bg-white/[0.04] transition-all group">
+                <div className="text-lg font-bold text-white mb-4 tracking-tight group-hover:text-yellow transition-colors">{item.q}</div>
+                <div className="text-sm text-white/40 leading-relaxed">{item.a}</div>
               </div>
             ))}
           </div>
@@ -440,46 +376,45 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginSuccess, userPr
       </section>
 
       {/* SIGNUP CTA */}
-      <section id="signup" className="relative z-10 px-6 md:px-12 py-24 text-center">
-        <div className="max-w-[600px] mx-auto">
-          <div className="inline-flex items-center gap-2 bg-yellow/10 border border-yellow/25 rounded-full px-3.5 py-1.5 mb-6">
-            <div className="w-1.5 h-1.5 bg-yellow rounded-full animate-pulse"></div>
-            <span className="font-mono text-[10px] font-medium text-yellow tracking-[2px] uppercase">Now accepting applications · OTR &amp; Northside</span>
+      <section id="signup" className="relative z-10 px-6 md:px-12 py-32 text-center border-t border-white/5">
+        <div className="max-w-[700px] mx-auto">
+          <div className="inline-flex items-center gap-3 bg-white/5 border border-white/10 rounded-full px-4 py-2 mb-10">
+            <div className="w-2 h-2 bg-yellow rounded-full animate-pulse"></div>
+            <span className="font-mono text-[10px] font-medium text-white/60 tracking-[2px] uppercase">Now accepting applications · OTR &amp; Northside</span>
           </div>
-          <h2 className="font-bebas text-[clamp(48px,6vw,80px)] tracking-[2px] leading-[0.95] text-white mb-5">Get Your Business<br />on the <span className="text-yellow">Pulse.</span></h2>
-          <p className="text-base text-white/45 leading-[1.7] mb-9">Join the Local Pulse network and reach pedestrians who are already walking past your door — no ad spend, no algorithm, no app required.</p>
-          <div className="flex flex-col sm:flex-row gap-2.5 max-w-[440px] mx-auto mb-4">
-            <input className="flex-1 p-3.5 px-[18px] bg-white/5 border border-white/10 rounded-lg text-white font-sans text-sm outline-none focus:border-yellow transition-colors placeholder:text-white/25" type="email" placeholder="Your business email" />
-            <button className="bg-yellow text-navy-deep px-6 py-3.5 rounded-lg font-bold text-sm whitespace-nowrap hover:bg-[#FFD700] transition-all">Apply Now &rarr;</button>
+          <h2 className="font-bebas text-[clamp(48px,8vw,112px)] tracking-[1px] leading-[0.85] text-white mb-8 uppercase">Get Your Business<br /><span className="text-yellow">on the Pulse.</span></h2>
+          <p className="text-lg text-white/40 leading-[1.6] mb-12 max-w-[500px] mx-auto">Join the Local Pulse network and reach pedestrians who are already walking past your door — no ad spend, no algorithm, no app required.</p>
+          <div className="flex flex-col sm:flex-row gap-3 max-w-[500px] mx-auto mb-6">
+            <input className="flex-1 p-4 px-6 bg-white/5 border border-white/10 rounded-full text-white font-sans text-sm outline-none focus:border-yellow transition-colors placeholder:text-white/20" type="email" placeholder="Your business email" />
+            <button className="bg-yellow text-black px-10 py-4 rounded-full font-bold text-sm whitespace-nowrap hover:scale-105 transition-all shadow-[0_0_30px_rgba(255,224,26,0.2)]">APPLY NOW &rarr;</button>
           </div>
-          <div className="text-[11px] text-white/20">No spam. We'll respond within 48 hours. Cincinnati businesses only for Phase 1.</div>
+          <div className="font-mono text-[10px] text-white/20 tracking-[1px] uppercase">No spam. We'll respond within 48 hours. Cincinnati businesses only.</div>
         </div>
       </section>
 
       {/* FOOTER */}
-      <footer className="relative z-10 bg-navy-deep border-t border-white/10 px-6 md:px-12 py-12 flex flex-col md:flex-row items-center justify-between gap-8">
-        <div className="text-center md:text-left">
-          <div className="font-bebas text-[22px] tracking-[3px] text-white">Urban Hikers</div>
-          <div className="font-mono text-[9px] text-yellow tracking-[2px] uppercase mt-0.5">Local Pulse OS v1.0</div>
-          <div className="text-[13px] text-white/45 mt-3">"Look Up. The City Is Waiting."</div>
+      <footer className="relative z-10 bg-black border-t border-white/5 px-6 md:px-12 py-20 flex flex-col md:flex-row items-start justify-between gap-12">
+        <div className="max-w-xs">
+          <div className="font-bebas text-[32px] tracking-[4px] text-white mb-2">Urban Hikers</div>
+          <div className="font-mono text-[10px] text-yellow tracking-[3px] uppercase mb-6">Local Pulse OS v1.0</div>
+          <div className="text-sm text-white/40 leading-relaxed italic">"Look Up. The City Is Waiting."</div>
         </div>
-        <div className="text-center md:text-right">
-          <div className="flex flex-wrap justify-center md:justify-end gap-6 mb-3">
-            <a href="#how" className="text-xs text-white/45 no-underline hover:text-white transition-colors">How It Works</a>
-            <a href="#services" className="text-xs text-white/45 no-underline hover:text-white transition-colors">Services</a>
-            <a href="#partners" className="text-xs text-white/45 no-underline hover:text-white transition-colors">Partners</a>
+        <div className="flex flex-col md:items-end gap-8">
+          <div className="flex flex-wrap gap-x-10 gap-y-4">
+            <a href="#how" className="font-mono text-[10px] text-white/40 no-underline hover:text-yellow tracking-[2px] uppercase transition-colors">How It Works</a>
+            <a href="#services" className="font-mono text-[10px] text-white/40 no-underline hover:text-yellow tracking-[2px] uppercase transition-colors">Services</a>
+            <a href="#partners" className="font-mono text-[10px] text-white/40 no-underline hover:text-yellow tracking-[2px] uppercase transition-colors">Partners</a>
             <button 
               onClick={() => {
                 window.history.pushState({}, '', '/login');
                 window.dispatchEvent(new PopStateEvent('popstate'));
               }}
-              className="text-xs text-white/45 no-underline hover:text-white transition-colors"
+              className="font-mono text-[10px] text-white/40 no-underline hover:text-yellow tracking-[2px] uppercase transition-colors"
             >
               Partner Login
             </button>
-            <a href="#" className="text-xs text-white/45 no-underline hover:text-white transition-colors">Privacy Promise</a>
           </div>
-          <div className="text-[11px] text-white/20">&copy; 2026 Urban Hikers · Cincinnati, OH · All nodes anonymous by default</div>
+          <div className="font-mono text-[10px] text-white/20 tracking-[1px] uppercase">&copy; 2026 Urban Hikers · Cincinnati, OH · All nodes anonymous by default</div>
         </div>
       </footer>
     </div>

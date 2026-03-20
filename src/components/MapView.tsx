@@ -135,7 +135,7 @@ export const MapView: React.FC<MapViewProps> = ({ currentNode, broadcasts, onSel
 
         {/* Broadcast Markers */}
         {broadcasts.map((b) => {
-          const partner = b.partner_id ? partnersMap[b.partner_id] : null;
+          const partner = b.partnerId ? partnersMap[b.partnerId] : null;
           
           return (
             <Marker 
@@ -153,7 +153,7 @@ export const MapView: React.FC<MapViewProps> = ({ currentNode, broadcasts, onSel
                       {partner && <SponsorBadge partner={partner} zone="A" />}
                     </div>
                     <div className="text-[9px] font-bold bg-hud-bg/10 px-1.5 py-0.5 rounded">
-                      {b.current_vibe.toUpperCase()}
+                      {b.currentVibe.toUpperCase()}
                     </div>
                   </div>
                   <div className="font-bold text-sm mb-1">{b.title}</div>

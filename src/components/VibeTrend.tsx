@@ -28,9 +28,9 @@ export const VibeTrend: React.FC<VibeTrendProps> = ({ broadcastId }) => {
 
   useEffect(() => {
     const q = query(
-      collection(db, 'vibe_reports'),
-      where('broadcast_id', '==', broadcastId),
-      orderBy('reported_at', 'desc'),
+      collection(db, 'vibeReports'),
+      where('broadcastId', '==', broadcastId),
+      orderBy('reportedAt', 'desc'),
       limit(20)
     );
 
@@ -42,9 +42,9 @@ export const VibeTrend: React.FC<VibeTrendProps> = ({ broadcastId }) => {
 
       // Sort by time ascending for the chart
       const chartData = reports
-        .sort((a, b) => new Date(a.reported_at).getTime() - new Date(b.reported_at).getTime())
+        .sort((a, b) => new Date(a.reportedAt).getTime() - new Date(b.reportedAt).getTime())
         .map(r => ({
-          time: format(new Date(r.reported_at), 'HH:mm'),
+          time: format(new Date(r.reportedAt), 'HH:mm'),
           value: VIBE_VALUES[r.vibe],
           originalVibe: r.vibe
         }));
@@ -52,7 +52,7 @@ export const VibeTrend: React.FC<VibeTrendProps> = ({ broadcastId }) => {
       setData(chartData);
       setLoading(false);
     }, (err) => {
-      handleFirestoreError(err, OperationType.LIST, 'vibe_reports');
+      handleFirestoreError(err, OperationType.LIST, 'vibeReports');
     });
 
     return () => unsubscribe();

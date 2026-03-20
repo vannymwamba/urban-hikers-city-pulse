@@ -20,9 +20,9 @@ export const MiniVibeTrend: React.FC<MiniVibeTrendProps> = ({ broadcastId }) => 
 
   useEffect(() => {
     const q = query(
-      collection(db, 'vibe_reports'),
-      where('broadcast_id', '==', broadcastId),
-      orderBy('reported_at', 'desc'),
+      collection(db, 'vibeReports'),
+      where('broadcastId', '==', broadcastId),
+      orderBy('reportedAt', 'desc'),
       limit(5)
     );
 
@@ -43,7 +43,7 @@ export const MiniVibeTrend: React.FC<MiniVibeTrendProps> = ({ broadcastId }) => 
       if (last > first) setTrend('up');
       else if (last < first) setTrend('down');
       else setTrend('stable');
-    }, (err) => handleFirestoreError(err, OperationType.LIST, 'vibe_reports'));
+    }, (err) => handleFirestoreError(err, OperationType.LIST, 'vibeReports'));
 
     return () => unsubscribe();
   }, [broadcastId]);

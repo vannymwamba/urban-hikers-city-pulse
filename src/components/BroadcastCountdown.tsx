@@ -14,8 +14,8 @@ export const BroadcastCountdown: React.FC<BroadcastCountdownProps> = ({ broadcas
     return () => clearInterval(timer);
   }, []);
 
-  const start = new Date(broadcast.starts_at);
-  const end = new Date(broadcast.expires_at);
+  const start = new Date(broadcast.startsAt);
+  const end = new Date(broadcast.expiresAt);
   const isLive = now >= start && now < end;
   const isUpcoming = now < start;
 
@@ -28,11 +28,11 @@ export const BroadcastCountdown: React.FC<BroadcastCountdownProps> = ({ broadcas
   let progress = 0;
 
   if (isLive) {
-    if (broadcast.current_vibe === 'packed') {
+    if (broadcast.currentVibe === 'packed') {
       label = "ENDS IN";
       colorClass = "text-[#E24B4A]"; // LIVE Red
       barColorClass = "bg-[#E24B4A]";
-    } else if (broadcast.current_vibe === 'buzzing') {
+    } else if (broadcast.currentVibe === 'buzzing') {
       label = "DEAL EXPIRES IN";
       colorClass = "text-[#EF9F27]"; // BUZZING Amber
       barColorClass = "bg-[#EF9F27]";

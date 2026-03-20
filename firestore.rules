@@ -55,7 +55,7 @@
 // Fields:
 //   - uid: string (required)
 //   - email: string (required)
-//   - role: string (required, enum: admin, partner, user)
+//   - role: string (required, enum: admin, super_admin, partner, user, hiker, partner_admin, partner_viewer, partner_content_editor)
 //   - partner_id: string (optional)
 //
 // ===============================================================
@@ -72,7 +72,8 @@ service cloud.firestore {
       return isAuthenticated() && (
         isDefaultAdmin() || 
         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
-         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
+         (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'super_admin'))
       );
     }
 
@@ -95,7 +96,12 @@ service cloud.firestore {
 
     function isPartner() {
       return isAuthenticated() && 
-             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'partner';
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['partner', 'partner_admin', 'partner_viewer', 'partner_content_editor'];
+    }
+
+    function canPartnerWrite() {
+      return isAuthenticated() && 
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['partner', 'partner_admin', 'partner_content_editor'];
     }
 
     function getPartnerId() {
@@ -118,13 +124,14 @@ service cloud.firestore {
              data.tier in ['standard', 'premium', 'anchor'] &&
              data.latitude is number && data.latitude >= -90 && data.latitude <= 90 &&
              data.longitude is number && data.longitude >= -180 && data.longitude <= 180 &&
-             isValidEmail(data.owner_email);
+             isValidEmail(data.owner_email) &&
+             (!('role' in data) || data.role in ['admin', 'super_admin', 'partner', 'user', 'hiker', 'partner_admin', 'partner_viewer', 'partner_content_editor']);
     }
 
     function isValidUser(data) {
       return data.uid is string &&
              isValidEmail(data.email) &&
-             data.role in ['admin', 'partner', 'user'] &&
+             data.role in ['admin', 'super_admin', 'partner', 'user', 'hiker', 'partner_admin', 'partner_viewer', 'partner_content_editor'] &&
              (!('partner_id' in data) || data.partner_id is string);
     }
 
@@ -137,7 +144,7 @@ service cloud.firestore {
 
     match /broadcasts/{broadcastId} {
       allow read: if true;
-      allow create: if (isAdmin() || (isPartner() && request.resource.data.partner_id == getPartnerId())) && 
+      allow create: if (isAdmin() || (canPartnerWrite() && request.resource.data.partner_id == getPartnerId())) && 
                     isValidBroadcast(request.resource.data);
       allow update: if isAdmin() || (
                     request.resource.data.diff(resource.data).affectedKeys().hasOnly(['current_vibe']) &&
@@ -163,7 +170,7 @@ service cloud.firestore {
       allow read: if true;
       allow create: if isAdmin() && isValidPartner(request.resource.data);
       allow update: if (isAdmin() && isValidPartner(request.resource.data)) || 
-                    (isAuthenticated() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.partner_id == partnerId &&
+                    (canPartnerWrite() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.partner_id == partnerId &&
                      request.resource.data.diff(resource.data).affectedKeys().hasOnly(['logo_url', 'brand_color', 'deal_text', 'logo_updated_at']));
       allow delete: if isAdmin();
     }
@@ -171,14 +178,14 @@ service cloud.firestore {
     match /users/{userId} {
       allow read: if isAuthenticated() && (request.auth.uid == userId || isAdmin()); 
       allow create: if isAuthenticated() && request.auth.uid == userId && isValidUser(request.resource.data) && 
-                    (request.resource.data.role == 'user' || 
+                    (request.resource.data.role in ['user', 'hiker'] || 
                      isDefaultAdmin() ||
-                     (request.resource.data.role == 'partner' && 
+                     (request.resource.data.role in ['partner', 'partner_admin', 'partner_viewer', 'partner_content_editor'] && 
                       get(/databases/$(database)/documents/partners/$(request.resource.data.partner_id)).data.owner_email == request.auth.token.email));
       allow update: if (isAuthenticated() && request.auth.uid == userId && isValidUser(request.resource.data) && 
                        (request.resource.data.role == resource.data.role || 
                         isDefaultAdmin() ||
-                        (request.resource.data.role == 'partner' && 
+                        (request.resource.data.role in ['partner', 'partner_admin', 'partner_viewer', 'partner_content_editor'] && 
                          get(/databases/$(database)/documents/partners/$(request.resource.data.partner_id)).data.owner_email == request.auth.token.email))) || 
                     (isAdmin() && isValidUser(request.resource.data));
       allow delete: if isAdmin();
@@ -192,7 +199,8 @@ service firebase.storage {
       allow read: if true;
       allow write: if request.auth != null && (
         firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
-        firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.partner_id == partnerId
+        (firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.partner_id == partnerId &&
+         firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role in ['partner', 'partner_admin', 'partner_content_editor'])
       );
     }
   }

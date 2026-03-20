@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../firebase';
 import { collection, addDoc, onSnapshot, query, where, doc, setDoc, getDocs, updateDoc, deleteDoc } from 'firebase/firestore';
-import { Node, Broadcast, UserProfile, Partner, BroadcastType, HubType, VibeReport, Tap } from '../types';
+import { Node, Broadcast, UserProfile, Partner, BroadcastType, HubType, VibeReport, Tap, UserRole } from '../types';
 import { Plus, MapPin, Link as LinkIcon, Send, LayoutDashboard, LogOut, ChevronRight, Globe, ShieldCheck, RefreshCw, BarChart3, Image as ImageIcon, Trash2 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { handleFirestoreError, OperationType } from '../utils/firebaseErrors';
@@ -14,12 +14,20 @@ interface DashboardProps {
 }
 
 export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) => {
+  if (!userProfile) return null;
+
+  const isAdmin = userProfile.role === 'admin' || userProfile.role === 'super_admin';
+  const isPartner = ['partner', 'partner_admin', 'partner_viewer', 'partner_content_editor'].includes(userProfile.role);
+  const canWrite = isAdmin || ['partner', 'partner_admin', 'partner_content_editor'].includes(userProfile.role);
+  const isViewer = userProfile.role === 'partner_viewer';
+
   const [nodes, setNodes] = useState<Node[]>([]);
   const [broadcasts, setBroadcasts] = useState<Broadcast[]>([]);
   const [partners, setPartners] = useState<Partner[]>([]);
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [vibeReports, setVibeReports] = useState<VibeReport[]>([]);
   const [taps, setTaps] = useState<Tap[]>([]);
+  const [tabViews, setTabViews] = useState<any[]>([]);
   
   // Form states
   const [newNode, setNewNode] = useState({ name: '', type: 'street' as HubType, address: '', lat: 0, lng: 0, radius: 500 });
@@ -40,6 +48,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
     lat: 0, 
     lng: 0, 
     ownerEmail: '',
+    role: 'partner_admin' as UserRole,
     logoUrl: '',
     brandColor: '#00FF00',
     dealText: '',
@@ -48,20 +57,31 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
   const [isGeocoding, setIsGeocoding] = useState(false);
   const [isSeeding, setIsSeeding] = useState(false);
   
-  const [activeTab, setActiveTab] = useState<'hubs' | 'broadcasts' | 'partners' | 'analytics' | 'profile'>(userProfile.role === 'admin' ? 'hubs' : 'broadcasts');
+  const [activeTab, setActiveTab] = useState<'hubs' | 'broadcasts' | 'partners' | 'analytics' | 'profile'>(isAdmin ? 'hubs' : 'broadcasts');
   const [hudMessage, setHudMessage] = useState<{ text: string; type: 'info' | 'error' } | null>(null);
 
   const [now, setNow] = useState(new Date());
   
+  const parseDate = (val: any): Date => {
+    if (!val) return new Date(0);
+    if (val instanceof Date) return val;
+    if (typeof val.toDate === 'function') return val.toDate();
+    const d = new Date(val);
+    return isNaN(d.getTime()) ? new Date(0) : d;
+  };
+
   useEffect(() => {
     const timer = setInterval(() => setNow(new Date()), 30000); // Update every 30s
     return () => clearInterval(timer);
   }, []);
 
   const getRemainingTime = (b: Broadcast) => {
+    if (!b.starts_at || !b.expires_at) return 'TIME_UNKNOWN';
     const now = new Date();
-    const start = new Date(b.starts_at);
-    const expiry = new Date(b.expires_at);
+    const start = parseDate(b.starts_at);
+    const expiry = parseDate(b.expires_at);
+
+    if (start.getTime() === 0 || expiry.getTime() === 0) return 'INVALID_TIME';
 
     if (now < start) {
       const diff = start.getTime() - now.getTime();
@@ -89,7 +109,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
   }, [hudMessage]);
 
   useEffect(() => {
-    if (userProfile.role === 'admin') {
+    if (isAdmin) {
       const unsubNodes = onSnapshot(collection(db, 'nodes'), (snap) => {
         setNodes(snap.docs.map(d => ({ id: d.id, ...d.data() } as Node)));
       }, (err) => handleFirestoreError(err, OperationType.LIST, 'nodes'));
@@ -108,9 +128,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
       const unsubTaps = onSnapshot(collection(db, 'taps'), (snap) => {
         setTaps(snap.docs.map(d => ({ id: d.id, ...d.data() } as Tap)));
       }, (err) => handleFirestoreError(err, OperationType.LIST, 'taps'));
-      return () => { unsubNodes(); unsubPartners(); unsubBroadcasts(); unsubUsers(); unsubVibeReports(); unsubTaps(); };
+      const unsubTabViews = onSnapshot(collection(db, 'tab_views'), (snap) => {
+        setTabViews(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      }, (err) => handleFirestoreError(err, OperationType.LIST, 'tab_views'));
+      return () => { unsubNodes(); unsubPartners(); unsubBroadcasts(); unsubUsers(); unsubVibeReports(); unsubTaps(); unsubTabViews(); };
     }
- else if (userProfile.role === 'partner' && userProfile.partner_id) {
+ else if (isPartner && userProfile.partner_id) {
       const unsubBroadcasts = onSnapshot(
         query(collection(db, 'broadcasts'), where('partner_id', '==', userProfile.partner_id)),
         (snap) => {
@@ -143,7 +166,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
 
   const handleCreateNode = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (userProfile.role !== 'admin') return;
+    if (!isAdmin) return;
     
     const id = editingNodeId || newNode.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
     
@@ -193,7 +216,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
   };
 
   const handleRestoreData = async () => {
-    if (userProfile.role !== 'admin') return;
+    if (!isAdmin) return;
     if (!window.confirm("WARNING: This will re-seed the system with initial tactical data. Existing data will be preserved but duplicates may occur. Proceed?")) return;
     
     setIsSeeding(true);
@@ -216,12 +239,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
 
   const handleCreateBroadcast = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (userProfile.role !== 'partner' && userProfile.role !== 'admin') return;
+    if (!isAdmin && !isPartner) return;
 
     const startsAt = new Date(Date.now() + newBroadcast.startTimeOffset * 60000).toISOString();
     const expiresAt = new Date(new Date(startsAt).getTime() + newBroadcast.duration * 60000).toISOString();
     
-    const partnerId = userProfile.role === 'admin' ? (newBroadcast.partnerId || 'admin') : (userProfile.partner_id || 'admin');
+    const partnerId = isAdmin ? (newBroadcast.partnerId || 'admin') : (userProfile.partner_id || 'admin');
     const partner = partners.find(p => p.id === partnerId);
     const targetNode = nodes.find(n => n.id === newBroadcast.nodeId);
     
@@ -264,7 +287,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
   };
 
   const handleRepublish = async (b: Broadcast) => {
-    if (userProfile.role !== 'admin' && userProfile.partner_id !== b.partner_id) return;
+    if (!isAdmin && userProfile.partner_id !== b.partner_id) return;
 
     const duration = 60; // Default 60 mins for republish
     const startsAt = new Date().toISOString();
@@ -286,7 +309,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
     } catch (err) {
       handleFirestoreError(err, OperationType.CREATE, 'broadcasts');
     }
-    setHudMessage({ text: `SIGNAL_REBROADCAST: ${b.title.toUpperCase()}`, type: 'info' });
+    setHudMessage({ text: `SIGNAL_REBROADCAST: ${b.title?.toUpperCase() || 'UNKNOWN'}`, type: 'info' });
   };
 
   const handleGeocode = async () => {
@@ -315,7 +338,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
 
   const handleCreatePartner = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (userProfile.role !== 'admin') return;
+    if (!isAdmin) return;
 
     const id = generatePartnerId(newPartner.name);
     
@@ -335,7 +358,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
         logo_url: newPartner.logoUrl,
         brand_color: newPartner.brandColor,
         deal_text: newPartner.dealText,
-        sponsor_zones: newPartner.sponsorZones
+        sponsor_zones: newPartner.sponsorZones,
+        role: newPartner.role
       });
 
       // 2. Update User Profile if a user with this email already exists
@@ -352,7 +376,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
         const userDoc = userSnap.docs[0];
         try {
           await setDoc(doc(db, 'users', userDoc.id), {
-            role: 'partner',
+            role: newPartner.role,
             partner_id: id
           }, { merge: true });
         } catch (err) {
@@ -368,6 +392,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
         lat: 0, 
         lng: 0, 
         ownerEmail: '',
+        role: 'partner_admin',
         logoUrl: '',
         brandColor: '#00FF00',
         dealText: '',
@@ -380,8 +405,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
   };
 
   const handleDeletePartner = async (partnerId: string, partnerName: string) => {
-    if (userProfile.role !== 'admin') return;
-    if (!window.confirm(`CRITICAL: Are you sure you want to terminate the partnership with ${partnerName.toUpperCase()}? This will remove their access and branding from the network.`)) return;
+    if (!isAdmin) return;
+    if (!window.confirm(`CRITICAL: Are you sure you want to terminate the partnership with ${partnerName?.toUpperCase() || 'UNKNOWN'}? This will remove their access and branding from the network.`)) return;
 
     try {
       await deleteDoc(doc(db, 'partners', partnerId));
@@ -397,7 +422,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
         });
       }
 
-      setHudMessage({ text: `PARTNER_TERMINATED: ${partnerName.toUpperCase()}`, type: 'info' });
+      setHudMessage({ text: `PARTNER_TERMINATED: ${partnerName?.toUpperCase() || 'UNKNOWN'}`, type: 'info' });
     } catch (err) {
       handleFirestoreError(err, OperationType.DELETE, `partners/${partnerId}`);
     }
@@ -434,7 +459,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
       <div className="flex flex-1 overflow-hidden">
         {/* Navigation */}
         <nav className="w-64 border-r border-white/10 p-4 flex flex-col gap-2 bg-hud-dark/50">
-          {(userProfile.role === 'admin' || userProfile.role === 'partner') && (
+          {(isAdmin || isPartner) && (
             <button 
               onClick={() => setActiveTab('hubs')}
               className={`flex items-center gap-3 p-3 text-sm font-bold transition-all ${activeTab === 'hubs' ? 'bg-hud-green text-black' : 'hover:bg-white/5 text-hud-green/60'}`}
@@ -442,7 +467,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
               <Globe size={18} /> SECTOR_HUBS
             </button>
           )}
-          {userProfile.role === 'admin' && (
+          {isAdmin && (
             <button 
               onClick={() => setActiveTab('partners')}
               className={`flex items-center gap-3 p-3 text-sm font-bold transition-all ${activeTab === 'partners' ? 'bg-hud-green text-black' : 'hover:bg-white/5 text-hud-green/60'}`}
@@ -456,15 +481,15 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
           >
             <Send size={18} /> LIVE_BROADCASTS
           </button>
-          {(userProfile.role === 'partner' || userProfile.role === 'admin') && (
+          {(isPartner || isAdmin) && (
             <button 
               onClick={() => setActiveTab('analytics')}
               className={`flex items-center gap-3 p-3 text-sm font-bold transition-all ${activeTab === 'analytics' ? 'bg-hud-green text-black' : 'hover:bg-white/5 text-hud-green/60'}`}
             >
-              <BarChart3 size={18} /> {userProfile.role === 'admin' ? 'SYSTEM_ANALYTICS' : 'SIGNAL_ANALYTICS'}
+              <BarChart3 size={18} /> {isAdmin ? 'SYSTEM_ANALYTICS' : 'SIGNAL_ANALYTICS'}
             </button>
           )}
-          {userProfile.role === 'partner' && (
+          {isPartner && (
             <button 
               onClick={() => setActiveTab('profile')}
               className={`flex items-center gap-3 p-3 text-sm font-bold transition-all ${activeTab === 'profile' ? 'bg-hud-green text-black' : 'hover:bg-white/5 text-hud-green/60'}`}
@@ -497,13 +522,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
           {/* Scanline Effect */}
           <div className="absolute inset-0 pointer-events-none bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%),linear-gradient(90deg,rgba(255,0,0,0.06),rgba(0,255,0,0.02),rgba(0,0,255,0.06))] z-50 bg-[length:100%_2px,3px_100%] opacity-20" />
 
-          {activeTab === 'hubs' && (userProfile.role === 'admin' || userProfile.role === 'partner') && (
+          {activeTab === 'hubs' && (isAdmin || isPartner) && (
             <div className="max-w-4xl mx-auto">
               <div className="flex justify-between items-end mb-8 border-b border-hud-green/20 pb-4">
                 <h2 className="text-2xl font-black tracking-tighter text-hud-green">SECTOR_HUB_MANAGEMENT</h2>
                 <div className="flex flex-col items-end">
                   <div className="flex items-center gap-4 mb-2">
-                    {userProfile.role === 'admin' && (
+                    {isAdmin && (
                       <button 
                         onClick={handleRestoreData}
                         disabled={isSeeding}
@@ -514,10 +539,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
                       </button>
                     )}
                     <div className="text-[10px] text-hud-green/40 font-bold uppercase">
-                      {userProfile.role === 'admin' ? `ACTIVE_NODES: ${nodes.length}` : `HOSTING_HUBS: ${nodes.filter(n => broadcasts.some(b => b.node_id === n.id)).length}`}
+                      {isAdmin ? `ACTIVE_NODES: ${nodes.length}` : `HOSTING_HUBS: ${nodes.filter(n => broadcasts.some(b => b.node_id === n.id)).length}`}
                     </div>
                   </div>
-                  {userProfile.role === 'partner' && (
+                  {isPartner && (
                     <div className="text-[10px] text-hud-yellow font-bold uppercase mt-1">
                       TOTAL_NETWORK_TAPS: {taps.filter(t => broadcasts.some(b => b.node_id === t.node_id)).length}
                     </div>
@@ -526,7 +551,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
               </div>
 
               {/* Create/Edit Node Form - Admin Only */}
-              {userProfile.role === 'admin' && (
+              {isAdmin && (
                 <form onSubmit={handleCreateNode} className="bg-white/5 border border-white/10 p-6 mb-8 grid grid-cols-2 gap-4">
                   <div className="col-span-2 flex justify-between items-center mb-2">
                     <div className="text-[10px] text-hud-green font-bold tracking-widest uppercase">
@@ -621,12 +646,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
 
               <div className="grid gap-4">
                 {nodes
-                  .filter(node => userProfile.role === 'admin' || broadcasts.some(b => b.node_id === node.id))
+                  .filter(node => isAdmin || broadcasts.some(b => b.node_id === node.id))
                   .map(node => (
                     <div key={node.id} className="bg-white/5 border border-white/10 p-4 flex justify-between items-center group hover:border-hud-green/40 transition-all">
                       <div className="flex-1">
                         <div className="text-xs font-bold text-hud-green mb-1">{node.name}</div>
-                        <div className="text-[10px] opacity-40 font-mono">ID: {node.id} // TYPE: {node.type.toUpperCase()}</div>
+                        <div className="text-[10px] opacity-40 font-mono">ID: {node.id} // TYPE: {node.type?.toUpperCase() || 'UNKNOWN'}</div>
                       </div>
                       <div className="flex gap-6 items-center">
                         <div className="w-16 text-right">
@@ -638,7 +663,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
                           <div className="text-[10px] font-mono">{node.latitude.toFixed(4)}, {node.longitude.toFixed(4)}</div>
                         </div>
                         <div className="w-20 flex gap-2 justify-end">
-                          {userProfile.role === 'admin' && (
+                          {isAdmin && (
                             <button 
                               onClick={() => {
                                 setEditingNodeId(node.id);
@@ -678,7 +703,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
                     <div className="text-hud-green font-black tracking-[0.2em] mb-2">NO_ACTIVE_HUBS_DETECTED</div>
                     <div className="text-[10px] opacity-40 uppercase max-w-xs mx-auto leading-relaxed">
                       The sector network is currently offline or uninitialized. 
-                      {userProfile.role === 'admin' && " Use the RESTORE_SYSTEM_DATA button above to re-seed the tactical grid."}
+                      {isAdmin && " Use the RESTORE_SYSTEM_DATA button above to re-seed the tactical grid."}
                     </div>
                   </div>
                 )}
@@ -686,7 +711,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
             </div>
           )}
 
-          {activeTab === 'partners' && userProfile.role === 'admin' && (
+          {activeTab === 'partners' && isAdmin && (
             <div className="max-w-4xl mx-auto">
               <div className="flex justify-between items-end mb-8 border-b border-hud-yellow/20 pb-4">
                 <h2 className="text-2xl font-black tracking-tighter text-hud-yellow">PARTNER_NETWORK_ADMIN</h2>
@@ -763,7 +788,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
                   />
                 </div>
 
-                <div className="col-span-2 flex flex-col gap-1">
+                <div className="flex flex-col gap-1">
                   <label className="text-[9px] opacity-40 font-bold">ASSOCIATE_OWNER_EMAIL</label>
                   <input 
                     type="email"
@@ -774,6 +799,19 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
                     required
                   />
                   <p className="text-[8px] opacity-40 mt-1">USER_WILL_GAIN_PARTNER_ACCESS_UPON_LOGIN</p>
+                </div>
+
+                <div className="flex flex-col gap-1">
+                  <label className="text-[9px] opacity-40 font-bold">ASSIGNED_USER_ROLE</label>
+                  <select 
+                    className="bg-black border border-white/20 p-3 text-sm focus:border-hud-yellow outline-none"
+                    value={newPartner.role}
+                    onChange={e => setNewPartner({...newPartner, role: e.target.value as UserRole})}
+                  >
+                    <option value="partner_admin">PARTNER_ADMIN</option>
+                    <option value="partner_content_editor">CONTENT_EDITOR</option>
+                    <option value="partner_viewer">VIEWER_ONLY</option>
+                  </select>
                 </div>
 
                 {/* Sponsor Branding Section */}
@@ -859,7 +897,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
                         )}
                       </div>
                       <div className="text-[10px] opacity-40 font-mono">
-                        TIER: {partner.tier.toUpperCase()} // 
+                        TIER: {partner.tier?.toUpperCase() || 'STANDARD'} // 
                         OWNER: {partner.owner_email || 'UNASSIGNED'} //
                         ZONES: {partner.sponsor_zones?.join(', ') || 'NONE'}
                       </div>
@@ -945,7 +983,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
                   </select>
                 )}
 
-                {userProfile.role === 'admin' && (
+                {isAdmin && (
                   <select 
                     className="col-span-2 bg-black border border-white/20 p-3 text-sm focus:border-hud-magenta outline-none"
                     value={newBroadcast.partnerId || ''}
@@ -996,8 +1034,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
                     <option value={1440}>24 HOURS (MAX)</option>
                   </select>
                 </div>
-                <button type="submit" className="bg-hud-magenta text-black font-black p-3 hover:bg-hud-magenta/80 transition-all flex items-center justify-center gap-2 col-span-2">
-                  <Send size={18} /> TRANSMIT_SIGNAL
+                <button 
+                  type="submit" 
+                  disabled={!canWrite}
+                  className={`bg-hud-magenta text-black font-black p-3 hover:bg-hud-magenta/80 transition-all flex items-center justify-center gap-2 col-span-2 ${!canWrite ? 'opacity-50 cursor-not-allowed' : ''}`}
+                >
+                  <Send size={18} /> {canWrite ? 'TRANSMIT_SIGNAL' : 'READ_ONLY_ACCESS'}
                 </button>
               </form>
 
@@ -1027,10 +1069,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
                               </div>
                             )}
                             <div className="text-[10px] opacity-40 font-mono">
-                              TYPE: {b.type.toUpperCase()} // 
+                              TYPE: {b.type?.toUpperCase() || 'UNKNOWN'} // 
                               HUB: {node?.name || b.node_id || 'UNKNOWN'} // 
                               PARTNER: {partner?.name || (b.partner_id === 'admin' ? 'SYSTEM_ADMIN' : b.partner_id || 'UNKNOWN')} //
-                              VIBE: {b.current_vibe.toUpperCase()}
+                              VIBE: {b.current_vibe?.toUpperCase() || 'UNKNOWN'}
                             </div>
                             {partner && <SponsorBadge partner={partner} zone="D" />}
                           </div>
@@ -1038,9 +1080,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
                         <div className="flex items-center gap-4">
                           <div className="text-right">
                             <div className="text-[10px] font-bold text-hud-magenta mb-1">{getRemainingTime(b)}</div>
-                            <div className="text-[9px] opacity-40 font-mono uppercase tracking-widest">EXPIRES_AT: {new Date(b.expires_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+                            <div className="text-[9px] opacity-40 font-mono uppercase tracking-widest">EXPIRES_AT: {b.expires_at ? parseDate(b.expires_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'UNKNOWN'}</div>
                           </div>
-                          {(userProfile.role === 'admin' || userProfile.partner_id === b.partner_id) && (
+                          {(isAdmin || (isPartner && userProfile.partner_id === b.partner_id && canWrite)) && (
                             <button 
                               onClick={() => handleRepublish(b)}
                               className="px-3 py-2 hover:bg-hud-magenta/20 text-hud-magenta transition-all border border-hud-magenta/20 hover:border-hud-magenta flex items-center gap-2 text-[10px] font-bold"
@@ -1057,7 +1099,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
               </div>
             </div>
           )}
-          {activeTab === 'profile' && userProfile.role === 'partner' && (
+          {activeTab === 'profile' && isPartner && (
             <div className="max-w-4xl mx-auto">
               <div className="flex justify-between items-end mb-8 border-b border-hud-yellow/20 pb-4">
                 <h2 className="text-2xl font-black tracking-tighter text-hud-yellow">PARTNER_PROFILE_CONFIG</h2>
@@ -1076,6 +1118,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
                             partnerId={userProfile.partner_id!} 
                             currentLogoUrl={partners.find(p => p.id === userProfile.partner_id)?.logo_url}
                             onUploadComplete={async (url) => {
+                              if (!canWrite) {
+                                setHudMessage({ text: 'PERMISSION_DENIED: READ_ONLY_ACCESS', type: 'error' });
+                                return;
+                              }
                               try {
                                 await updateDoc(doc(db, 'partners', userProfile.partner_id!), { logo_url: url });
                                 setHudMessage({ text: 'LOGO_UPDATED_SUCCESSFULLY', type: 'info' });
@@ -1091,9 +1137,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
                           <div className="flex gap-3 items-center">
                             <input 
                               type="color"
-                              className="w-12 h-12 bg-transparent border-none cursor-pointer"
+                              disabled={!canWrite}
+                              className={`w-12 h-12 bg-transparent border-none cursor-pointer ${!canWrite ? 'opacity-50 cursor-not-allowed' : ''}`}
                               value={partners.find(p => p.id === userProfile.partner_id)?.brand_color || '#C4832A'}
                               onChange={async (e) => {
+                                if (!canWrite) return;
                                 try {
                                   await updateDoc(doc(db, 'partners', userProfile.partner_id!), { brand_color: e.target.value });
                                 } catch (err) {
@@ -1113,10 +1161,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
                         <div className="flex flex-col gap-2">
                           <label className="text-[9px] opacity-40 font-bold uppercase">Deal_Text (Call-to-Action)</label>
                           <textarea 
-                            className="bg-black border border-white/20 p-3 text-sm focus:border-hud-yellow outline-none min-h-[100px]"
+                            disabled={!canWrite}
+                            className={`bg-black border border-white/20 p-3 text-sm focus:border-hud-yellow outline-none min-h-[100px] ${!canWrite ? 'opacity-50 cursor-not-allowed' : ''}`}
                             placeholder="e.g. Show this card for 10% off your first cold brew!"
                             value={partners.find(p => p.id === userProfile.partner_id)?.deal_text || ''}
                             onChange={async (e) => {
+                              if (!canWrite) return;
                               try {
                                 await updateDoc(doc(db, 'partners', userProfile.partner_id!), { deal_text: e.target.value });
                               } catch (err) {
@@ -1156,10 +1206,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
             <div className="max-w-4xl mx-auto">
               <div className="flex justify-between items-end mb-8 border-b border-hud-magenta/20 pb-4">
                 <h2 className="text-2xl font-black tracking-tighter text-hud-magenta">
-                  {userProfile.role === 'admin' ? 'SYSTEM_WIDE_ANALYTICS' : 'SIGNAL_ANALYTICS'}
+                  {isAdmin ? 'SYSTEM_WIDE_ANALYTICS' : 'SIGNAL_ANALYTICS'}
                 </h2>
                 <div className="text-[10px] text-hud-magenta/40 font-bold uppercase tracking-widest">
-                  {userProfile.role === 'admin' ? 'GLOBAL_PULSE_MONITOR' : `PARTNER_ID: ${userProfile.partner_id}`}
+                  {isAdmin ? 'GLOBAL_PULSE_MONITOR' : `PARTNER_ID: ${userProfile.partner_id}`}
                 </div>
               </div>
 
@@ -1168,7 +1218,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
                 <div className="bg-white/5 border border-white/10 p-5">
                   <div className="text-[9px] opacity-40 font-bold mb-2 tracking-widest">TOTAL_NETWORK_TAPS</div>
                   <div className="text-2xl font-black text-hud-green">
-                    {userProfile.role === 'admin' 
+                    {isAdmin 
                       ? taps.length 
                       : taps.filter(t => broadcasts.some(b => b.node_id === t.node_id)).length}
                   </div>
@@ -1176,7 +1226,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
                 <div className="bg-white/5 border border-white/10 p-5">
                   <div className="text-[9px] opacity-40 font-bold mb-2 tracking-widest">UNIQUE_SESSIONS</div>
                   <div className="text-2xl font-black text-hud-yellow">
-                    {userProfile.role === 'admin'
+                    {isAdmin
                       ? new Set(taps.map(t => t.session_uuid)).size
                       : new Set(taps.filter(t => broadcasts.some(b => b.node_id === t.node_id)).map(t => t.session_uuid)).size}
                   </div>
@@ -1189,15 +1239,15 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
                 </div>
                 <div className="bg-white/5 border border-white/10 p-5">
                   <div className="text-[9px] opacity-40 font-bold mb-2 tracking-widest">
-                    {userProfile.role === 'admin' ? 'ACTIVE_PARTNERS' : 'VIBE_REPORTS'}
+                    {isAdmin ? 'ACTIVE_PARTNERS' : 'VIBE_REPORTS'}
                   </div>
                   <div className="text-2xl font-black text-white">
-                    {userProfile.role === 'admin' ? partners.length : vibeReports.length}
+                    {isAdmin ? partners.length : vibeReports.length}
                   </div>
                 </div>
               </div>
 
-              {userProfile.role === 'admin' ? (
+              {isAdmin ? (
                 <div className="space-y-8">
                   {/* Partner Performance Table */}
                   <div className="bg-white/5 border border-white/10 p-6">
@@ -1266,6 +1316,44 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
                               <div>
                                 <div className="text-[9px] opacity-40 font-bold uppercase">Unique_Users</div>
                                 <div className="text-lg font-black text-white">{nodeUniqueTaps}</div>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Tab Navigation Analytics */}
+                  <div className="bg-white/5 border border-white/10 p-6">
+                    <h3 className="text-sm font-bold text-hud-yellow mb-6 tracking-widest uppercase">TAB_NAVIGATION_ANALYTICS</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      {['feed', 'wallet', 'map'].map(tab => {
+                        const views = tabViews.filter(v => v.tab === tab);
+                        const uniqueSessions = new Set(views.map(v => v.session_uuid)).size;
+                        const tapInTab = taps.filter(t => t.tab === tab).length;
+
+                        return (
+                          <div key={tab} className="border border-white/10 p-4 hover:border-hud-yellow/40 transition-all">
+                            <div className="text-[10px] font-bold text-hud-yellow mb-3 uppercase tracking-widest">{tab}_VIEW_METRICS</div>
+                            <div className="space-y-4">
+                              <div>
+                                <div className="text-[9px] opacity-40 font-bold uppercase">Total_Views</div>
+                                <div className="text-xl font-black text-white">{views.length}</div>
+                              </div>
+                              <div className="grid grid-cols-2 gap-2">
+                                <div>
+                                  <div className="text-[9px] opacity-40 font-bold uppercase">Unique_Sessions</div>
+                                  <div className="text-sm font-bold text-white/80">{uniqueSessions}</div>
+                                </div>
+                                <div>
+                                  <div className="text-[9px] opacity-40 font-bold uppercase">Taps_In_Tab</div>
+                                  <div className="text-sm font-bold text-hud-green">{tapInTab}</div>
+                                </div>
+                                <div>
+                                  <div className="text-[9px] opacity-40 font-bold uppercase">Sponsor_Taps</div>
+                                  <div className="text-sm font-bold text-hud-magenta">{taps.filter(t => t.tab === tab && t.sponsor_id).length}</div>
+                                </div>
                               </div>
                             </div>
                           </div>

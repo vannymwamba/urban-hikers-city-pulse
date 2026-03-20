@@ -94,7 +94,7 @@ export default function App() {
   const [hudMessage, setHudMessage] = useState<{ text: string; type: 'error' | 'info' } | null>(null);
   const [path, setPath] = useState(window.location.pathname);
   const [now, setNow] = useState(new Date());
-  const [currentTab, setCurrentTab] = useState<'feed' | 'wallet' | 'map'>(() => {
+  const [currentTab, setCurrentTab] = useState<'feed' | 'wallet' | 'map' | 'routes'>(() => {
     const initial = localStorage.getItem('uh_initial_tab');
     if (initial === 'wallet') {
       localStorage.removeItem('uh_initial_tab');
@@ -103,6 +103,10 @@ export default function App() {
     if (initial === 'map') {
       localStorage.removeItem('uh_initial_tab');
       return 'map';
+    }
+    if (initial === 'routes') {
+      localStorage.removeItem('uh_initial_tab');
+      return 'routes';
     }
     return 'feed';
   });
@@ -216,11 +220,13 @@ export default function App() {
         }
         
         if (!partnerSnap.empty) {
-          const partnerId = partnerSnap.docs[0].id;
+          const partnerDoc = partnerSnap.docs[0];
+          const partnerData = partnerDoc.data() as Partner;
+          const partnerId = partnerDoc.id;
           profile = {
             uid: user.uid,
             email: user.email!,
-            role: 'partner',
+            role: partnerData.role || 'partner',
             partner_id: partnerId
           };
         } else {
@@ -316,12 +322,22 @@ export default function App() {
         const hasTapped = sessionStorage.getItem(tapKey);
         
         if (!hasTapped) {
+          // Find if there's an active sponsored broadcast at this node
+          const activeSponsor = broadcasts.find(b => 
+            b.node_id === nodeId && 
+            b.partner_id && 
+            b.partner_id !== 'admin' &&
+            new Date(b.expires_at) > new Date()
+          );
+
           try {
             await addDoc(collection(db, 'taps'), {
               node_id: nodeId,
               session_uuid: SESSION_ID,
               access_vector: ACCESS_VECTOR,
-              timestamp: new Date().toISOString()
+              timestamp: new Date().toISOString(),
+              tab: currentTab,
+              sponsor_id: activeSponsor?.partner_id || null
             });
           } catch (err) {
             handleFirestoreError(err, OperationType.CREATE, 'taps');
@@ -335,7 +351,26 @@ export default function App() {
     };
 
     recordTap();
-  }, [currentNode, nodeId, isDashboard]);
+  }, [currentNode, nodeId, isDashboard, broadcasts, currentTab]);
+
+  useEffect(() => {
+    if (isDashboard || isHome) return;
+
+    const recordTabView = async () => {
+      try {
+        await addDoc(collection(db, 'tab_views'), {
+          session_uuid: SESSION_ID,
+          tab: currentTab,
+          timestamp: new Date().toISOString()
+        });
+        console.log(`TAB_VIEW_RECORDED: ${currentTab}`);
+      } catch (err) {
+        handleFirestoreError(err, OperationType.CREATE, 'tab_views');
+      }
+    };
+
+    recordTabView();
+  }, [currentTab, isDashboard, isHome]);
 
   useEffect(() => {
     if (isDashboard || isHome) {
@@ -533,7 +568,9 @@ export default function App() {
   };
 
   useEffect(() => {
-    if ((isHome || isLogin) && userProfile && (userProfile.role === 'admin' || userProfile.role === 'partner')) {
+    if (!userProfile) return;
+    const isPartnerRole = ['partner', 'partner_admin', 'partner_viewer', 'partner_content_editor'].includes(userProfile.role);
+    if ((isHome || isLogin) && (userProfile.role === 'admin' || isPartnerRole)) {
       window.history.pushState({}, '', '/dashboard');
       window.dispatchEvent(new PopStateEvent('popstate'));
     }

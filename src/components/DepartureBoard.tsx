@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Broadcast, Node, UserProfile, Partner } from '../types';
+import { Broadcast, Node, UserProfile, Partner, Route, Guide, Sponsor } from '../types';
 import { MapView } from './MapView';
 import { BroadcastCard } from './BroadcastCard';
-import { Clock, ShieldCheck, MapPin, Home, LayoutGrid, Share2, Ticket, Map as MapIcon, ArrowRight, AlertCircle, Lock } from 'lucide-react';
+import { RouteCard } from './RouteCard';
+import { Clock, ShieldCheck, MapPin, Home, LayoutGrid, Share2, Ticket, Map as MapIcon, ArrowRight, AlertCircle, Lock, Navigation, Users } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { getDistance } from '../utils/geo';
 import { WalletCard } from './WalletCard';
@@ -23,10 +24,15 @@ interface DepartureBoardProps {
   onShareEvent: (broadcast: Broadcast) => void;
   onSaveToWallet?: (node?: Node) => void;
   isSaved?: boolean;
-  activeTab?: 'feed' | 'wallet' | 'map';
-  onTabChange?: (tab: 'feed' | 'wallet' | 'map') => void;
+  activeTab?: 'feed' | 'wallet' | 'map' | 'routes';
+  onTabChange?: (tab: 'feed' | 'wallet' | 'map' | 'routes') => void;
   savedHubs?: Node[];
   partnersMap?: Record<string, Partner>;
+  routes?: Route[];
+  guidesMap?: Record<string, Guide>;
+  sponsorsMap?: Record<string, Sponsor>;
+  onStartRoute?: (route: Route) => void;
+  onBookRoute?: (route: Route) => void;
 }
 
 export const DepartureBoard: React.FC<DepartureBoardProps> = ({ 
@@ -47,7 +53,12 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
   activeTab = 'feed',
   onTabChange,
   savedHubs = [],
-  partnersMap = {}
+  partnersMap = {},
+  routes = [],
+  guidesMap = {},
+  sponsorsMap = {},
+  onStartRoute = () => {},
+  onBookRoute = () => {}
 }) => {
   const [time, setTime] = useState(new Date());
   const [showConfirmation, setShowConfirmation] = useState(false);
@@ -122,7 +133,8 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
             onSelect={onSelect}
             onShareEvent={onShareEvent}
             handleDirections={handleDirections}
-            partner={partnersMap[item.partner_id || ''] || null}
+            partner={partnersMap[item.partnerId || ''] || null}
+            sponsor={sponsorsMap[item.sponsorId || ''] || null}
           />
         ))}
       </div>
@@ -166,9 +178,16 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
         </div>
 
         <div className="flex justify-between items-center">
-          <div className="flex items-center gap-2 text-[10px] text-white/40 font-medium truncate max-w-[60%] font-sans">
-            <MapPin size={12} className="shrink-0" />
-            <span className="truncate">{currentNode?.address || 'LOCATION_PENDING'}</span>
+          <div className="flex flex-col gap-1 max-w-[60%]">
+            <div className="flex items-center gap-2 text-[10px] text-white/40 font-medium truncate font-sans">
+              <MapPin size={12} className="shrink-0" />
+              <span className="truncate">{currentNode?.address || 'LOCATION_PENDING'}</span>
+            </div>
+            {currentNode?.capacity && (
+              <div className="flex items-center gap-2 text-[9px] text-hud-green font-bold uppercase tracking-widest font-mono">
+                <Users size={10} /> CAPACITY: {currentNode.capacity}
+              </div>
+            )}
           </div>
           <div className="flex items-center gap-2">
             <button 
@@ -287,7 +306,34 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
 
       {/* Feed Area */}
       <div className={`flex-1 ${activeTab === 'map' ? 'overflow-hidden' : 'overflow-y-auto'} bg-feed-bg transition-all duration-500 ${!isTappedIn && activeTab === 'feed' ? 'opacity-60 grayscale' : ''}`}>
-        {activeTab === 'wallet' ? (
+        {activeTab === 'routes' ? (
+          <div className="p-4 flex flex-col gap-4">
+            <div className="flex items-center gap-3 mb-2">
+              <span className="text-[10px] font-black tracking-[0.2em] text-[#888780] uppercase whitespace-nowrap">MISSION_BOARD</span>
+              <div className="flex-1 h-[1px] bg-[#D3D1C7]" />
+            </div>
+            
+            {routes.length === 0 ? (
+              <div className="py-12 text-center flex flex-col items-center justify-center">
+                <div className="text-white/40 italic mb-4 tracking-[0.2em] text-[10px] uppercase leading-relaxed max-w-[280px]">
+                  NO_ROUTES_AVAILABLE_IN_THIS_SECTOR.
+                </div>
+              </div>
+            ) : (
+              routes.map((route) => (
+                <RouteCard 
+                  key={route.id} 
+                  route={route} 
+                  guide={guidesMap[route.guideId || '']}
+                  sponsor={sponsorsMap[route.sponsorId || '']}
+                  endPartner={partnersMap[route.endPartnerId || '']}
+                  onStart={onStartRoute} 
+                  onBook={onBookRoute} 
+                />
+              ))
+            )}
+          </div>
+        ) : activeTab === 'wallet' ? (
           <div className="p-4 flex flex-col gap-6 py-4">
             <div className="flex items-center gap-3 mb-2">
               <span className="text-[10px] font-black tracking-[0.2em] text-[#888780] uppercase whitespace-nowrap">MY_SECURED_HUBS</span>
@@ -296,10 +342,10 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
             
             {savedHubs.length === 0 ? (
               <div className="py-12 text-center flex flex-col items-center justify-center">
-                <div className="text-[#888780] italic mb-4 tracking-[0.2em] text-[10px] uppercase leading-relaxed max-w-[280px]">
+                <div className="text-white/40 italic mb-4 tracking-[0.2em] text-[10px] uppercase leading-relaxed max-w-[280px]">
                   WALLET_EMPTY.
                 </div>
-                <div className="text-hud-bg font-black tracking-[0.1em] text-sm uppercase leading-relaxed max-w-[280px]">
+                <div className="text-hud-yellow font-black tracking-[0.1em] text-sm uppercase leading-relaxed max-w-[280px]">
                   SAVE_HUBS_TO_ACCESS_THEM_QUICKLY_LATER.
                 </div>
               </div>
@@ -380,16 +426,44 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
         </AnimatePresence>
 
         {broadcasts.length === 0 ? (
-          <div className="py-12 text-center flex flex-col items-center justify-center h-full">
-            <div className="text-[#888780] italic mb-4 tracking-[0.2em] text-[10px] uppercase leading-relaxed max-w-[280px]">
-              THE_SECTOR_IS_SILENT.
+          <div className="flex-1 flex flex-col items-center justify-center p-8 text-center min-h-[400px]">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="mb-8"
+            >
+              <div className="w-32 h-32 bg-hud-yellow/5 rounded-full flex items-center justify-center shadow-xl mx-auto mb-6 border border-hud-yellow/20">
+                <svg width="60%" height="60%" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <g transform="translate(15, 25) scale(0.7)">
+                    <circle cx="25" cy="15" r="8" fill="#FFE01A" />
+                    <path d="M25 25 L25 50 L10 75 M25 50 L40 75 M25 35 L10 50 M25 35 L40 50" stroke="#FFE01A" strokeWidth="6" strokeLinecap="round" />
+                  </g>
+                  <g transform="translate(40, 20) scale(0.8)">
+                    <circle cx="25" cy="15" r="8" fill="#FFE01A" />
+                    <path d="M25 25 L25 50 L15 75 M25 50 L35 75 M25 35 L15 55 M25 35 L35 55" stroke="#FFE01A" strokeWidth="6" strokeLinecap="round" />
+                    <rect x="15" y="25" width="10" height="15" rx="2" fill="#FFE01A" />
+                  </g>
+                  <g transform="translate(65, 25) scale(0.7)">
+                    <circle cx="25" cy="15" r="8" fill="#FFE01A" />
+                    <path d="M25 25 L25 50 L10 75 M25 50 L40 75 M25 35 L10 50 M25 35 L40 50" stroke="#FFE01A" strokeWidth="6" strokeLinecap="round" />
+                    <path d="M45 30 L45 75" stroke="#FFE01A" strokeWidth="3" strokeLinecap="round" />
+                  </g>
+                </svg>
+              </div>
+              <h2 className="font-bebas text-2xl tracking-[4px] text-hud-yellow uppercase">Urban Hikers</h2>
+            </motion.div>
+
+            <div className="space-y-2">
+              <div className="text-hud-yellow font-black tracking-[0.2em] text-xs uppercase">
+                THE_SECTOR_IS_SILENT.
+              </div>
+              <div className="text-white/40 font-bold tracking-[0.1em] text-[10px] uppercase leading-relaxed max-w-[240px] mx-auto">
+                GO_WANDER. DISCOVER_NEW_PLACES.
+                THE_PULSE_OF_THE_CITY_AWAITS.
+              </div>
             </div>
-            <div className="text-hud-bg font-black tracking-[0.1em] text-sm uppercase leading-relaxed max-w-[280px]">
-              GO_WANDER. DISCOVER_NEW_PLACES.
-              <br/>
-              THE_PULSE_OF_THE_CITY_AWAITS.
-            </div>
-            <div className="mt-8 w-12 h-[1px] bg-[#D3D1C7]" />
+            
+            <div className="mt-12 w-16 h-[2px] bg-hud-yellow/20 mx-auto" />
           </div>
         ) : (
           <>
@@ -438,6 +512,13 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
         >
           <Clock size={20} className={activeTab === 'feed' ? 'text-hud-yellow' : 'text-white/30 group-hover:text-white/60'} />
           <span className={`text-[9px] font-bold tracking-widest uppercase font-mono ${activeTab === 'feed' ? 'text-hud-yellow' : 'text-white/30 group-hover:text-white/60'}`}>FEED</span>
+        </button>
+        <button 
+          onClick={() => onTabChange?.('routes')}
+          className="flex flex-col items-center gap-1 px-3 py-1.5 rounded-xl transition-colors group"
+        >
+          <Navigation size={20} className={activeTab === 'routes' ? 'text-hud-yellow' : 'text-white/30 group-hover:text-white/60'} />
+          <span className={`text-[9px] font-bold tracking-widest uppercase font-mono ${activeTab === 'routes' ? 'text-hud-yellow' : 'text-white/30 group-hover:text-white/60'}`}>ROUTES</span>
         </button>
         <button 
           onClick={() => onTabChange?.('map')}
