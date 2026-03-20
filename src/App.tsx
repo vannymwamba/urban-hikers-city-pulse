@@ -8,6 +8,7 @@ import { VibeCheck } from './components/VibeCheck';
 import { VibeTrend } from './components/VibeTrend';
 import { Dashboard } from './components/Dashboard';
 import { LandingPage } from './components/LandingPage';
+import { Login } from './components/Login';
 import { WalletCard } from './components/WalletCard';
 import seedData from './seed';
 import { getDistance } from './utils/geo';
@@ -263,13 +264,9 @@ export default function App() {
     return () => unsub();
   }, []);
 
-  const handleLogin = async () => {
-    try {
-      const provider = new GoogleAuthProvider();
-      await signInWithPopup(auth, provider);
-    } catch (err) {
-      console.error("Login error:", err);
-    }
+  const handleLogin = () => {
+    window.history.pushState({}, '', '/login');
+    window.dispatchEvent(new PopStateEvent('popstate'));
   };
 
   const handleSeed = async () => {
@@ -306,7 +303,7 @@ export default function App() {
   const isLogin = pathParts.includes('login');
   const tapIndex = pathParts.indexOf('tap');
   const nodeId = tapIndex !== -1 && pathParts[tapIndex + 1] ? pathParts[tapIndex + 1] : null;
-  const isHome = path === '/' || path === '' || isLogin;
+  const isHome = path === '/' || path === '';
 
   useEffect(() => {
     if (!currentNode || isDashboard || isHome) return;
@@ -536,11 +533,11 @@ export default function App() {
   };
 
   useEffect(() => {
-    if (isHome && userProfile && (userProfile.role === 'admin' || userProfile.role === 'partner')) {
+    if ((isHome || isLogin) && userProfile && (userProfile.role === 'admin' || userProfile.role === 'partner')) {
       window.history.pushState({}, '', '/dashboard');
       window.dispatchEvent(new PopStateEvent('popstate'));
     }
-  }, [isHome, userProfile]);
+  }, [isHome, isLogin, userProfile]);
 
   if (loading) {
     return (
@@ -565,6 +562,18 @@ export default function App() {
           REBOOT_SYSTEM
         </button>
       </div>
+    );
+  }
+
+  if (isLogin) {
+    return (
+      <Login 
+        onLoginSuccess={(profile) => {
+          setUserProfile(profile);
+          window.history.pushState({}, '', '/dashboard');
+          window.dispatchEvent(new PopStateEvent('popstate'));
+        }} 
+      />
     );
   }
 

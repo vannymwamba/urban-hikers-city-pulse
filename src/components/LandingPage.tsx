@@ -1,11 +1,7 @@
-import React, { useState } from 'react';
-import { auth, db } from '../firebase';
-import { signInWithPopup, GoogleAuthProvider, signInWithEmailAndPassword } from 'firebase/auth';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import React from 'react';
 import { UserProfile } from '../types';
-import { handleFirestoreError, OperationType } from '../utils/firebaseErrors';
 import { motion } from 'motion/react';
-import { Mail, Lock, Globe, Zap, Music, Palette, Calendar, MapPin, ShieldCheck, Home, LayoutGrid, Share2, ArrowRight } from 'lucide-react';
+import { Zap, Music, Palette, Calendar, MapPin, ShieldCheck, Home, LayoutGrid, Share2, ArrowRight, Lock } from 'lucide-react';
 
 interface LandingPageProps {
   onLoginSuccess: (profile: UserProfile) => void;
@@ -14,101 +10,14 @@ interface LandingPageProps {
 }
 
 export const LandingPage: React.FC<LandingPageProps> = ({ onLoginSuccess, userProfile, onOpenWallet }) => {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [partnerType, setPartnerType] = useState('Local Business — $299/mo');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  // Auto-scroll to login if accessed via dashboard or login route while not logged in
+  // Auto-scroll to signup if accessed via dashboard or login route while not logged in
   React.useEffect(() => {
     const isLoginPath = window.location.pathname.includes('dashboard') || window.location.pathname.includes('login');
     if (isLoginPath && !userProfile) {
-      setTimeout(() => {
-        const loginSection = document.getElementById('login');
-        if (loginSection) {
-          loginSection.scrollIntoView({ behavior: 'smooth' });
-        }
-      }, 500);
+      window.history.pushState({}, '', '/login');
+      window.dispatchEvent(new PopStateEvent('popstate'));
     }
   }, [userProfile]);
-
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setError(null);
-
-    try {
-      const res = await signInWithEmailAndPassword(auth, email, password);
-      const user = res.user;
-      
-      let profileDoc;
-      try {
-        profileDoc = await getDoc(doc(db, 'users', user.uid));
-      } catch (err) {
-        handleFirestoreError(err, OperationType.GET, `users/${user.uid}`);
-        return;
-      }
-      
-      if (profileDoc.exists()) {
-        onLoginSuccess(profileDoc.data() as UserProfile);
-      } else {
-        const profile: UserProfile = {
-          uid: user.uid,
-          email: user.email!,
-          role: 'user'
-        };
-        try {
-          await setDoc(doc(db, 'users', user.uid), profile);
-        } catch (err) {
-          handleFirestoreError(err, OperationType.WRITE, `users/${user.uid}`);
-        }
-        onLoginSuccess(profile);
-      }
-    } catch (err: any) {
-      console.error(err);
-      setError(err.message || 'Authentication failed');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleGoogleLogin = async () => {
-    setLoading(true);
-    try {
-      const provider = new GoogleAuthProvider();
-      const res = await signInWithPopup(auth, provider);
-      const user = res.user;
-
-      let profileDoc;
-      try {
-        profileDoc = await getDoc(doc(db, 'users', user.uid));
-      } catch (err) {
-        handleFirestoreError(err, OperationType.GET, `users/${user.uid}`);
-        return;
-      }
-      
-      if (profileDoc.exists()) {
-        onLoginSuccess(profileDoc.data() as UserProfile);
-      } else {
-        const profile: UserProfile = {
-          uid: user.uid,
-          email: user.email!,
-          role: 'user'
-        };
-        try {
-          await setDoc(doc(db, 'users', user.uid), profile);
-        } catch (err) {
-          handleFirestoreError(err, OperationType.WRITE, `users/${user.uid}`);
-        }
-        onLoginSuccess(profile);
-      }
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   return (
     <div className="bg-navy-deep text-white font-sans selection:bg-yellow selection:text-navy-deep overflow-x-hidden relative">
@@ -140,15 +49,27 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginSuccess, userPr
 
         <div className="flex items-center gap-2.5">
           {userProfile ? (
-            <a href="/dashboard" className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-lg bg-yellow text-navy-deep text-[13px] font-bold tracking-[0.3px] hover:bg-[#FFD700] hover:-translate-y-0.5 transition-all">
+            <button 
+              onClick={() => {
+                window.history.pushState({}, '', '/dashboard');
+                window.dispatchEvent(new PopStateEvent('popstate'));
+              }}
+              className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-lg bg-yellow text-navy-deep text-[13px] font-bold tracking-[0.3px] hover:bg-[#FFD700] hover:-translate-y-0.5 transition-all"
+            >
               Go to Dashboard &rarr;
-            </a>
+            </button>
           ) : (
             <>
-              <a href="/login" className="hidden sm:inline-flex items-center gap-1.5 px-5 py-2.5 rounded-lg border border-white/20 bg-transparent text-white text-[13px] font-semibold tracking-[0.3px] hover:border-white/50 hover:bg-white/5 transition-all">
+              <button 
+                onClick={() => {
+                  window.history.pushState({}, '', '/login');
+                  window.dispatchEvent(new PopStateEvent('popstate'));
+                }}
+                className="hidden sm:inline-flex items-center gap-1.5 px-5 py-2.5 rounded-lg border border-white/20 bg-transparent text-white text-[13px] font-semibold tracking-[0.3px] hover:border-white/50 hover:bg-white/5 transition-all"
+              >
                 <Lock size={14} />
                 Partner Login
-              </a>
+              </button>
               <a href="#signup" className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-lg bg-yellow text-navy-deep text-[13px] font-bold tracking-[0.3px] hover:bg-[#FFD700] hover:-translate-y-0.5 transition-all">
                 Get Listed &rarr;
               </a>
@@ -205,10 +126,16 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginSuccess, userPr
               className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-3.5 mb-12"
             >
               {userProfile ? (
-                <a href="/dashboard" className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-8 py-4 rounded-xl bg-yellow text-navy-deep text-[15px] font-bold tracking-[0.3px] hover:bg-[#FFD700] hover:-translate-y-0.5 transition-all">
+                <button 
+                  onClick={() => {
+                    window.history.pushState({}, '', '/dashboard');
+                    window.dispatchEvent(new PopStateEvent('popstate'));
+                  }}
+                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-8 py-4 rounded-xl bg-yellow text-navy-deep text-[15px] font-bold tracking-[0.3px] hover:bg-[#FFD700] hover:-translate-y-0.5 transition-all"
+                >
                   Go to Dashboard
                   <ArrowRight size={16} />
-                </a>
+                </button>
               ) : (
                 <a href="#signup" className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-8 py-4 rounded-xl bg-yellow text-navy-deep text-[15px] font-bold tracking-[0.3px] hover:bg-[#FFD700] hover:-translate-y-0.5 transition-all">
                   List Your Business
@@ -512,110 +439,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginSuccess, userPr
         </div>
       </section>
 
-      {/* PARTNER LOGIN */}
-      <section id="login" className="px-6 md:px-12 pb-24">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-0 border border-white/10 rounded-[20px] overflow-hidden">
-          <div className="bg-yellow p-14 px-12 flex flex-col justify-between">
-            <div>
-              <div className="font-mono text-[10px] tracking-[2px] text-navy/60 uppercase mb-5">Partner Portal</div>
-              <h2 className="font-bebas text-[52px] text-navy-deep leading-[0.95] tracking-[2px] mb-5">Activate Your NFC Node.</h2>
-              <p className="text-[15px] text-navy/65 leading-[1.7] max-w-[340px]">Log in to your partner dashboard to publish flash deals, manage event listings, view tap analytics, and control your Pulse Cube zone in real time.</p>
-            </div>
-            <div className="flex flex-col gap-3 mt-9">
-              {['Publish flash deals instantly', 'View live tap analytics', 'Manage event listings', 'Control your node zone', 'Download impact reports'].map((f, i) => (
-                <div key={i} className="flex items-center gap-2.5">
-                  <div className="w-5 h-5 bg-navy-deep rounded-full flex items-center justify-center shrink-0">
-                    <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M2 5l2.5 2.5L8 3" stroke="#F5C800" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                  </div>
-                  <span className="text-[13px] font-semibold text-navy-deep">{f}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="bg-[#0D1825] p-14 px-12 flex flex-col justify-center">
-            <h2 className="font-bebas text-[28px] tracking-[2px] text-white mb-2">Partner Login</h2>
-            <p className="text-[13px] text-white/45 mb-8">Access your Local Pulse portal</p>
-
-            <form onSubmit={handleLogin}>
-              <div className="mb-[18px]">
-                <label className="font-mono text-[10px] tracking-[1.5px] text-white/40 uppercase mb-2 block">Business Email</label>
-                <input 
-                  className="w-full p-[13px] px-4 bg-white/5 border border-white/10 rounded-lg text-white font-sans text-sm outline-none focus:border-yellow transition-colors placeholder:text-white/20" 
-                  type="email" 
-                  placeholder="hello@yourbusiness.com"
-                  value={email}
-                  onChange={e => setEmail(e.target.value)}
-                  required
-                />
-              </div>
-
-              <div className="mb-[18px]">
-                <label className="font-mono text-[10px] tracking-[1.5px] text-white/40 uppercase mb-2 block">Password</label>
-                <input 
-                  className="w-full p-[13px] px-4 bg-white/5 border border-white/10 rounded-lg text-white font-sans text-sm outline-none focus:border-yellow transition-colors placeholder:text-white/20" 
-                  type="password" 
-                  placeholder="••••••••"
-                  value={password}
-                  onChange={e => setPassword(e.target.value)}
-                  required
-                />
-              </div>
-
-              <div className="mb-[18px]">
-                <label className="font-mono text-[10px] tracking-[1.5px] text-white/40 uppercase mb-2 block">Partner Type</label>
-                <select 
-                  className="w-full p-[13px] px-4 bg-white/5 border border-white/10 rounded-lg text-white font-sans text-sm outline-none cursor-pointer focus:border-yellow transition-colors"
-                  value={partnerType}
-                  onChange={e => setPartnerType(e.target.value)}
-                >
-                  <option>Local Business — $299/mo</option>
-                  <option>Event Organizer</option>
-                  <option>Sponsor Node — Enterprise</option>
-                  <option>Civic / Nonprofit</option>
-                  <option>Conference Partner</option>
-                </select>
-              </div>
-
-              {error && (
-                <div className="mb-4 p-3 bg-hud-magenta/10 border border-hud-magenta text-hud-magenta text-[10px] font-bold tracking-widest uppercase">
-                  ERROR: {error}
-                </div>
-              )}
-
-              <button 
-                type="submit"
-                disabled={loading}
-                className="w-full p-3.5 bg-yellow text-navy-deep rounded-lg font-bold text-[15px] tracking-[0.3px] mt-2 hover:bg-[#FFD700] hover:-translate-y-0.5 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
-              >
-                {loading ? 'PROCESSING...' : 'Activate Portal'}
-                <ArrowRight size={16} />
-              </button>
-            </form>
-
-            <div className="flex items-center gap-3 my-5">
-              <div className="flex-1 h-[1px] bg-white/10"></div>
-              <span className="text-[11px] text-white/25">or</span>
-              <div className="flex-1 h-[1px] bg-white/10"></div>
-            </div>
-
-            <button 
-              onClick={handleGoogleLogin}
-              disabled={loading}
-              className="w-full p-[13px] bg-transparent text-green border border-green/30 rounded-lg font-semibold text-sm hover:bg-green/5 hover:border-green/50 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
-            >
-              <Globe size={18} />
-              Google Network Login
-            </button>
-
-            <div className="text-[11px] text-white/25 text-center mt-5 leading-[1.6]">
-              New partner? <a href="#signup" className="text-yellow no-underline">Apply for access &rarr;</a><br />
-              Forgot your credentials? <a href="#" className="text-yellow no-underline">Contact support</a>
-            </div>
-          </div>
-        </div>
-      </section>
-
       {/* SIGNUP CTA */}
       <section id="signup" className="relative z-10 px-6 md:px-12 py-24 text-center">
         <div className="max-w-[600px] mx-auto">
@@ -645,7 +468,15 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginSuccess, userPr
             <a href="#how" className="text-xs text-white/45 no-underline hover:text-white transition-colors">How It Works</a>
             <a href="#services" className="text-xs text-white/45 no-underline hover:text-white transition-colors">Services</a>
             <a href="#partners" className="text-xs text-white/45 no-underline hover:text-white transition-colors">Partners</a>
-            <a href="/login" className="text-xs text-white/45 no-underline hover:text-white transition-colors">Partner Login</a>
+            <button 
+              onClick={() => {
+                window.history.pushState({}, '', '/login');
+                window.dispatchEvent(new PopStateEvent('popstate'));
+              }}
+              className="text-xs text-white/45 no-underline hover:text-white transition-colors"
+            >
+              Partner Login
+            </button>
             <a href="#" className="text-xs text-white/45 no-underline hover:text-white transition-colors">Privacy Promise</a>
           </div>
           <div className="text-[11px] text-white/20">&copy; 2026 Urban Hikers · Cincinnati, OH · All nodes anonymous by default</div>

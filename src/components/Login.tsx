@@ -4,7 +4,7 @@ import { signInWithPopup, GoogleAuthProvider, signInWithEmailAndPassword, create
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { UserRole, UserProfile } from '../types';
 import { motion } from 'motion/react';
-import { Shield, User as UserIcon, Lock, Mail, ChevronRight, Globe } from 'lucide-react';
+import { Shield, User as UserIcon, Lock, Mail, ChevronRight, Globe, ArrowLeft } from 'lucide-react';
 import { handleFirestoreError, OperationType } from '../utils/firebaseErrors';
 
 interface LoginProps {
@@ -122,6 +122,18 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
       {/* Background Grid */}
       <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:40px_40px]" />
       
+      {/* Back Button */}
+      <button 
+        onClick={() => {
+          window.history.pushState({}, '', '/');
+          window.dispatchEvent(new PopStateEvent('popstate'));
+        }}
+        className="absolute top-8 left-8 z-20 flex items-center gap-2 text-hud-green/40 hover:text-hud-green transition-colors text-[10px] font-bold tracking-widest uppercase"
+      >
+        <ArrowLeft size={16} />
+        Back to Home
+      </button>
+
       <div className="max-w-5xl w-full grid md:grid-cols-2 gap-12 items-center relative z-10">
         {/* Left Side: Branding */}
         <div className="hidden md:block">
