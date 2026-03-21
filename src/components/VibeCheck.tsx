@@ -25,10 +25,18 @@ export const VibeCheck: React.FC<VibeCheckProps> = ({ onReport, isReporting }) =
             whileTap={{ scale: 0.98 }}
             disabled={isReporting}
             onClick={() => onReport(opt.vibe)}
-            className={`flex flex-col items-center justify-center p-4 border border-hud-green/20 hover:border-hud-green hover:bg-hud-green/5 transition-all group ${isReporting ? 'opacity-50' : ''}`}
+            className={`flex flex-col items-center justify-center p-4 border border-hud-green/20 hover:border-hud-green hover:bg-hud-green/5 transition-all group relative overflow-hidden ${isReporting ? 'opacity-50 cursor-not-allowed' : ''}`}
           >
-            <div className={`w-2 h-2 mb-3 ${opt.color} group-hover:shadow-[0_0_8px_currentColor]`} />
-            <span className="text-[10px] font-black tracking-widest">{opt.label}</span>
+            {isReporting && (
+              <motion.div 
+                initial={{ width: 0 }}
+                animate={{ width: '100%' }}
+                transition={{ duration: 0.5 }}
+                className="absolute inset-0 bg-hud-green/10"
+              />
+            )}
+            <div className={`w-2 h-2 mb-3 ${opt.color} group-hover:shadow-[0_0_8px_currentColor] relative z-10`} />
+            <span className="text-[10px] font-black tracking-widest relative z-10">{opt.label}</span>
           </motion.button>
         ))}
       </div>

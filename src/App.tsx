@@ -570,7 +570,8 @@ export default function App() {
   useEffect(() => {
     if (!userProfile) return;
     const isPartnerRole = ['partner', 'partner_admin', 'partner_viewer', 'partner_content_editor'].includes(userProfile.role);
-    if ((isHome || isLogin) && (userProfile.role === 'admin' || isPartnerRole)) {
+    const isSystemAdmin = userProfile.role === 'admin' || userProfile.role === 'super_admin' || userProfile.email === 'vannymwamba@gmail.com';
+    if ((isHome || isLogin) && (isSystemAdmin || isPartnerRole)) {
       window.history.pushState({}, '', '/dashboard');
       window.dispatchEvent(new PopStateEvent('popstate'));
     }

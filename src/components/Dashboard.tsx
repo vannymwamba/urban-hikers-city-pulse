@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../firebase';
-import { collection, addDoc, onSnapshot, query, where, doc, setDoc, getDocs, updateDoc, deleteDoc } from 'firebase/firestore';
+import { collection, addDoc, onSnapshot, query, where, doc, setDoc, getDocs, updateDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
 import { Node, Broadcast, UserProfile, Partner, BroadcastType, HubType, VibeReport, Tap, UserRole } from '../types';
 import { Plus, MapPin, Link as LinkIcon, Send, LayoutDashboard, LogOut, ChevronRight, Globe, ShieldCheck, RefreshCw, BarChart3, Image as ImageIcon, Trash2 } from 'lucide-react';
 import { motion } from 'motion/react';
@@ -16,7 +16,7 @@ interface DashboardProps {
 export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) => {
   if (!userProfile) return null;
 
-  const isAdmin = userProfile.role === 'admin' || userProfile.role === 'super_admin';
+  const isAdmin = userProfile.role === 'admin' || userProfile.role === 'super_admin' || userProfile.email === 'vannymwamba@gmail.com';
   const isPartner = ['partner', 'partner_admin', 'partner_viewer', 'partner_content_editor'].includes(userProfile.role);
   const canWrite = isAdmin || ['partner', 'partner_admin', 'partner_content_editor'].includes(userProfile.role);
   const isViewer = userProfile.role === 'partner_viewer';
@@ -50,6 +50,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
     ownerEmail: '',
     role: 'partner_admin' as UserRole,
     logoUrl: '',
+    logoUpdatedAt: null as string | null,
     brandColor: '#00FF00',
     dealText: '',
     sponsorZones: [] as string[]
@@ -355,11 +356,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
         latitude: Number(newPartner.lat),
         longitude: Number(newPartner.lng),
         owner_email: newPartner.ownerEmail.toLowerCase().trim(),
-        logo_url: newPartner.logoUrl,
-        brand_color: newPartner.brandColor,
-        deal_text: newPartner.dealText,
+        logo_url: newPartner.logoUrl || null,
+        brand_color: newPartner.brandColor || null,
+        deal_text: newPartner.dealText || null,
         sponsor_zones: newPartner.sponsorZones,
-        role: newPartner.role
+        created_at: serverTimestamp(),
+        updated_at: serverTimestamp()
       });
 
       // 2. Update User Profile if a user with this email already exists
@@ -394,6 +396,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
         ownerEmail: '',
         role: 'partner_admin',
         logoUrl: '',
+        logoUpdatedAt: null,
         brandColor: '#00FF00',
         dealText: '',
         sponsorZones: []
@@ -823,7 +826,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
                       <LogoUpload 
                         partnerId={generatePartnerId(newPartner.name) || 'temp'} 
                         currentLogoUrl={newPartner.logoUrl}
-                        onUploadComplete={(url) => setNewPartner({...newPartner, logoUrl: url})}
+                        onLogoUploaded={(url) => setNewPartner({...newPartner, logoUrl: url, logoUpdatedAt: new Date().toISOString()})}
                       />
                     </div>
                     <div className="flex flex-col gap-1">
@@ -1117,17 +1120,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
                           <LogoUpload 
                             partnerId={userProfile.partner_id!} 
                             currentLogoUrl={partners.find(p => p.id === userProfile.partner_id)?.logo_url}
-                            onUploadComplete={async (url) => {
-                              if (!canWrite) {
-                                setHudMessage({ text: 'PERMISSION_DENIED: READ_ONLY_ACCESS', type: 'error' });
-                                return;
-                              }
-                              try {
-                                await updateDoc(doc(db, 'partners', userProfile.partner_id!), { logo_url: url });
-                                setHudMessage({ text: 'LOGO_UPDATED_SUCCESSFULLY', type: 'info' });
-                              } catch (err) {
-                                handleFirestoreError(err, OperationType.UPDATE, `partners/${userProfile.partner_id}`);
-                              }
+                            onLogoUploaded={(url) => {
+                              setHudMessage({ text: 'LOGO_UPDATED_SUCCESSFULLY', type: 'info' });
                             }}
                           />
                         </div>
@@ -1380,9 +1374,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
                               <span className="text-[10px] opacity-40 font-mono uppercase">{b.current_vibe}</span>
                             </div>
                             <div className="flex gap-1 h-1 bg-white/5 rounded-full overflow-hidden">
-                              <div className="bg-hud-magenta" style={{ width: `${(packedCount / (reports.length || 1)) * 100}%` }} />
-                              <div className="bg-hud-yellow" style={{ width: `${(buzzingCount / (reports.length || 1)) * 100}%` }} />
-                              <div className="bg-hud-green" style={{ width: `${(chillCount / (reports.length || 1)) * 100}%` }} />
+                              <div className="bg-hud-magenta transition-all duration-500" style={{ width: `${(packedCount / (reports.length || 1)) * 100}%` }} />
+                              <div className="bg-hud-yellow transition-all duration-500" style={{ width: `${(buzzingCount / (reports.length || 1)) * 100}%` }} />
+                              <div className="bg-hud-green transition-all duration-500" style={{ width: `${(chillCount / (reports.length || 1)) * 100}%` }} />
                             </div>
                             <div className="flex justify-between mt-1">
                               <span className="text-[9px] opacity-40 font-mono">REPORTS: {reports.length}</span>

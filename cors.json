@@ -1,0 +1,12 @@
+[
+  {
+    "origin": [
+      "https://urban-hikers-local-pulse-os-87454517439.us-west1.run.app",
+      "http://localhost:5173",
+      "http://localhost:3000"
+    ],
+    "method": ["GET", "POST", "PUT", "DELETE", "HEAD"],
+    "responseHeader": ["Content-Type", "Authorization", "Content-Length", "X-Requested-With"],
+    "maxAgeSeconds": 3600
+  }
+]

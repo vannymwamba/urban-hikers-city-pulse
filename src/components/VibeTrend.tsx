@@ -102,7 +102,8 @@ export const VibeTrend: React.FC<VibeTrendProps> = ({ broadcastId }) => {
               fillOpacity={1} 
               fill="url(#colorVibe)" 
               strokeWidth={2}
-              isAnimationActive={false}
+              isAnimationActive={true}
+              animationDuration={1000}
             />
           </AreaChart>
         </ResponsiveContainer>

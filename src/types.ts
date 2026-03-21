@@ -53,6 +53,7 @@ export interface Partner {
   owner_uid?: string;
   owner_email?: string;
   logo_url?: string;
+  logo_updated_at?: string | any;
   brand_color?: string;
   deal_text?: string;
   sponsor_zones?: string[];
