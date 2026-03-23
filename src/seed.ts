@@ -8,9 +8,9 @@ const seedData = async () => {
   try {
     // Seed Nodes
     const nodes = [
-      { id: 'OTR-ALPHA-01', name: 'ALPHA_PLAZA_HUB', type: 'street', address: 'Main St & E 13th St, Cincinnati, OH', latitude: 39.1092, longitude: -84.5125, radiusLimit: 5000 },
-      { id: 'sector-beta', name: 'BETA_CONCOURSE', type: 'conference_center', address: '525 Elm St, Cincinnati, OH', latitude: 39.1015, longitude: -84.5165, radiusLimit: 2000 },
-      { id: 'sector-gamma', name: 'GAMMA_GARDENS', type: 'street', address: '1230 Elm St, Cincinnati, OH', latitude: 39.1115, longitude: -84.5185, radiusLimit: 3000 }
+      { id: 'OTR-ALPHA-01', name: 'ALPHA_PLAZA_HUB', type: 'street', address: 'Main St & E 13th St, Cincinnati, OH', latitude: 39.1092, longitude: -84.5125, radius_limit: 5000 },
+      { id: 'sector-beta', name: 'BETA_CONCOURSE', type: 'conference_center', address: '525 Elm St, Cincinnati, OH', latitude: 39.1015, longitude: -84.5165, radius_limit: 2000 },
+      { id: 'sector-gamma', name: 'GAMMA_GARDENS', type: 'street', address: '1230 Elm St, Cincinnati, OH', latitude: 39.1115, longitude: -84.5185, radius_limit: 3000 }
     ];
 
     for (const node of nodes) {
@@ -143,93 +143,93 @@ const seedData = async () => {
     // Seed Broadcasts
     const broadcasts = [
       {
-        nodeId: 'OTR-ALPHA-01',
-        partnerId: 'partner-kroger',
+        node_id: 'OTR-ALPHA-01',
+        partner_id: 'partner-kroger',
         title: 'FLASH_TACO_DEAL_50%',
         type: 'flash_deal',
         address: '1401 Vine St, Cincinnati, OH',
         latitude: 39.1105,
         longitude: -84.5145,
-        startsAt: new Date().toISOString(),
-        expiresAt: addHours(new Date(), 1).toISOString(),
-        currentVibe: 'buzzing',
+        starts_at: new Date().toISOString(),
+        expires_at: addHours(new Date(), 1).toISOString(),
+        current_vibe: 'buzzing',
         description: 'Exclusive flash deal for Urban Hikers! Get 50% off any taco order at Kroger Fresh Market. Just show your NFC stamp at the counter. Valid for the next hour only!'
       },
       {
-        nodeId: 'OTR-ALPHA-01',
-        partnerId: 'partner-btw26',
+        node_id: 'OTR-ALPHA-01',
+        partner_id: 'partner-btw26',
         title: 'BTW26_FLASH_PASS_50%',
         type: 'flash_deal',
         address: '525 Elm St, Cincinnati, OH',
         latitude: 39.1015,
         longitude: -84.5165,
-        startsAt: new Date().toISOString(),
-        expiresAt: addHours(new Date(), 3).toISOString(),
-        currentVibe: 'packed',
+        starts_at: new Date().toISOString(),
+        expires_at: addHours(new Date(), 3).toISOString(),
+        current_vibe: 'packed',
         description: 'LAST_CALL: Get 50% off your BTW26 Conference Pass. Limited quantity available for local residents. Tap in now to secure your spot at the future of urban tech.'
       },
       {
-        nodeId: 'OTR-ALPHA-01',
-        partnerId: 'partner-rhinegeist',
+        node_id: 'OTR-ALPHA-01',
+        partner_id: 'partner-rhinegeist',
         title: 'RHINEGEIST_HAPPY_HOUR',
         type: 'flash_deal',
         address: '1910 Elm St, Cincinnati, OH',
         latitude: 39.1172,
         longitude: -84.5191,
-        startsAt: new Date().toISOString(),
-        expiresAt: addHours(new Date(), 2).toISOString(),
-        currentVibe: 'buzzing',
+        starts_at: new Date().toISOString(),
+        expires_at: addHours(new Date(), 2).toISOString(),
+        current_vibe: 'buzzing',
         description: 'Happy Hour is LIVE! $1 off all pints for Urban Hikers. Head to the taproom and show your signal. The perfect way to end your hike.'
       },
       {
-        nodeId: 'OTR-ALPHA-01',
-        partnerId: 'partner-music-hall',
+        node_id: 'OTR-ALPHA-01',
+        partner_id: 'partner-music-hall',
         title: 'LIVE_JAZZ_QUARTET',
         type: 'event',
         address: '1241 Elm St, Cincinnati, OH',
         latitude: 39.1095,
         longitude: -84.5188,
-        startsAt: new Date().toISOString(),
-        expiresAt: addHours(new Date(), 2).toISOString(),
-        currentVibe: 'chill',
+        starts_at: new Date().toISOString(),
+        expires_at: addHours(new Date(), 2).toISOString(),
+        current_vibe: 'chill',
         description: 'Enjoy a relaxing evening with the Blue Note Quartet. Live jazz performance in the heart of the city. Open to all, no tickets required. Grab a seat early!'
       },
       {
-        nodeId: 'OTR-ALPHA-01',
-        partnerId: 'partner-cac',
+        node_id: 'OTR-ALPHA-01',
+        partner_id: 'partner-cac',
         title: 'CAC_OPENING_NIGHT',
         type: 'event',
         address: '44 E 6th St, Cincinnati, OH',
         latitude: 39.1031,
         longitude: -84.5121,
-        startsAt: new Date().toISOString(),
-        expiresAt: addHours(new Date(), 4).toISOString(),
-        currentVibe: 'buzzing',
+        starts_at: new Date().toISOString(),
+        expires_at: addHours(new Date(), 4).toISOString(),
+        current_vibe: 'buzzing',
         description: 'Join us for the opening night of our latest exhibition. Meet the artists, enjoy refreshments, and experience contemporary art like never before. Free for Urban Hikers.'
       },
       {
-        nodeId: 'OTR-ALPHA-01',
+        node_id: 'OTR-ALPHA-01',
         title: 'STREET_ART_EXPO',
         type: 'event',
         address: '1400 Vine St, Cincinnati, OH',
         latitude: 39.1100,
         longitude: -84.5150,
-        startsAt: new Date().toISOString(),
-        expiresAt: addHours(new Date(), 4).toISOString(),
-        currentVibe: 'packed',
+        starts_at: new Date().toISOString(),
+        expires_at: addHours(new Date(), 4).toISOString(),
+        current_vibe: 'packed',
         description: 'Local artists showcase their latest murals and installations. Interactive art walk through the Vine Street corridor. Meet the artists and discover the stories behind the walls.'
       },
       {
-        nodeId: 'OTR-ALPHA-01',
-        partnerId: 'partner-btw26',
+        node_id: 'OTR-ALPHA-01',
+        partner_id: 'partner-btw26',
         title: 'BTW26_KEYNOTE_HALL_B',
         type: 'conference_panel',
         address: '525 Elm St, Cincinnati, OH',
         latitude: 39.1016,
         longitude: -84.5166,
-        startsAt: new Date().toISOString(),
-        expiresAt: addHours(new Date(), 1.5).toISOString(),
-        currentVibe: 'buzzing',
+        starts_at: new Date().toISOString(),
+        expires_at: addHours(new Date(), 1.5).toISOString(),
+        current_vibe: 'buzzing',
         description: 'The future of urban infrastructure and NFC technology. Join industry leaders for a deep dive into the BTW26 keynote session. Hall B, limited seating available.'
       }
     ];

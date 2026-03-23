@@ -16,7 +16,7 @@ import { handleFirestoreError, OperationType } from './utils/firebaseErrors';
 
 import { v4 as uuidv4 } from 'uuid';
 import { motion, AnimatePresence } from 'motion/react';
-import { Loader2, AlertTriangle, Share2, MapPin } from 'lucide-react';
+import { Loader2, AlertTriangle, Share2, MapPin, Wallet } from 'lucide-react';
 
 // Session UUID for anonymous tracking
 const SESSION_ID = (() => {
@@ -86,6 +86,7 @@ export default function App() {
   const [broadcasts, setBroadcasts] = useState<Broadcast[]>([]);
   const [partnersMap, setPartnersMap] = useState<Record<string, Partner>>({});
   const [selectedBroadcast, setSelectedBroadcast] = useState<Broadcast | null>(null);
+  const [selectedBroadcastNode, setSelectedBroadcastNode] = useState<Node | null>(null);
   const [isTappedIn, setIsTappedIn] = useState(true);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -159,6 +160,7 @@ export default function App() {
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (u) => {
+      console.log("AUTH_STATE_CHANGED:", u?.uid || "NO_USER");
       setUser(u);
       if (!u) {
         setUserProfile(null);
@@ -173,38 +175,45 @@ export default function App() {
 
     const profileRef = doc(db, 'users', user.uid);
     const unsubProfile = onSnapshot(profileRef, async (docSnap) => {
+      console.log("USER_PROFILE_SNAPSHOT_RECEIVED, EXISTS:", docSnap.exists());
       let profile: UserProfile | null = null;
 
       if (docSnap.exists()) {
         profile = docSnap.data() as UserProfile;
         
-        // If they are currently a 'user', check if they should be a 'partner'
-        if (profile.role === 'user') {
+        // If they are currently a 'user' or 'admin', check if they should be linked to a 'partner'
+        if (profile.role === 'user' || profile.role === 'admin') {
           const partnerQuery = query(collection(db, 'partners'), where('owner_email', '==', user.email?.toLowerCase().trim()));
           let partnerSnap;
           try {
             partnerSnap = await getDocs(partnerQuery);
           } catch (err) {
-            handleFirestoreError(err, OperationType.LIST, 'partners');
             setLoading(false);
+            handleFirestoreError(err, OperationType.LIST, 'partners');
             return;
           }
           
           if (!partnerSnap.empty) {
-            const partnerId = partnerSnap.docs[0].id;
-            const updatedProfile: UserProfile = {
-              ...profile,
-              role: 'partner',
-              partner_id: partnerId
-            };
-            // This will trigger the snapshot listener again
-            try {
-              await setDoc(profileRef, updatedProfile);
-            } catch (err) {
-              handleFirestoreError(err, OperationType.WRITE, `users/${user.uid}`);
-              setLoading(false);
+            const partnerDoc = partnerSnap.docs[0];
+            const partnerData = partnerDoc.data() as Partner;
+            const partnerId = partnerDoc.id;
+            
+            // Only update if partner_id is missing or role needs upgrading
+            if (profile.partner_id !== partnerId || (profile.role === 'user' && partnerData.role)) {
+              const updatedProfile: UserProfile = {
+                ...profile,
+                role: profile.role === 'admin' ? 'admin' : (partnerData.role || 'partner'),
+                partner_id: partnerId
+              };
+              // This will trigger the snapshot listener again
+              try {
+                await setDoc(profileRef, updatedProfile);
+              } catch (err) {
+                setLoading(false);
+                handleFirestoreError(err, OperationType.WRITE, `users/${user.uid}`);
+              }
+              return;
             }
-            return;
           }
         }
       } else {
@@ -214,8 +223,8 @@ export default function App() {
         try {
           partnerSnap = await getDocs(partnerQuery);
         } catch (err) {
-          handleFirestoreError(err, OperationType.LIST, 'partners');
           setLoading(false);
+          handleFirestoreError(err, OperationType.LIST, 'partners');
           return;
         }
         
@@ -240,6 +249,7 @@ export default function App() {
         try {
           await setDoc(profileRef, profile);
         } catch (err) {
+          setLoading(false);
           handleFirestoreError(err, OperationType.WRITE, `users/${user.uid}`);
         }
       }
@@ -247,6 +257,7 @@ export default function App() {
       setUserProfile(profile);
       setLoading(false);
     }, (err) => {
+      setLoading(false);
       handleFirestoreError(err, OperationType.GET, `users/${user.uid}`);
     });
 
@@ -271,6 +282,14 @@ export default function App() {
   }, []);
 
   const handleLogin = () => {
+    // Save the current path to redirect back after login
+    if (nodeId) {
+      sessionStorage.setItem('uh_login_redirect', `/tap/${nodeId}`);
+    } else if (isHome || isDashboard) {
+      sessionStorage.setItem('uh_login_redirect', '/dashboard');
+    } else {
+      sessionStorage.removeItem('uh_login_redirect');
+    }
     window.history.pushState({}, '', '/login');
     window.dispatchEvent(new PopStateEvent('popstate'));
   };
@@ -308,8 +327,20 @@ export default function App() {
   const isDashboard = pathParts.includes('dashboard');
   const isLogin = pathParts.includes('login');
   const tapIndex = pathParts.indexOf('tap');
-  const nodeId = tapIndex !== -1 && pathParts[tapIndex + 1] ? pathParts[tapIndex + 1] : null;
+  const nodeId = tapIndex !== -1 && pathParts[tapIndex + 1] ? pathParts[tapIndex + 1].toUpperCase() : null;
   const isHome = path === '/' || path === '';
+
+  useEffect(() => {
+    console.log("PATH_STATE_CHANGED:", path, "NODE_ID:", nodeId, "IS_HOME:", isHome, "IS_DASHBOARD:", isDashboard);
+  }, [path, nodeId, isHome, isDashboard]);
+
+  useEffect(() => {
+    console.log("LOADING_STATE_CHANGED:", loading);
+  }, [loading]);
+
+  useEffect(() => {
+    console.log("PARTNERS_MAP_UPDATED:", Object.keys(partnersMap).length, "PARTNERS");
+  }, [partnersMap]);
 
   useEffect(() => {
     if (!currentNode || isDashboard || isHome) return;
@@ -374,31 +405,37 @@ export default function App() {
 
   useEffect(() => {
     if (isDashboard || isHome) {
+      console.log("FETCH_NODE_SKIPPED: DASHBOARD_OR_HOME");
       setLoading(false);
       return;
     }
     const fetchNode = () => {
       const activeNodeId = nodeId || 'OTR-ALPHA-01';
+      console.log(`FETCHING_NODE: ${activeNodeId}`);
       setLoading(true);
       const nodeRef = doc(db, 'nodes', activeNodeId);
       
       // Use onSnapshot to get cached data immediately and then live updates
       const unsubscribe = onSnapshot(nodeRef, (nodeSnap) => {
+        console.log(`NODE_SNAPSHOT_RECEIVED: ${activeNodeId}, EXISTS: ${nodeSnap.exists()}`);
         if (nodeSnap.exists()) {
           setCurrentNode({ id: nodeSnap.id, ...nodeSnap.data() } as Node);
         } else {
           // Fallback for demo if node doesn't exist
+          console.warn(`NODE_NOT_FOUND: ${activeNodeId}, USING_FALLBACK`);
           setCurrentNode({
             id: activeNodeId,
             name: `SECTOR_${activeNodeId.toUpperCase()}`,
             type: 'street',
-            latitude: 0,
-            longitude: 0,
+            latitude: 39.1092, // Default to Alpha Plaza coordinates instead of 0,0
+            longitude: -84.5125,
             radius_limit: 5000
           });
         }
         setLoading(false);
       }, (err) => {
+        console.error(`NODE_SNAPSHOT_ERROR: ${activeNodeId}`, err);
+        setLoading(false);
         handleFirestoreError(err, OperationType.GET, `nodes/${activeNodeId}`);
       });
 
@@ -410,12 +447,18 @@ export default function App() {
   }, [nodeId, isDashboard, isHome]);
 
   useEffect(() => {
-    if (!currentNode) return;
+    if (!currentNode) {
+      console.log("BROADCASTS_EFFECT_SKIPPED: NO_CURRENT_NODE");
+      return;
+    }
 
+    console.log(`SUBSCRIBING_TO_BROADCASTS_FOR_NODE: ${currentNode.id}`);
+    
     // Connection Test
     const testConnection = async () => {
       try {
         await getDocFromServer(doc(db, 'nodes', 'connection-test'));
+        console.log("FIREBASE_CONNECTION_TEST: SUCCESS");
       } catch (err) {
         if (err instanceof Error && err.message.includes('offline')) {
           console.error("FIREBASE_OFFLINE: CHECK_CONFIG");
@@ -425,54 +468,63 @@ export default function App() {
     testConnection();
 
     // Real-time subscription to broadcasts
-    // We filter by expiry on server and distance client-side
-    // We also limit to events starting within the next 24 hours
     const twentyFourHoursFromNow = new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString();
     
     const q = query(
       collection(db, 'broadcasts'),
       where('expires_at', '>', now.toISOString()),
-      where('starts_at', '<=', twentyFourHoursFromNow),
       orderBy('expires_at')
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
+      console.log(`BROADCASTS_SNAPSHOT_RECEIVED: ${snapshot.size} DOCS`);
       const data = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
       })) as Broadcast[];
       
-      // Filter by distance to current node
+      // Filter by distance to current node and start time
       const filtered = data.filter(b => {
+        const radiusLimit = currentNode.radius_limit || (currentNode as any).radiusLimit || 5000;
+        
         const distance = getDistance(
           currentNode.latitude, 
           currentNode.longitude, 
           b.latitude, 
           b.longitude
         );
-        return distance <= currentNode.radius_limit;
+
+        const startsAt = b.starts_at || b.startsAt || '';
+        const isWithinWindow = !startsAt || startsAt <= twentyFourHoursFromNow;
+
+        return distance <= radiusLimit && isWithinWindow;
       });
 
-      // Improvement 2: Sort sponsored broadcasts first
+      console.log(`BROADCASTS_FILTERED: ${filtered.length} OF ${data.length} WITHIN_RADIUS`);
+
       const sortedBroadcasts = [...filtered].sort((a, b) => {
-        const partnerA = partnersMap[a.partner_id || ''];
-        const partnerB = partnersMap[b.partner_id || ''];
+        const partnerA = partnersMap[a.partner_id || a.partnerId || ''];
+        const partnerB = partnersMap[b.partner_id || b.partnerId || ''];
         const aSponsored = !!(partnerA?.logo_url || partnerA?.brand_color);
         const bSponsored = !!(partnerB?.logo_url || partnerB?.brand_color);
         
         if (aSponsored && !bSponsored) return -1;
         if (!aSponsored && bSponsored) return 1;
-        return new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime();
+        const aStart = new Date(a.starts_at || a.startsAt || 0).getTime();
+        const bStart = new Date(b.starts_at || b.startsAt || 0).getTime();
+        return aStart - bStart;
       });
 
       setBroadcasts(sortedBroadcasts);
       setLoading(false);
     }, (err) => {
+      console.error("BROADCASTS_SNAPSHOT_ERROR:", err);
+      setLoading(false);
       handleFirestoreError(err, OperationType.LIST, 'broadcasts');
     });
 
     return () => unsubscribe();
-  }, [currentNode, now]);
+  }, [currentNode, now, partnersMap]);
 
   const handleVibeReport = async (vibe: Vibe) => {
     if (!selectedBroadcast) return;
@@ -577,6 +629,39 @@ export default function App() {
     }
   }, [isHome, isLogin, userProfile]);
 
+  useEffect(() => {
+    if (!selectedBroadcast) {
+      setSelectedBroadcastNode(null);
+      return;
+    }
+
+    const nodeId = selectedBroadcast.node_id || selectedBroadcast.nodeId;
+    if (!nodeId) return;
+
+    if (currentNode && currentNode.id === nodeId) {
+      setSelectedBroadcastNode(currentNode);
+      return;
+    }
+
+    const fetchNode = async () => {
+      try {
+        const nodeRef = doc(db, 'nodes', nodeId);
+        const nodeSnap = await getDoc(nodeRef);
+        if (nodeSnap.exists()) {
+          setSelectedBroadcastNode({ id: nodeSnap.id, ...nodeSnap.data() } as Node);
+        }
+      } catch (err) {
+        console.error("Error fetching broadcast node:", err);
+      }
+    };
+
+    fetchNode();
+  }, [selectedBroadcast, currentNode]);
+
+  const isSelectedBroadcastNodeSaved = selectedBroadcastNode 
+    ? savedHubs.some(h => h.id === selectedBroadcastNode.id)
+    : false;
+
   if (loading) {
     return (
       <div className="h-screen flex flex-col items-center justify-center bg-hud-bg text-hud-green p-8 text-center">
@@ -608,7 +693,24 @@ export default function App() {
       <Login 
         onLoginSuccess={(profile) => {
           setUserProfile(profile);
-          window.history.pushState({}, '', '/dashboard');
+          
+          const redirect = sessionStorage.getItem('uh_login_redirect');
+          sessionStorage.removeItem('uh_login_redirect');
+          
+          const isPartnerRole = ['partner', 'partner_admin', 'partner_viewer', 'partner_content_editor'].includes(profile.role);
+          const isSystemAdmin = profile.role === 'admin' || profile.role === 'super_admin' || profile.email === 'vannymwamba@gmail.com';
+          
+          if (redirect && redirect.startsWith('/tap/')) {
+            // Return to the broadcast screen if that's where they came from
+            window.history.pushState({}, '', redirect);
+          } else if (isPartnerRole || isSystemAdmin) {
+            // Partners and admins always go to dashboard if not from a specific hub
+            window.history.pushState({}, '', '/dashboard');
+          } else {
+            // Regular hikers go to home
+            window.history.pushState({}, '', '/');
+          }
+          
           window.dispatchEvent(new PopStateEvent('popstate'));
         }} 
       />
@@ -619,6 +721,7 @@ export default function App() {
     return (
       <LandingPage 
         onLoginSuccess={setUserProfile} 
+        onLogin={handleLogin}
         userProfile={userProfile}
         onOpenWallet={() => {
           // Redirect to a default hub to show the wallet
@@ -635,6 +738,7 @@ export default function App() {
       return (
         <LandingPage 
           onLoginSuccess={setUserProfile} 
+          onLogin={handleLogin}
           userProfile={userProfile}
           onOpenWallet={() => {
             window.location.href = '/tap/otr-alpha-01';
@@ -754,6 +858,19 @@ export default function App() {
                     >
                       <Share2 size={18} />
                     </button>
+                    {selectedBroadcastNode && (
+                      <button 
+                        onClick={() => toggleSaveHub(selectedBroadcastNode)}
+                        className={`flex items-center justify-center w-10 h-10 rounded-xl transition-colors ${
+                          isSelectedBroadcastNodeSaved 
+                            ? 'bg-hud-magenta/20 text-hud-magenta border border-hud-magenta/40' 
+                            : 'bg-hud-green/10 text-hud-green hover:bg-hud-green/20'
+                        }`}
+                        title={isSelectedBroadcastNodeSaved ? "Remove from Wallet" : "Save to Wallet"}
+                      >
+                        <Wallet size={18} />
+                      </button>
+                    )}
                     <button 
                       onClick={() => setSelectedBroadcast(null)}
                       className="text-hud-green/40 hover:text-hud-green p-2 shrink-0 font-bold text-[10px] border border-hud-green/20 rounded-xl px-3"

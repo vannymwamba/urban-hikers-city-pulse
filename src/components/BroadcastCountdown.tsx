@@ -14,12 +14,13 @@ export const BroadcastCountdown: React.FC<BroadcastCountdownProps> = ({ broadcas
     return () => clearInterval(timer);
   }, []);
 
-  const start = new Date(broadcast.startsAt);
-  const end = new Date(broadcast.expiresAt);
+  const start = new Date(broadcast.startsAt || broadcast.starts_at || 0);
+  const end = new Date(broadcast.expiresAt || broadcast.expires_at || 0);
+  const currentVibe = broadcast.currentVibe || broadcast.current_vibe;
   const isLive = now >= start && now < end;
   const isUpcoming = now < start;
 
-  if (now >= end) return null;
+  if (now >= end || isNaN(start.getTime()) || isNaN(end.getTime())) return null;
 
   let label = "STARTS IN";
   let colorClass = "text-[#378ADD]"; // DORMANT Blue
@@ -28,11 +29,11 @@ export const BroadcastCountdown: React.FC<BroadcastCountdownProps> = ({ broadcas
   let progress = 0;
 
   if (isLive) {
-    if (broadcast.currentVibe === 'packed') {
+    if (currentVibe === 'packed') {
       label = "ENDS IN";
       colorClass = "text-[#E24B4A]"; // LIVE Red
       barColorClass = "bg-[#E24B4A]";
-    } else if (broadcast.currentVibe === 'buzzing') {
+    } else if (currentVibe === 'buzzing') {
       label = "DEAL EXPIRES IN";
       colorClass = "text-[#EF9F27]"; // BUZZING Amber
       barColorClass = "bg-[#EF9F27]";

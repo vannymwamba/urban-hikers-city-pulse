@@ -87,8 +87,11 @@ export const LogoUpload: React.FC<LogoUploadProps> = ({ partnerId, currentLogoUr
         : `partners/${partnerId}/logo/logo_${Date.now()}.${extension}`;
       const storageRef = ref(storage, storagePath);
       
-      // 3. Start upload
-      const uploadTask = uploadBytesResumable(storageRef, uploadData);
+      // 3. Start upload with metadata
+      const metadata = {
+        contentType: file.type === 'image/svg+xml' ? 'image/svg+xml' : 'image/webp'
+      };
+      const uploadTask = uploadBytesResumable(storageRef, uploadData, metadata);
       uploadTaskRef.current = uploadTask;
 
       uploadTask.on(
@@ -100,7 +103,15 @@ export const LogoUpload: React.FC<LogoUploadProps> = ({ partnerId, currentLogoUr
         (err) => {
           if (err.code === 'storage/canceled') return;
           console.error('Upload error:', err);
-          setError('UPLOAD_FAILED: Check connection/permissions.');
+          
+          if (err.code === 'storage/retry-limit-exceeded') {
+            setError('UPLOAD_TIMEOUT: CORS configuration might be missing or network is slow.');
+          } else if (err.code === 'storage/unauthorized') {
+            setError('PERMISSION_DENIED: Check Storage rules.');
+          } else {
+            setError(`UPLOAD_FAILED: ${err.message}`);
+          }
+          
           setProgress(null);
           setIsProcessing(false);
           setPreviewUrl(null);

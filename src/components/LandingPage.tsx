@@ -5,11 +5,12 @@ import { Zap, Music, Palette, Calendar, MapPin, ShieldCheck, Home, LayoutGrid, S
 
 interface LandingPageProps {
   onLoginSuccess: (profile: UserProfile) => void;
+  onLogin: () => void;
   userProfile?: UserProfile | null;
   onOpenWallet?: () => void;
 }
 
-export const LandingPage: React.FC<LandingPageProps> = ({ onLoginSuccess, userProfile, onOpenWallet }) => {
+export const LandingPage: React.FC<LandingPageProps> = ({ onLoginSuccess, onLogin, userProfile, onOpenWallet }) => {
   // Auto-scroll to signup if accessed via dashboard or login route while not logged in
   React.useEffect(() => {
     const isLoginPath = window.location.pathname.includes('dashboard') || window.location.pathname.includes('login');
@@ -56,10 +57,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginSuccess, userPr
             </button>
           ) : (
             <button 
-              onClick={() => {
-                window.history.pushState({}, '', '/login');
-                window.dispatchEvent(new PopStateEvent('popstate'));
-              }}
+              onClick={onLogin}
               className="px-6 py-2.5 rounded-full border border-white/20 text-white text-[13px] font-bold tracking-[0.5px] hover:bg-white hover:text-black transition-all"
             >
               Login
@@ -405,10 +403,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginSuccess, userPr
             <a href="#services" className="font-mono text-[10px] text-white/40 no-underline hover:text-yellow tracking-[2px] uppercase transition-colors">Services</a>
             <a href="#partners" className="font-mono text-[10px] text-white/40 no-underline hover:text-yellow tracking-[2px] uppercase transition-colors">Partners</a>
             <button 
-              onClick={() => {
-                window.history.pushState({}, '', '/login');
-                window.dispatchEvent(new PopStateEvent('popstate'));
-              }}
+              onClick={onLogin}
               className="font-mono text-[10px] text-white/40 no-underline hover:text-yellow tracking-[2px] uppercase transition-colors"
             >
               Partner Login

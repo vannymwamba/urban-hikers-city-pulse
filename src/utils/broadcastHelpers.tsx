@@ -22,8 +22,12 @@ export const getIconBg = (item: Broadcast) => {
 
 export const getEventStatus = (item: Broadcast) => {
   const now = new Date();
-  const start = new Date(item.startsAt);
-  const end = new Date(item.expiresAt);
+  const start = new Date(item.startsAt || item.starts_at || 0);
+  const end = new Date(item.expiresAt || item.expires_at || 0);
+
+  if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+    return { isLive: false, label: 'DORMANT', time: 'TIME_UNKNOWN' };
+  }
 
   if (now < start) {
     return { 
@@ -42,10 +46,10 @@ export const getEventStatus = (item: Broadcast) => {
 
 export const getBadgeLabel = (item: Broadcast) => {
   const now = new Date();
-  const start = new Date(item.startsAt);
-  const end = new Date(item.expiresAt);
+  const start = new Date(item.startsAt || item.starts_at || 0);
+  const end = new Date(item.expiresAt || item.expires_at || 0);
   const isLive = now >= start && now < end;
-  const vibe = item.currentVibe;
+  const vibe = item.currentVibe || item.current_vibe;
 
   if (!isLive) {
     const diffToStart = start.getTime() - now.getTime();
@@ -61,10 +65,10 @@ export const getBadgeLabel = (item: Broadcast) => {
 
 export const getBadgeStyle = (item: Broadcast) => {
   const now = new Date();
-  const start = new Date(item.startsAt);
-  const end = new Date(item.expiresAt);
+  const start = new Date(item.startsAt || item.starts_at || 0);
+  const end = new Date(item.expiresAt || item.expires_at || 0);
   const isLive = now >= start && now < end;
-  const vibe = item.currentVibe;
+  const vibe = item.currentVibe || item.current_vibe;
 
   if (!isLive) {
     const diffToStart = start.getTime() - now.getTime();

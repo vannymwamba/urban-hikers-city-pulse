@@ -1,10 +1,11 @@
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&family=Inter:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&family=Inter:wght@300;400;500;600;700&family=Bebas+Neue&display=swap');
 @import "./tokens.css";
 @import "tailwindcss";
 
 @theme {
   --font-mono: var(--font-system);
   --font-sans: var(--font-content);
+  --font-bebas: "Bebas Neue", sans-serif;
 
   --color-hud-bg: var(--md-sys-color-background);
   --color-hud-yellow: var(--color-brand);

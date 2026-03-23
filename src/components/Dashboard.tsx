@@ -17,7 +17,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
   if (!userProfile) return null;
 
   const isAdmin = userProfile.role === 'admin' || userProfile.role === 'super_admin' || userProfile.email === 'vannymwamba@gmail.com';
-  const isPartner = ['partner', 'partner_admin', 'partner_viewer', 'partner_content_editor'].includes(userProfile.role);
+  const isPartner = ['partner', 'partner_admin', 'partner_viewer', 'partner_content_editor'].includes(userProfile.role) || (isAdmin && !!userProfile.partner_id);
   const canWrite = isAdmin || ['partner', 'partner_admin', 'partner_content_editor'].includes(userProfile.role);
   const isViewer = userProfile.role === 'partner_viewer';
 
@@ -259,12 +259,19 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
       latitude = partner.latitude;
       longitude = partner.longitude;
       address = partner.address || '';
-      // If using partner location, we might still want to associate it with a node if it's nearby, 
-      // but for now let's just use the partner's coordinates.
     } else if (targetNode) {
       latitude = targetNode.latitude;
       longitude = targetNode.longitude;
       address = targetNode.address || '';
+    } else if (newBroadcast.locationSource === 'partner' && partnerId === 'admin') {
+      // Fallback for system broadcast with partner source: use a default or current node
+      const defaultNode = nodes[0];
+      if (defaultNode) {
+        latitude = defaultNode.latitude;
+        longitude = defaultNode.longitude;
+        address = defaultNode.address || '';
+        nodeId = defaultNode.id;
+      }
     }
     
     try {
@@ -376,9 +383,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
       
       if (!userSnap.empty) {
         const userDoc = userSnap.docs[0];
+        const userData = userDoc.data();
+        const isTargetAdmin = userData.role === 'admin' || userData.role === 'super_admin' || userData.email === 'vannymwamba@gmail.com';
+        
         try {
           await setDoc(doc(db, 'users', userDoc.id), {
-            role: newPartner.role,
+            role: isTargetAdmin ? userData.role : newPartner.role,
             partner_id: id
           }, { merge: true });
         } catch (err) {
@@ -419,8 +429,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
       const userSnap = await getDocs(userQuery);
       
       for (const userDoc of userSnap.docs) {
+        const userData = userDoc.data();
+        const isTargetAdmin = userData.role === 'admin' || userData.role === 'super_admin' || userData.email === 'vannymwamba@gmail.com';
+        
         await updateDoc(doc(db, 'users', userDoc.id), {
-          role: 'user',
+          role: isTargetAdmin ? userData.role : 'user',
           partner_id: null
         });
       }
@@ -497,7 +510,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
               onClick={() => setActiveTab('profile')}
               className={`flex items-center gap-3 p-3 text-sm font-bold transition-all ${activeTab === 'profile' ? 'bg-hud-green text-black' : 'hover:bg-white/5 text-hud-green/60'}`}
             >
-              <ShieldCheck size={18} /> MY_PROFILE
+              <ShieldCheck size={18} /> {isAdmin ? 'MY_PARTNER_PROFILE' : 'MY_PROFILE'}
             </button>
           )}
         </nav>

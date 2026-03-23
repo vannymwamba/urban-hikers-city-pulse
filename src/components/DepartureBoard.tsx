@@ -85,8 +85,11 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
   // Calculate real stats
   const activeNodesCount = new Set(broadcasts.map(b => `${b.latitude},${b.longitude}`)).size || 1;
   
-  const maxRadiusMeters = broadcasts.length > 0 && currentNode
-    ? Math.max(...broadcasts.map(b => getDistance(currentNode.latitude, currentNode.longitude, b.latitude, b.longitude)))
+  const maxRadiusMeters = broadcasts.length > 0 && currentNode && typeof currentNode.latitude === 'number' && typeof currentNode.longitude === 'number'
+    ? Math.max(...broadcasts.map(b => {
+        if (typeof b.latitude !== 'number' || typeof b.longitude !== 'number' || isNaN(b.latitude) || isNaN(b.longitude)) return 0;
+        return getDistance(currentNode.latitude, currentNode.longitude, b.latitude, b.longitude);
+      }))
     : 0;
     
   // Convert meters to miles (approx)

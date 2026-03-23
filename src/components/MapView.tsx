@@ -15,95 +15,121 @@ interface MapViewProps {
 }
 
 // Fix for default marker icons in Leaflet
-delete (L.Icon.Default.prototype as any)._getIconUrl;
-L.Icon.Default.mergeOptions({
-  iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
-  iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
-  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
-});
-
-const createCustomIcon = (type: string, color: string) => {
-  const iconMarkup = renderToStaticMarkup(
-    <div style={{ 
-      backgroundColor: color, 
-      borderRadius: '50%', 
-      padding: '6px', 
-      border: '2px solid white',
-      boxShadow: '0 0 10px rgba(0,0,0,0.3)',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      color: 'white'
-    }}>
-      {type === 'flash_deal' && <Zap size={14} />}
-      {type === 'conference_panel' && <Mic size={14} />}
-      {type === 'event' && <Ticket size={14} />}
-      {type === 'music' && <Music size={14} />}
-      {type === 'art' && <Palette size={14} />}
-      {!['flash_deal', 'conference_panel', 'event', 'music', 'art'].includes(type) && <Calendar size={14} />}
-    </div>
-  );
-
-  return L.divIcon({
-    html: iconMarkup,
-    className: 'custom-map-icon',
-    iconSize: [30, 30],
-    iconAnchor: [15, 15],
-  });
+const fixLeafletIcons = () => {
+  if (typeof L !== 'undefined' && L.Icon && L.Icon.Default) {
+    delete (L.Icon.Default.prototype as any)._getIconUrl;
+    L.Icon.Default.mergeOptions({
+      iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
+      iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
+      shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
+    });
+  }
 };
 
-const currentNodeIcon = L.divIcon({
-  html: renderToStaticMarkup(
-    <div style={{ 
-      backgroundColor: '#F5C800', 
-      borderRadius: '50%', 
-      padding: '8px', 
-      border: '3px solid #1A2B4A',
-      boxShadow: '0 0 15px rgba(245, 200, 0, 0.6)',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      color: '#1A2B4A'
-    }}>
-      <MapPin size={18} />
-    </div>
-  ),
-  className: 'current-node-icon',
-  iconSize: [36, 36],
-  iconAnchor: [18, 18],
-});
+fixLeafletIcons();
+
+const createCustomIcon = (type: string, color: string) => {
+  try {
+    const iconMarkup = renderToStaticMarkup(
+      <div style={{ 
+        backgroundColor: color, 
+        borderRadius: '50%', 
+        padding: '6px', 
+        border: '2px solid white',
+        boxShadow: '0 0 10px rgba(0,0,0,0.3)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        color: 'white'
+      }}>
+        {type === 'flash_deal' && <Zap size={14} />}
+        {type === 'conference_panel' && <Mic size={14} />}
+        {type === 'event' && <Ticket size={14} />}
+        {type === 'music' && <Music size={14} />}
+        {type === 'art' && <Palette size={14} />}
+        {!['flash_deal', 'conference_panel', 'event', 'music', 'art'].includes(type) && <Calendar size={14} />}
+      </div>
+    );
+
+    return L.divIcon({
+      html: iconMarkup,
+      className: 'custom-map-icon',
+      iconSize: [30, 30],
+      iconAnchor: [15, 15],
+    });
+  } catch (e) {
+    console.error("Error creating custom icon:", e);
+    return new L.Icon.Default();
+  }
+};
+
+const getCurrentNodeIcon = () => {
+  try {
+    return L.divIcon({
+      html: renderToStaticMarkup(
+        <div style={{ 
+          backgroundColor: '#F5C800', 
+          borderRadius: '50%', 
+          padding: '8px', 
+          border: '3px solid #1A2B4A',
+          boxShadow: '0 0 15px rgba(245, 200, 0, 0.6)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          color: '#1A2B4A'
+        }}>
+          <MapPin size={18} />
+        </div>
+      ),
+      className: 'current-node-icon',
+      iconSize: [36, 36],
+      iconAnchor: [18, 18],
+    });
+  } catch (e) {
+    return new L.Icon.Default();
+  }
+};
 
 // Component to auto-center map when currentNode changes
 const RecenterMap = ({ coords }: { coords: [number, number] }) => {
   const map = useMap();
   React.useEffect(() => {
-    map.setView(coords, 15);
+    if (coords && typeof coords[0] === 'number' && typeof coords[1] === 'number' && !isNaN(coords[0]) && !isNaN(coords[1])) {
+      map.setView(coords, 15);
+    }
   }, [coords, map]);
   return null;
 };
 
 export const MapView: React.FC<MapViewProps> = ({ currentNode, broadcasts, onSelect, partnersMap = {} }) => {
-  if (!currentNode) return (
+  const currentNodeIcon = React.useMemo(() => getCurrentNodeIcon(), []);
+
+  const lat = currentNode ? Number(currentNode.latitude) : NaN;
+  const lng = currentNode ? Number(currentNode.longitude) : NaN;
+
+  if (!currentNode || isNaN(lat) || isNaN(lng)) return (
     <div className="h-full flex items-center justify-center bg-hud-bg/50 text-white/50 uppercase tracking-widest text-xs">
-      Awaiting Location Data...
+      Awaiting Valid Location Data...
     </div>
   );
 
-  const center: [number, number] = [currentNode.latitude, currentNode.longitude];
+  const center: [number, number] = [lat, lng];
 
   const getBroadcastType = (b: Broadcast) => {
     if (b.type === 'flash_deal') return 'flash_deal';
     if (b.type === 'conference_panel') return 'conference_panel';
-    if (b.title.toLowerCase().includes('music')) return 'music';
-    if (b.title.toLowerCase().includes('art')) return 'art';
+    const title = b.title?.toLowerCase() || '';
+    if (title.includes('music')) return 'music';
+    if (title.includes('art')) return 'art';
     return 'event';
   };
 
   const getBroadcastColor = (b: Broadcast) => {
     if (b.type === 'flash_deal') return '#EF9F27';
     if (b.type === 'conference_panel') return '#378ADD';
-    if (b.title.toLowerCase().includes('music')) return '#639922';
-    if (b.title.toLowerCase().includes('art')) return '#534AB7';
+    const title = b.title?.toLowerCase() || '';
+    if (title.includes('music')) return '#639922';
+    if (title.includes('art')) return '#534AB7';
     return '#E24B4A';
   };
 
@@ -134,8 +160,13 @@ export const MapView: React.FC<MapViewProps> = ({ currentNode, broadcasts, onSel
         </Marker>
 
         {/* Broadcast Markers */}
-        {broadcasts.map((b) => {
+        {Array.isArray(broadcasts) && broadcasts.map((b) => {
+          if (!b || typeof b.latitude !== 'number' || typeof b.longitude !== 'number') return null;
+          if (isNaN(b.latitude) || isNaN(b.longitude)) return null;
+          
           const partner = b.partnerId ? partnersMap[b.partnerId] : null;
+          const vibe = (b.currentVibe || b.current_vibe || 'CHILL').toUpperCase();
+          const type = b.type || 'event';
           
           return (
             <Marker 
@@ -148,16 +179,16 @@ export const MapView: React.FC<MapViewProps> = ({ currentNode, broadcasts, onSel
                   <div className="flex justify-between items-start mb-2">
                     <div className="flex flex-col gap-1">
                       <div className="font-black text-[9px] uppercase tracking-widest opacity-60">
-                        {b.type.replace('_', ' ')}
+                        {type.replace('_', ' ')}
                       </div>
                       {partner && <SponsorBadge partner={partner} zone="A" />}
                     </div>
                     <div className="text-[9px] font-bold bg-hud-bg/10 px-1.5 py-0.5 rounded">
-                      {b.currentVibe.toUpperCase()}
+                      {vibe}
                     </div>
                   </div>
-                  <div className="font-bold text-sm mb-1">{b.title}</div>
-                  <div className="text-[10px] mb-1 opacity-80">{b.address?.split(',')[0]}</div>
+                  <div className="font-bold text-sm mb-1">{b.title || 'UNKNOWN_SIGNAL'}</div>
+                  <div className="text-[10px] mb-1 opacity-80">{b.address?.split(',')[0] || 'NO_ADDRESS_DATA'}</div>
                   {partner && <SponsorBadge partner={partner} zone="D" />}
                   <div className="mt-3">
                     <button 
@@ -176,7 +207,7 @@ export const MapView: React.FC<MapViewProps> = ({ currentNode, broadcasts, onSel
         {/* Visual Range Circle */}
         <Circle 
           center={center} 
-          radius={500} 
+          radius={Number(currentNode.radius_limit) || 500} 
           pathOptions={{ color: '#4CD98A', fillColor: '#4CD98A', fillOpacity: 0.05, weight: 1, dashArray: '5, 10' }} 
         />
       </MapContainer>
