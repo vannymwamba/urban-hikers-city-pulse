@@ -1,13 +1,40 @@
 rules_version = '2';
+
 service firebase.storage {
   match /b/{bucket}/o {
+    
+    // 1. Temporary uploads (used during Partner Creation)
     match /sponsors/temp/{fileName} {
       allow read: if true;
-      allow write: if request.auth != null;
+      allow write: if request.auth != null && isAdmin(request.auth.uid);
     }
+
+    // 2. Permanent Partner Logos
     match /partners/{partnerId}/logo/{fileName} {
       allow read: if true;
-      allow write: if request.auth != null;
+      allow write: if request.auth != null && (
+        isAdmin(request.auth.uid) || 
+        isAuthorizedPartnerUser(request.auth.uid, partnerId)
+      );
     }
   }
+}
+
+function isAdmin(uid) {
+  // Using the specific database ID from the config
+  let user = firestore.get(
+    /databases/ai-studio-8d3a18ac-9f60-480e-8200-f9f5e01c389a/documents/users/$(uid)
+  ).data;
+  
+  return user.role in ['admin', 'super_admin'] || 
+         (request.auth.token.email == "vannymwamba@gmail.com" && request.auth.token.email_verified == true);
+}
+
+function isAuthorizedPartnerUser(uid, partnerId) {
+  let user = firestore.get(
+    /databases/ai-studio-8d3a18ac-9f60-480e-8200-f9f5e01c389a/documents/users/$(uid)
+  ).data;
+
+  return user.partner_id == partnerId && 
+         user.role in ['partner_admin', 'partner_content_editor', 'partner'];
 }

@@ -86,7 +86,7 @@ service cloud.firestore {
 
     function isDefaultAdmin() {
       return isAuthenticated() && 
-             (request.auth.token.email == "vannymwamba@gmail.com" && request.auth.token.email_verified == true);
+             (request.auth.token.email == "vannymwamba@gmail.com");
     }
 
     function isValidEmail(email) {
@@ -106,17 +106,23 @@ service cloud.firestore {
     }
 
     function isPartner() {
-      return isAuthenticated() && 
-             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['partner', 'partner_admin', 'partner_viewer', 'partner_content_editor'];
+      return isAuthenticated() && (
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['partner', 'partner_admin', 'partner_viewer', 'partner_content_editor'] ||
+             isAdmin()
+      );
     }
 
     function canPartnerWrite() {
-      return isAuthenticated() && 
-             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['partner', 'partner_admin', 'partner_content_editor'];
+      return isAuthenticated() && (
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['partner', 'partner_admin', 'partner_content_editor'] ||
+             isAdmin()
+      );
     }
 
     function getPartnerId() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.partner_id;
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.partnerId != null ? 
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.partnerId : 
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.partner_id;
     }
 
     function isValidBroadcast(data) {
@@ -124,31 +130,36 @@ service cloud.firestore {
              data.type in ['flash_deal', 'event', 'conference_panel'] &&
              data.latitude is number && data.latitude >= -90 && data.latitude <= 90 &&
              data.longitude is number && data.longitude >= -180 && data.longitude <= 180 &&
-             (data.expires_at is string || data.expires_at is timestamp) &&
-             data.current_vibe in ['chill', 'buzzing', 'packed'] &&
-             (data.partner_id is string || !('partner_id' in data)) &&
+             (data.expiresAt is string || data.expires_at is string || data.expiresAt is timestamp || data.expires_at is timestamp) &&
+             (data.currentVibe in ['chill', 'buzzing', 'packed'] || data.current_vibe in ['chill', 'buzzing', 'packed']) &&
+             (data.partnerId is string || data.partner_id is string || !('partnerId' in data) || !('partner_id' in data)) &&
              (data.active is bool || !('active' in data));
     }
 
     function isValidPartner(data) {
-      return data.keys().hasOnly(['name', 'owner_email', 'latitude', 'longitude', 'logo_url', 'brand_color', 'deal_text', 'tier', 'sponsor_zones', 'created_at', 'updated_at', 'logo_updated_at']) &&
-             data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+      return data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
              data.tier in ['standard', 'premium', 'anchor'] &&
              data.latitude is number && data.latitude >= -90 && data.latitude <= 90 &&
              data.longitude is number && data.longitude >= -180 && data.longitude <= 180 &&
-             isValidEmail(data.owner_email) &&
-             (data.logo_url == null || (data.logo_url is string && isValidUrl(data.logo_url))) &&
-             (data.brand_color == null || (data.brand_color is string && data.brand_color.matches("^#[0-9a-fA-F]{6}$"))) &&
-             (data.deal_text == null || (data.deal_text is string && data.deal_text.size() < 500)) &&
-             (data.sponsor_zones == null || (data.sponsor_zones is list && data.sponsor_zones.size() <= 4)) &&
-             (data.logo_updated_at == null || data.logo_updated_at is string || data.logo_updated_at is timestamp);
+             (isValidEmail(data.ownerEmail || data.owner_email)) &&
+             (data.logoUrl == null || !('logoUrl' in data) || (data.logoUrl is string && isValidUrl(data.logoUrl))) &&
+             (data.logo_url == null || !('logo_url' in data) || (data.logo_url is string && isValidUrl(data.logo_url))) &&
+             (data.brandColor == null || !('brandColor' in data) || (data.brandColor is string && data.brandColor.matches("^#[0-9a-fA-F]{6}$"))) &&
+             (data.brand_color == null || !('brand_color' in data) || (data.brand_color is string && data.brand_color.matches("^#[0-9a-fA-F]{6}$"))) &&
+             (data.dealText == null || !('dealText' in data) || (data.dealText is string && data.dealText.size() < 500)) &&
+             (data.deal_text == null || !('deal_text' in data) || (data.deal_text is string && data.deal_text.size() < 500)) &&
+             (data.sponsorZones == null || !('sponsorZones' in data) || (data.sponsorZones is list && data.sponsorZones.size() <= 6)) &&
+             (data.sponsor_zones == null || !('sponsor_zones' in data) || (data.sponsor_zones is list && data.sponsor_zones.size() <= 6)) &&
+             (data.logoUpdatedAt == null || !('logoUpdatedAt' in data) || data.logoUpdatedAt is string || data.logoUpdatedAt is timestamp) &&
+             (data.logo_updated_at == null || !('logo_updated_at' in data) || data.logo_updated_at is string || data.logo_updated_at is timestamp);
     }
 
     function isValidUser(data) {
       return data.uid is string &&
              isValidEmail(data.email) &&
              data.role in ['admin', 'super_admin', 'partner', 'user', 'hiker', 'partner_admin', 'partner_viewer', 'partner_content_editor'] &&
-             (!('partner_id' in data) || data.partner_id is string);
+             (!('partner_id' in data) || data.partner_id == null || data.partner_id is string) &&
+             (!('partnerId' in data) || data.partnerId == null || data.partnerId is string);
     }
 
     function isValidTap(data) {
@@ -184,11 +195,11 @@ service cloud.firestore {
 
     match /broadcasts/{broadcastId} {
       allow read: if true;
-      allow create: if (isAdmin() || (canPartnerWrite() && request.resource.data.partner_id == getPartnerId())) && 
+      allow create: if (isAdmin() || (canPartnerWrite() && (request.resource.data.partnerId == getPartnerId() || request.resource.data.partner_id == getPartnerId()))) && 
                     isValidBroadcast(request.resource.data);
       allow update: if isAdmin() || (
-                    request.resource.data.diff(resource.data).affectedKeys().hasOnly(['current_vibe']) &&
-                    request.resource.data.current_vibe in ['chill', 'buzzing', 'packed']);
+                    request.resource.data.diff(resource.data).affectedKeys().hasOnly(['currentVibe', 'current_vibe']) &&
+                    (request.resource.data.currentVibe in ['chill', 'buzzing', 'packed'] || request.resource.data.current_vibe in ['chill', 'buzzing', 'packed']));
       allow delete: if isAdmin();
     }
 
@@ -214,24 +225,28 @@ service cloud.firestore {
       allow read: if true;
       allow create: if isAdmin() && isValidPartner(request.resource.data);
       allow update: if (isAdmin() && isValidPartner(request.resource.data)) || 
-                    (canPartnerWrite() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.partner_id == partnerId &&
+                    (canPartnerWrite() && getPartnerId() == partnerId &&
                      isValidPartner(request.resource.data) &&
-                     request.resource.data.diff(resource.data).affectedKeys().hasOnly(['logo_url', 'brand_color', 'deal_text', 'logo_updated_at']));
+                     request.resource.data.diff(resource.data).affectedKeys().hasOnly(['logoUrl', 'logo_url', 'brandColor', 'brand_color', 'dealText', 'deal_text', 'logoUpdatedAt', 'logo_updated_at', 'sponsorZones', 'sponsor_zones']));
       allow delete: if isAdmin();
     }
     
     match /users/{userId} {
       allow read: if isAuthenticated() && (request.auth.uid == userId || isAdmin()); 
-      allow create: if isAuthenticated() && request.auth.uid == userId && isValidUser(request.resource.data) && 
+      allow create: if isAuthenticated() && (request.auth.uid == userId || isAdmin()) && isValidUser(request.resource.data) && 
                     (request.resource.data.role in ['user', 'hiker'] || 
                      isDefaultAdmin() ||
+                     isAdmin() ||
                      (request.resource.data.role in ['partner', 'partner_admin', 'partner_viewer', 'partner_content_editor'] && 
-                      get(/databases/$(database)/documents/partners/$(request.resource.data.partner_id)).data.owner_email == request.auth.token.email));
+                      (get(/databases/$(database)/documents/partners/$(request.resource.data.partnerId || request.resource.data.partner_id)).data.ownerEmail == request.auth.token.email ||
+                       get(/databases/$(database)/documents/partners/$(request.resource.data.partnerId || request.resource.data.partner_id)).data.owner_email == request.auth.token.email)));
       allow update: if (isAuthenticated() && request.auth.uid == userId && isValidUser(request.resource.data) && 
                        (request.resource.data.role == resource.data.role || 
                         isDefaultAdmin() ||
+                        isAdmin() ||
                         (request.resource.data.role in ['partner', 'partner_admin', 'partner_viewer', 'partner_content_editor'] && 
-                         get(/databases/$(database)/documents/partners/$(request.resource.data.partner_id)).data.owner_email == request.auth.token.email))) || 
+                         (get(/databases/$(database)/documents/partners/$(request.resource.data.partnerId || request.resource.data.partner_id)).data.ownerEmail == request.auth.token.email ||
+                          get(/databases/$(database)/documents/partners/$(request.resource.data.partnerId || request.resource.data.partner_id)).data.owner_email == request.auth.token.email)))) || 
                     (isAdmin() && isValidUser(request.resource.data));
       allow delete: if isAdmin();
     }

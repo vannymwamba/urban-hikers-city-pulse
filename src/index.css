@@ -4,27 +4,31 @@
 
 @theme {
   --font-mono: var(--font-system);
-  --font-sans: var(--font-content);
+  --font-sans: var(--font-system);
   --font-bebas: "Bebas Neue", sans-serif;
 
-  --color-hud-bg: var(--md-sys-color-background);
+  --color-hud-bg: var(--color-base);
   --color-hud-yellow: var(--color-brand);
-  --color-hud-green: var(--md-sys-color-secondary);
-  --color-hud-magenta: var(--color-alert);
-  --color-hud-dark: var(--md-sys-color-surface);
-  --color-feed-bg: var(--md-sys-color-background);
+  --color-hud-green: var(--color-verified);
+  --color-hud-teal: var(--color-live);
+  --color-hud-amber: var(--color-partner);
+  --color-hud-coral: var(--color-urgent);
+  --color-hud-magenta: var(--color-urgent);
+  --color-hud-dark: var(--color-base);
+  --color-feed-bg: var(--color-base);
 
-  --color-navy: var(--md-sys-color-surface-container);
-  --color-navy-deep: var(--md-sys-color-surface);
-  --color-navy-mid: var(--md-sys-color-surface-variant);
+  --color-navy: #111111;
+  --color-navy-deep: #0A0A0A;
+  --color-navy-mid: #161616;
   --color-yellow: var(--color-brand);
-  --color-green: var(--md-sys-color-secondary);
+  --color-green: var(--color-verified);
 }
 
 @layer base {
   body {
-    @apply bg-hud-dark text-white font-sans selection:bg-hud-yellow selection:text-hud-dark;
-    font-family: var(--font-content);
+    @apply bg-hud-dark text-white font-mono selection:bg-hud-yellow selection:text-hud-dark;
+    font-family: var(--font-system);
+    letter-spacing: -0.02em;
   }
 }
 

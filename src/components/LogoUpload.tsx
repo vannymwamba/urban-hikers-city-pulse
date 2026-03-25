@@ -11,8 +11,8 @@ interface LogoUploadProps {
 }
 
 export const LogoUpload: React.FC<LogoUploadProps> = ({ partnerId, currentLogoUrl, onLogoUploaded }) => {
+  const [status, setStatus] = useState<'idle' | 'compressing' | 'uploading' | 'success' | 'error'>('idle');
   const [progress, setProgress] = useState<number | null>(null);
-  const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [lastFile, setLastFile] = useState<File | null>(null);
@@ -25,7 +25,7 @@ export const LogoUpload: React.FC<LogoUploadProps> = ({ partnerId, currentLogoUr
       setPreviewUrl(null);
       setError(null);
       setProgress(null);
-      setIsProcessing(false);
+      setStatus('idle');
       if (uploadTaskRef.current) {
         uploadTaskRef.current.cancel();
         uploadTaskRef.current = null;
@@ -73,13 +73,14 @@ export const LogoUpload: React.FC<LogoUploadProps> = ({ partnerId, currentLogoUr
 
     setLastFile(file);
     setError(null);
-    setIsProcessing(true);
+    setStatus('compressing');
     setProgress(0);
 
     try {
       // 1. Compress image if applicable
       const uploadData = await compressImage(file);
       
+      setStatus('uploading');
       // 2. Prepare storage path
       const extension = file.type === 'image/svg+xml' ? 'svg' : 'webp';
       const storagePath = partnerId === 'temp' 
@@ -101,7 +102,10 @@ export const LogoUpload: React.FC<LogoUploadProps> = ({ partnerId, currentLogoUr
           setProgress(p);
         },
         (err) => {
-          if (err.code === 'storage/canceled') return;
+          if (err.code === 'storage/canceled') {
+            setStatus('idle');
+            return;
+          }
           console.error('Upload error:', err);
           
           if (err.code === 'storage/retry-limit-exceeded') {
@@ -113,7 +117,7 @@ export const LogoUpload: React.FC<LogoUploadProps> = ({ partnerId, currentLogoUr
           }
           
           setProgress(null);
-          setIsProcessing(false);
+          setStatus('error');
           setPreviewUrl(null);
           uploadTaskRef.current = null;
         },
@@ -137,13 +141,13 @@ export const LogoUpload: React.FC<LogoUploadProps> = ({ partnerId, currentLogoUr
             setPreviewUrl(downloadURL);
             onLogoUploaded(downloadURL);
             setProgress(null);
-            setIsProcessing(false);
+            setStatus('success');
             uploadTaskRef.current = null;
           } catch (err) {
             console.error('URL error:', err);
             setError('FAILED_TO_GET_URL');
             setProgress(null);
-            setIsProcessing(false);
+            setStatus('error');
             uploadTaskRef.current = null;
           }
         }
@@ -152,7 +156,7 @@ export const LogoUpload: React.FC<LogoUploadProps> = ({ partnerId, currentLogoUr
       console.error('Compression/Upload error:', err);
       setError('PROCESSING_FAILED');
       setProgress(null);
-      setIsProcessing(false);
+      setStatus('error');
     }
   };
 
@@ -167,7 +171,7 @@ export const LogoUpload: React.FC<LogoUploadProps> = ({ partnerId, currentLogoUr
       uploadTaskRef.current = null;
     }
     setProgress(null);
-    setIsProcessing(false);
+    setStatus('idle');
     setError(null);
   };
 
@@ -184,12 +188,19 @@ export const LogoUpload: React.FC<LogoUploadProps> = ({ partnerId, currentLogoUr
     if (file.type === 'image/svg+xml') return Promise.resolve(file);
 
     return new Promise((resolve) => {
+      // Safety timeout: if compression takes more than 5s, fallback to original
+      const timeout = setTimeout(() => {
+        console.warn('COMPRESSION_TIMEOUT: Falling back to original file.');
+        resolve(file);
+      }, 5000);
+
       const reader = new FileReader();
-      reader.readAsDataURL(file);
+      
       reader.onload = (event) => {
         const img = new Image();
-        img.src = event.target?.result as string;
+        
         img.onload = () => {
+          clearTimeout(timeout);
           const canvas = document.createElement('canvas');
           const MAX_WIDTH = 1200;
           const MAX_HEIGHT = 1200;
@@ -220,11 +231,8 @@ export const LogoUpload: React.FC<LogoUploadProps> = ({ partnerId, currentLogoUr
           canvas.toBlob(
             (blob) => {
               if (blob) {
-                if (blob.size > file.size) {
-                  resolve(file);
-                } else {
-                  resolve(blob);
-                }
+                // Only use compressed if it's actually smaller
+                resolve(blob.size > file.size ? file : blob);
               } else {
                 resolve(file);
               }
@@ -233,13 +241,29 @@ export const LogoUpload: React.FC<LogoUploadProps> = ({ partnerId, currentLogoUr
             0.85
           );
         };
-        img.onerror = () => resolve(file);
+
+        img.onerror = () => {
+          clearTimeout(timeout);
+          console.error('IMAGE_LOAD_ERROR: Falling back to original file.');
+          resolve(file);
+        };
+
+        // Set src AFTER attaching onload/onerror to avoid race conditions
+        img.src = event.target?.result as string;
       };
-      reader.onerror = () => resolve(file);
+
+      reader.onerror = () => {
+        clearTimeout(timeout);
+        console.error('READER_ERROR: Falling back to original file.');
+        resolve(file);
+      };
+
+      reader.readAsDataURL(file);
     });
   };
 
   const displayUrl = previewUrl || currentLogoUrl;
+  const isProcessing = status === 'compressing' || status === 'uploading';
 
   return (
     <div className="flex flex-col gap-3">
@@ -265,23 +289,23 @@ export const LogoUpload: React.FC<LogoUploadProps> = ({ partnerId, currentLogoUr
 
         {isProcessing && (
           <div className="absolute inset-0 bg-black/40 backdrop-blur-[1px] flex flex-col items-center justify-center p-4">
-            {progress === 0 ? (
-              <div className="flex flex-col items-center gap-2">
-                <RefreshCw size={20} className="text-hud-yellow animate-spin" />
-                <span className="text-[8px] font-bold text-white/60 uppercase">Processing...</span>
-              </div>
-            ) : (
-              <>
-                <div className="w-full h-1 bg-white/10 rounded-full overflow-hidden mb-2">
-                  <div 
-                    className="h-full bg-hud-yellow shadow-[0_0_10px_rgba(245,200,0,0.5)] transition-all duration-300" 
-                    style={{ width: `${progress}%` }}
-                  />
+            <div className="flex flex-col items-center gap-2">
+              <RefreshCw size={20} className="text-hud-yellow animate-spin" />
+              <span className="text-[8px] font-bold text-white/60 uppercase">
+                {status === 'compressing' ? 'Compressing...' : 'Uploading...'}
+              </span>
+              {status === 'uploading' && progress !== null && progress > 0 && (
+                <div className="w-full mt-2">
+                  <div className="w-full h-1 bg-white/10 rounded-full overflow-hidden mb-1">
+                    <div 
+                      className="h-full bg-hud-yellow shadow-[0_0_10px_rgba(245,200,0,0.5)] transition-all duration-300" 
+                      style={{ width: `${progress}%` }}
+                    />
+                  </div>
+                  <div className="text-[8px] font-black text-hud-yellow text-center">{Math.round(progress)}%</div>
                 </div>
-                <span className="text-[10px] font-black text-hud-yellow tracking-tighter">{Math.round(progress || 0)}%</span>
-                <span className="text-[8px] font-bold text-white/40 uppercase mt-1">Uploading...</span>
-              </>
-            )}
+              )}
+            </div>
           </div>
         )}
 

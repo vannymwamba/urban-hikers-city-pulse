@@ -115,6 +115,7 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
 
   const flashDeals = broadcasts.filter(b => b.type === 'flash_deal');
   const liveEvents = broadcasts.filter(b => b.type === 'event');
+  const civicEvents = broadcasts.filter(b => b.type === 'civic_free');
   const conferenceFeed = broadcasts.filter(b => b.type === 'conference_panel');
 
   const renderSection = (title: string, items: Broadcast[]) => {
@@ -127,19 +128,23 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
           <div className="flex-1 h-[1px] bg-[#D3D1C7]" />
         </div>
         
-        {items.map((item, idx) => (
-          <BroadcastCard 
-            key={item.id}
-            item={item}
-            idx={idx}
-            currentNode={currentNode}
-            onSelect={onSelect}
-            onShareEvent={onShareEvent}
-            handleDirections={handleDirections}
-            partner={partnersMap[item.partnerId || ''] || null}
-            sponsor={sponsorsMap[item.sponsorId || ''] || null}
-          />
-        ))}
+        {items.map((item, idx) => {
+          const route = routes.find(r => r.partnerId === (item.partner_id || item.partnerId));
+          return (
+            <BroadcastCard 
+              key={item.id}
+              item={item}
+              idx={idx}
+              currentNode={currentNode}
+              onSelect={onSelect}
+              onShareEvent={onShareEvent}
+              handleDirections={handleDirections}
+              onBook={route ? () => onBookRoute(route) : undefined}
+              partner={partnersMap[item.partnerId || item.partner_id || ''] || null}
+              sponsor={sponsorsMap[item.sponsorId || ''] || null}
+            />
+          );
+        })}
       </div>
     );
   };
@@ -153,9 +158,20 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
           <div className="text-[8px] font-bold text-hud-dark/50 uppercase tracking-[0.06em] font-mono">FLUX_PROTOCOL_OS</div>
         </div>
         <div className="flex gap-1.5">
-          {['ANONYMOUS', 'NO GPS', 'ENCRYPTED'].map(tag => (
-            <span key={tag} className="border border-hud-dark/25 text-hud-dark/60 text-[9px] font-bold px-2 py-1 rounded-full tracking-wider whitespace-nowrap font-mono">
-              {tag}
+          {[
+            { label: 'ANONYMOUS', active: true },
+            { label: 'NO GPS', active: true },
+            { label: 'ENCRYPTED', active: userProfile?.uid }
+          ].map(tag => (
+            <span 
+              key={tag.label} 
+              className={`text-[8px] font-black px-2 py-0.5 rounded-sm tracking-tighter font-mono transition-colors ${
+                tag.active 
+                  ? 'bg-hud-dark text-hud-yellow' 
+                  : 'border border-hud-dark/20 text-hud-dark/40'
+              }`}
+            >
+              {tag.label}
             </span>
           ))}
         </div>
@@ -165,16 +181,17 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
       <div className="p-4 bg-navy-mid border-b border-white/5 shrink-0">
         <div className="flex justify-between items-center mb-3">
           <div className="flex items-center gap-3">
-            <div className="w-1.5 h-1.5 rounded-full bg-hud-green animate-pulse shadow-[0_0_8px_var(--color-live)]" />
-            <div className="flex items-baseline gap-2">
-              <span className="text-[9px] font-bold tracking-widest text-white/40 uppercase font-mono">SECTOR_HUB:</span>
-              <h1 className="text-[20px] font-black tracking-tighter text-hud-yellow uppercase leading-none font-mono">
+            <div className="w-2 h-2 rounded-full bg-hud-teal animate-pulse shadow-[0_0_12px_var(--color-live)]" />
+            <div className="flex flex-col">
+              <span className="text-[8px] font-black tracking-[0.2em] text-white/30 uppercase font-mono">SECTOR_HUB_IDENTIFIER</span>
+              <h1 className="text-[24px] font-black tracking-tighter text-hud-yellow uppercase leading-none font-mono">
                 {nodeName}
               </h1>
             </div>
           </div>
-          <div className="text-right">
-            <div className="text-[14px] font-bold text-white/60 tracking-widest tabular-nums leading-none font-mono">
+          <div className="text-right flex flex-col items-end">
+            <span className="text-[8px] font-black tracking-[0.2em] text-white/30 uppercase font-mono">SYSTEM_TIME</span>
+            <div className="text-[18px] font-black text-white tracking-widest tabular-nums leading-none font-mono">
               {time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })}
             </div>
           </div>
@@ -214,58 +231,59 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
 
       {/* Tap & Login Section */}
       <div className="p-4 bg-hud-bg shrink-0 border-b border-white/5">
-        <div className="grid grid-cols-2 gap-4 mb-3">
-          <div className="text-[9px] font-bold text-hud-green/60 uppercase tracking-widest flex items-center gap-1.5 font-mono">
-            <div className="w-1 h-1 rounded-full bg-hud-green" />
-            Tap in · anonymous · here now
+        <div className="flex gap-4 mb-4">
+          <div className="flex-1 flex flex-col gap-1">
+            <div className="text-[8px] font-black text-hud-teal uppercase tracking-[0.15em] flex items-center gap-1.5 font-mono">
+              <div className="w-1 h-1 bg-hud-teal" />
+              ANONYMOUS_SESSION
+            </div>
+            <button
+              onClick={() => setTapConfirmAction('in')}
+              className={`w-full py-4 rounded-sm text-[14px] font-black tracking-[0.1em] uppercase transition-all font-mono border-2 ${
+                isTappedIn 
+                  ? 'bg-hud-teal border-hud-teal text-hud-dark shadow-[0_0_20px_rgba(0,245,255,0.3)]' 
+                  : 'bg-transparent border-hud-teal/30 text-hud-teal/50'
+              }`}
+            >
+              TAP IN {isTappedIn && '✓'}
+            </button>
           </div>
-          <div className="text-[9px] font-bold text-[#5BB8F5]/60 uppercase tracking-widest flex items-center gap-1.5 font-mono">
-            <div className="w-1 h-1 rounded-full bg-[#5BB8F5]" />
-            Login · persistent · everywhere
+          <div className="w-[35%] flex flex-col gap-1">
+            <div className="text-[8px] font-black text-hud-magenta uppercase tracking-[0.15em] flex items-center gap-1.5 font-mono">
+              <div className="w-1 h-1 bg-hud-magenta" />
+              TERMINATE
+            </div>
+            <button
+              onClick={() => setTapConfirmAction('out')}
+              className={`w-full py-4 rounded-sm text-[11px] font-black tracking-[0.1em] uppercase border-2 transition-all font-mono ${
+                !isTappedIn 
+                  ? 'bg-hud-magenta border-hud-magenta text-white shadow-[0_0_20px_rgba(255,77,77,0.3)]' 
+                  : 'bg-transparent border-white/10 text-white/20'
+              }`}
+            >
+              TAP OUT
+            </button>
           </div>
-        </div>
-
-        <div className="flex gap-2 mb-3">
-          <button
-            onClick={() => setTapConfirmAction('in')}
-            className={`flex-1 py-3 rounded-xl text-[12px] font-bold tracking-widest uppercase transition-all font-mono ${
-              isTappedIn 
-                ? 'bg-hud-green text-hud-dark shadow-[0_4px_15px_rgba(29,158,117,0.3)]' 
-                : 'bg-hud-green/15 text-hud-green/50'
-            }`}
-          >
-            TAP IN {isTappedIn && '✓'}
-          </button>
-          <button
-            onClick={() => setTapConfirmAction('out')}
-            className={`flex-1 py-3 rounded-xl text-[12px] font-bold tracking-widest uppercase border transition-all font-mono ${
-              !isTappedIn 
-                ? 'bg-hud-magenta text-white border-hud-magenta shadow-[0_4px_15px_rgba(226,75,74,0.3)]' 
-                : 'bg-white/5 text-white/40 border-white/10'
-            }`}
-          >
-            TAP OUT
-          </button>
         </div>
 
         <div className="mt-2">
           {!user ? (
-            <div className="text-[10px] font-medium text-white/40 flex items-center justify-between font-sans">
+            <div className="text-[9px] font-black text-white/30 flex items-center justify-between font-mono uppercase tracking-wider">
               <div className="flex items-center gap-1.5">
-                <ShieldCheck size={12} className="text-hud-green" />
-                Anonymous by default.
+                <ShieldCheck size={10} className="text-hud-teal" />
+                ANONYMOUS_BY_DEFAULT
               </div>
               <button 
                 onClick={() => setShowLogin(!showLogin)}
-                className="text-[#5BB8F5] font-bold hover:underline flex items-center gap-1"
+                className="text-hud-yellow font-black hover:underline flex items-center gap-1"
               >
-                Want history & wallet? Log in <ArrowRight size={10} />
+                UPGRADE_TO_PERSISTENT <ArrowRight size={10} />
               </button>
             </div>
           ) : (
-            <div className="text-[10px] font-medium text-hud-green flex items-center gap-1.5 font-sans">
-              <ShieldCheck size={12} />
-              Identity verified. Wallet & History active.
+            <div className="text-[9px] font-black text-hud-green flex items-center gap-1.5 font-mono uppercase tracking-wider">
+              <ShieldCheck size={10} />
+              IDENTITY_VERIFIED // WALLET_ACTIVE
             </div>
           )}
 
@@ -300,10 +318,10 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
       </div>
 
       {/* Open Bar — System Declaration */}
-      <div className="bg-hud-green/10 px-4 py-2.5 flex items-center gap-2.5 border-y border-hud-green/20 shrink-0">
-        <div className="w-1.5 h-1.5 rounded-full bg-hud-green animate-pulse" />
-        <div className="text-[10px] text-hud-green font-bold tracking-[0.12em] font-mono uppercase">
-          OPEN FEED — ALL LIVE EVENTS VISIBLE. NO ACCOUNT REQUIRED.
+      <div className="bg-hud-teal/10 px-4 py-3 flex items-center gap-3 border-y border-hud-teal/20 shrink-0">
+        <div className="w-2 h-2 bg-hud-teal animate-pulse" />
+        <div className="text-[10px] text-hud-teal font-black tracking-[0.2em] font-mono uppercase">
+          OPEN_FEED // ALL_LIVE_EVENTS_VISIBLE // NO_ACCOUNT_REQUIRED
         </div>
       </div>
 
@@ -471,6 +489,7 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
         ) : (
           <>
             {renderSection('FLASH DEALS', flashDeals)}
+            {renderSection('CIVIC EVENTS', civicEvents)}
             {renderSection('LIVE EVENTS', liveEvents)}
             {renderSection('CONFERENCE FEED', conferenceFeed)}
           </>
@@ -480,80 +499,70 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
   </div>
 
       {/* Footer Stats — System Health */}
-      <div className="bg-hud-bg px-5 py-4 flex justify-between items-center border-t border-white/5 shrink-0">
-        <div className="flex gap-6">
-          <div className="text-center">
-            <div className="text-[16px] font-black text-hud-yellow leading-none font-mono">{activeNodesCount}</div>
-            <div className="text-[9px] text-white/35 font-bold tracking-[0.15em] uppercase mt-1 font-mono">NODES ACTIVE</div>
+      <div className="bg-hud-bg px-5 py-5 flex justify-between items-center border-t border-white/10 shrink-0">
+        <div className="flex gap-8">
+          <div className="flex flex-col">
+            <span className="text-[18px] font-black text-hud-yellow leading-none font-mono">{activeNodesCount}</span>
+            <span className="text-[8px] text-white/30 font-black tracking-[0.2em] uppercase mt-1 font-mono">NODES</span>
           </div>
-          <div className="text-center">
-            <div className="text-[16px] font-black text-hud-yellow leading-none font-mono">{uptime}%</div>
-            <div className="text-[9px] text-white/35 font-bold tracking-[0.15em] uppercase mt-1 font-mono">UPTIME</div>
+          <div className="flex flex-col">
+            <span className="text-[18px] font-black text-hud-yellow leading-none font-mono">{uptime}%</span>
+            <span className="text-[8px] text-white/30 font-black tracking-[0.2em] uppercase mt-1 font-mono">UPTIME</span>
           </div>
-          <div className="text-center">
-            <div className="text-[16px] font-black text-hud-yellow leading-none font-mono">{radiusInMiles} MI</div>
-            <div className="text-[9px] text-white/35 font-bold tracking-[0.15em] uppercase mt-1 font-mono">RADIUS</div>
+          <div className="flex flex-col">
+            <span className="text-[18px] font-black text-hud-yellow leading-none font-mono">{radiusInMiles} MI</span>
+            <span className="text-[8px] text-white/30 font-black tracking-[0.2em] uppercase mt-1 font-mono">RADIUS</span>
           </div>
         </div>
-        <div className="text-[9px] text-white/20 font-bold tracking-widest uppercase text-right font-mono">
-          FLUX_PROTOCOL_OS v1.0
+        <div className="text-[8px] text-white/20 font-black tracking-[0.2em] uppercase text-right font-mono">
+          FLUX_PROTOCOL_OS V1.0
         </div>
       </div>
 
       {/* Bottom Navigation — Utility Rail */}
-      <div className="bg-hud-dark px-4 py-2.5 flex justify-between items-center border-t border-white/5 shrink-0">
-        <a 
-          href="/"
-          className="flex flex-col items-center gap-1 px-3 py-1.5 rounded-xl transition-colors group"
-        >
-          <Home size={20} className="text-white/30 group-hover:text-white/60" />
-          <span className="text-[9px] font-bold tracking-widest text-white/30 uppercase group-hover:text-white/60 font-mono">HOME</span>
-        </a>
-        <button 
-          onClick={() => onTabChange?.('feed')}
-          className="flex flex-col items-center gap-1 px-3 py-1.5 rounded-xl transition-colors group"
-        >
-          <Clock size={20} className={activeTab === 'feed' ? 'text-hud-yellow' : 'text-white/30 group-hover:text-white/60'} />
-          <span className={`text-[9px] font-bold tracking-widest uppercase font-mono ${activeTab === 'feed' ? 'text-hud-yellow' : 'text-white/30 group-hover:text-white/60'}`}>FEED</span>
-        </button>
-        <button 
-          onClick={() => onTabChange?.('routes')}
-          className="flex flex-col items-center gap-1 px-3 py-1.5 rounded-xl transition-colors group"
-        >
-          <Navigation size={20} className={activeTab === 'routes' ? 'text-hud-yellow' : 'text-white/30 group-hover:text-white/60'} />
-          <span className={`text-[9px] font-bold tracking-widest uppercase font-mono ${activeTab === 'routes' ? 'text-hud-yellow' : 'text-white/30 group-hover:text-white/60'}`}>ROUTES</span>
-        </button>
-        <button 
-          onClick={() => onTabChange?.('map')}
-          className="flex flex-col items-center gap-1 px-3 py-1.5 rounded-xl transition-colors group"
-        >
-          <MapIcon size={20} className={activeTab === 'map' ? 'text-hud-yellow' : 'text-white/30 group-hover:text-white/60'} />
-          <span className={`text-[9px] font-bold tracking-widest uppercase font-mono ${activeTab === 'map' ? 'text-hud-yellow' : 'text-white/30 group-hover:text-white/60'}`}>MAP</span>
-        </button>
-        <button 
-          onClick={() => onTabChange?.('wallet')}
-          className="flex flex-col items-center gap-1 px-3 py-1.5 rounded-xl transition-colors group relative"
-        >
-          <Ticket size={20} className={activeTab === 'wallet' ? 'text-hud-yellow' : 'text-white/30 group-hover:text-white/60'} />
-          {savedHubs.length > 0 && (
-            <div className="absolute top-1 right-3 w-1.5 h-1.5 bg-hud-magenta rounded-full shadow-[0_0_5px_#ff2d78]" />
-          )}
-          <span className={`text-[9px] font-bold tracking-widest uppercase font-mono ${activeTab === 'wallet' ? 'text-hud-yellow' : 'text-white/30 group-hover:text-white/60'}`}>WALLET</span>
-        </button>
-        <a 
-          href="/dashboard"
-          className="flex flex-col items-center gap-1 px-3 py-1.5 rounded-xl transition-colors group"
-        >
-          <Lock size={20} className="text-white/30 group-hover:text-white/60" />
-          <span className="text-[9px] font-bold tracking-widest text-white/30 uppercase group-hover:text-white/60 font-mono">PARTNER</span>
-        </a>
-        <a 
-          href="/dashboard"
-          className="flex flex-col items-center gap-1 px-3 py-1.5 rounded-xl transition-colors group"
-        >
-          <ShieldCheck size={20} className="text-white/30 group-hover:text-white/60" />
-          <span className="text-[9px] font-bold tracking-widest text-white/30 uppercase group-hover:text-white/60 font-mono">CONTROL</span>
-        </a>
+      <div className="bg-hud-dark px-2 py-2 flex justify-between items-center border-t border-white/10 shrink-0">
+        {[
+          { id: 'home', icon: Home, label: 'HOME', href: '/' },
+          { id: 'feed', icon: Clock, label: 'FEED' },
+          { id: 'routes', icon: Navigation, label: 'ROUTES' },
+          { id: 'map', icon: MapIcon, label: 'MAP' },
+          { id: 'wallet', icon: Ticket, label: 'WALLET', badge: savedHubs.length > 0 },
+          { id: 'partner', icon: Lock, label: 'PARTNER', href: '/dashboard' },
+          { id: 'control', icon: ShieldCheck, label: 'CONTROL', href: '/dashboard' }
+        ].map((item) => {
+          const isActive = activeTab === item.id;
+          const Icon = item.icon;
+          
+          const content = (
+            <div className="flex flex-col items-center gap-1 group relative">
+              <Icon size={18} className={`${isActive ? 'text-hud-yellow' : 'text-white/20 group-hover:text-white/50'} transition-colors`} />
+              {item.badge && (
+                <div className="absolute -top-1 -right-1 w-1.5 h-1.5 bg-hud-magenta rounded-full shadow-[0_0_8px_var(--color-urgent)]" />
+              )}
+              <span className={`text-[7px] font-black tracking-[0.15em] uppercase font-mono ${isActive ? 'text-hud-yellow' : 'text-white/20 group-hover:text-white/50'} transition-colors`}>
+                {item.label}
+              </span>
+            </div>
+          );
+
+          if (item.href) {
+            return (
+              <a key={item.id} href={item.href} className="px-2 py-1.5">
+                {content}
+              </a>
+            );
+          }
+
+          return (
+            <button 
+              key={item.id}
+              onClick={() => onTabChange?.(item.id as any)}
+              className="px-2 py-1.5"
+            >
+              {content}
+            </button>
+          );
+        })}
       </div>
 
       <AnimatePresence>
@@ -562,37 +571,40 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="absolute inset-0 z-[100] flex items-center justify-center p-6 bg-hud-bg/90 backdrop-blur-sm"
+            className="absolute inset-0 z-[100] flex items-center justify-center p-6 bg-hud-bg/95 backdrop-blur-md"
           >
             <motion.div
-              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              initial={{ scale: 0.95, opacity: 0, y: 10 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.9, opacity: 0, y: 20 }}
-              className="w-full max-w-[280px] bg-hud-bg border border-hud-green/30 p-6 rounded-3xl shadow-[0_0_50px_rgba(0,0,0,0.5)] text-center"
+              exit={{ scale: 0.95, opacity: 0, y: 10 }}
+              className="w-full max-w-[300px] bg-hud-bg border-2 border-hud-yellow/20 p-6 rounded-sm shadow-[0_0_60px_rgba(0,0,0,0.8)] text-center relative overflow-hidden"
             >
-              <div className="w-12 h-12 rounded-full bg-hud-yellow/10 flex items-center justify-center mx-auto mb-4">
+              <div className="absolute top-0 left-0 w-full h-1 bg-hud-yellow" />
+              <div className="w-12 h-12 rounded-sm bg-hud-yellow/10 flex items-center justify-center mx-auto mb-4 border border-hud-yellow/20">
                 <AlertCircle className="text-hud-yellow" size={24} />
               </div>
-              <h3 className="text-sm font-black tracking-widest uppercase mb-2">Confirm Action</h3>
-              <p className="text-[11px] text-white/60 leading-relaxed mb-6 uppercase tracking-wider">
+              <h3 className="text-[14px] font-black tracking-[0.2em] uppercase mb-3 font-mono text-white">SYSTEM_CONFIRMATION_REQUIRED</h3>
+              <p className="text-[10px] text-white/50 leading-relaxed mb-8 uppercase tracking-[0.1em] font-mono">
                 {tapConfirmAction === 'in' 
-                  ? 'Are you sure you want to tap in to this sector?' 
-                  : 'Are you sure you want to tap out? Your active session will be terminated.'}
+                  ? 'INITIATE_ANONYMOUS_SESSION_IN_CURRENT_SECTOR?' 
+                  : 'TERMINATE_ACTIVE_SESSION_AND_DISCONNECT_FROM_NODE?'}
               </p>
-              <div className="flex flex-col gap-2">
+              <div className="flex flex-col gap-3">
                 <button
                   onClick={tapConfirmAction === 'in' ? handleTapIn : handleTapOut}
-                  className={`w-full py-3 rounded-xl text-[10px] font-black tracking-[0.2em] uppercase transition-all ${
-                    tapConfirmAction === 'in' ? 'bg-hud-green text-hud-bg' : 'bg-hud-magenta text-white'
+                  className={`w-full py-4 rounded-sm text-[12px] font-black tracking-[0.2em] uppercase transition-all font-mono ${
+                    tapConfirmAction === 'in' 
+                      ? 'bg-hud-teal text-hud-dark shadow-[0_0_20px_rgba(0,245,255,0.3)]' 
+                      : 'bg-hud-magenta text-white shadow-[0_0_20px_rgba(255,77,77,0.3)]'
                   }`}
                 >
-                  Confirm {tapConfirmAction}
+                  EXECUTE_{tapConfirmAction === 'in' ? 'TAP_IN' : 'TAP_OUT'}
                 </button>
                 <button
                   onClick={() => setTapConfirmAction(null)}
-                  className="w-full py-3 rounded-xl text-[10px] font-black tracking-[0.2em] uppercase text-white/40 hover:text-white transition-colors"
+                  className="w-full py-3 text-[10px] font-black text-white/30 uppercase tracking-[0.2em] hover:text-white transition-colors font-mono"
                 >
-                  Cancel
+                  ABORT_ACTION
                 </button>
               </div>
             </motion.div>

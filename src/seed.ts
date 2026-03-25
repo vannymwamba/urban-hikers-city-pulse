@@ -110,6 +110,19 @@ const seedData = async () => {
         brandColor: '#5856D6',
         dealText: 'Conference Pass: 50% off for locals',
         sponsorZones: ['A', 'B', 'C', 'D']
+      },
+      {
+        id: 'chpl',
+        name: 'CINCINNATI_PUBLIC_LIBRARY',
+        tier: 'anchor',
+        address: '800 Vine St, Cincinnati, OH',
+        latitude: 39.1064,
+        longitude: -84.5125,
+        ownerEmail: 'chpl@example.com',
+        logoUrl: 'https://picsum.photos/seed/library/200/200',
+        brandColor: '#185FA5',
+        dealText: 'Free resources & community events',
+        sponsorZones: ['A', 'D']
       }
     ];
 
@@ -143,94 +156,164 @@ const seedData = async () => {
     // Seed Broadcasts
     const broadcasts = [
       {
+        nodeId: 'OTR-ALPHA-01',
         node_id: 'OTR-ALPHA-01',
+        partnerId: 'partner-kroger',
         partner_id: 'partner-kroger',
         title: 'FLASH_TACO_DEAL_50%',
         type: 'flash_deal',
         address: '1401 Vine St, Cincinnati, OH',
         latitude: 39.1105,
         longitude: -84.5145,
+        startsAt: new Date().toISOString(),
         starts_at: new Date().toISOString(),
+        expiresAt: addHours(new Date(), 1).toISOString(),
         expires_at: addHours(new Date(), 1).toISOString(),
+        currentVibe: 'buzzing',
         current_vibe: 'buzzing',
         description: 'Exclusive flash deal for Urban Hikers! Get 50% off any taco order at Kroger Fresh Market. Just show your NFC stamp at the counter. Valid for the next hour only!'
       },
       {
+        nodeId: 'OTR-ALPHA-01',
         node_id: 'OTR-ALPHA-01',
+        partnerId: 'partner-btw26',
         partner_id: 'partner-btw26',
         title: 'BTW26_FLASH_PASS_50%',
         type: 'flash_deal',
         address: '525 Elm St, Cincinnati, OH',
         latitude: 39.1015,
         longitude: -84.5165,
+        startsAt: new Date().toISOString(),
         starts_at: new Date().toISOString(),
+        expiresAt: addHours(new Date(), 3).toISOString(),
         expires_at: addHours(new Date(), 3).toISOString(),
+        currentVibe: 'packed',
         current_vibe: 'packed',
         description: 'LAST_CALL: Get 50% off your BTW26 Conference Pass. Limited quantity available for local residents. Tap in now to secure your spot at the future of urban tech.'
       },
       {
+        nodeId: 'OTR-ALPHA-01',
         node_id: 'OTR-ALPHA-01',
+        partnerId: 'partner-rhinegeist',
         partner_id: 'partner-rhinegeist',
         title: 'RHINEGEIST_HAPPY_HOUR',
         type: 'flash_deal',
         address: '1910 Elm St, Cincinnati, OH',
         latitude: 39.1172,
         longitude: -84.5191,
+        startsAt: new Date().toISOString(),
         starts_at: new Date().toISOString(),
+        expiresAt: addHours(new Date(), 2).toISOString(),
         expires_at: addHours(new Date(), 2).toISOString(),
+        currentVibe: 'buzzing',
         current_vibe: 'buzzing',
         description: 'Happy Hour is LIVE! $1 off all pints for Urban Hikers. Head to the taproom and show your signal. The perfect way to end your hike.'
       },
       {
+        nodeId: 'OTR-ALPHA-01',
         node_id: 'OTR-ALPHA-01',
+        partnerId: 'partner-music-hall',
         partner_id: 'partner-music-hall',
         title: 'LIVE_JAZZ_QUARTET',
         type: 'event',
         address: '1241 Elm St, Cincinnati, OH',
         latitude: 39.1095,
         longitude: -84.5188,
+        startsAt: new Date().toISOString(),
         starts_at: new Date().toISOString(),
+        expiresAt: addHours(new Date(), 2).toISOString(),
         expires_at: addHours(new Date(), 2).toISOString(),
+        currentVibe: 'chill',
         current_vibe: 'chill',
         description: 'Enjoy a relaxing evening with the Blue Note Quartet. Live jazz performance in the heart of the city. Open to all, no tickets required. Grab a seat early!'
       },
       {
+        nodeId: 'OTR-ALPHA-01',
         node_id: 'OTR-ALPHA-01',
+        partnerId: 'partner-cac',
         partner_id: 'partner-cac',
         title: 'CAC_OPENING_NIGHT',
         type: 'event',
         address: '44 E 6th St, Cincinnati, OH',
         latitude: 39.1031,
         longitude: -84.5121,
+        startsAt: new Date().toISOString(),
         starts_at: new Date().toISOString(),
+        expiresAt: addHours(new Date(), 4).toISOString(),
         expires_at: addHours(new Date(), 4).toISOString(),
+        currentVibe: 'buzzing',
         current_vibe: 'buzzing',
         description: 'Join us for the opening night of our latest exhibition. Meet the artists, enjoy refreshments, and experience contemporary art like never before. Free for Urban Hikers.'
       },
       {
+        nodeId: 'OTR-ALPHA-01',
         node_id: 'OTR-ALPHA-01',
         title: 'STREET_ART_EXPO',
         type: 'event',
         address: '1400 Vine St, Cincinnati, OH',
         latitude: 39.1100,
         longitude: -84.5150,
+        startsAt: new Date().toISOString(),
         starts_at: new Date().toISOString(),
+        expiresAt: addHours(new Date(), 4).toISOString(),
         expires_at: addHours(new Date(), 4).toISOString(),
+        currentVibe: 'packed',
         current_vibe: 'packed',
         description: 'Local artists showcase their latest murals and installations. Interactive art walk through the Vine Street corridor. Meet the artists and discover the stories behind the walls.'
       },
       {
+        nodeId: 'OTR-ALPHA-01',
         node_id: 'OTR-ALPHA-01',
+        partnerId: 'partner-btw26',
         partner_id: 'partner-btw26',
         title: 'BTW26_KEYNOTE_HALL_B',
         type: 'conference_panel',
         address: '525 Elm St, Cincinnati, OH',
         latitude: 39.1016,
         longitude: -84.5166,
+        startsAt: new Date().toISOString(),
         starts_at: new Date().toISOString(),
+        expiresAt: addHours(new Date(), 1.5).toISOString(),
         expires_at: addHours(new Date(), 1.5).toISOString(),
+        currentVibe: 'buzzing',
         current_vibe: 'buzzing',
         description: 'The future of urban infrastructure and NFC technology. Join industry leaders for a deep dive into the BTW26 keynote session. Hall B, limited seating available.'
+      },
+      {
+        nodeId: 'OTR-ALPHA-01',
+        node_id: 'OTR-ALPHA-01',
+        partnerId: 'chpl',
+        partner_id: 'chpl',
+        title: 'STORYTIME_IN_THE_PARK',
+        type: 'civic_free',
+        address: '800 Vine St, Cincinnati, OH',
+        latitude: 39.1064,
+        longitude: -84.5125,
+        startsAt: new Date().toISOString(),
+        starts_at: new Date().toISOString(),
+        expiresAt: addHours(new Date(), 4).toISOString(),
+        expires_at: addHours(new Date(), 4).toISOString(),
+        currentVibe: 'chill',
+        current_vibe: 'chill',
+        description: 'Join the Cincinnati Public Library for an outdoor storytime session. Perfect for families and young hikers. Discover new stories and enjoy the fresh air.'
+      },
+      {
+        nodeId: 'OTR-ALPHA-01',
+        node_id: 'OTR-ALPHA-01',
+        partnerId: 'chpl',
+        partner_id: 'chpl',
+        title: 'TECH_HELP_DESK',
+        type: 'civic_free',
+        address: '800 Vine St, Cincinnati, OH',
+        latitude: 39.1064,
+        longitude: -84.5125,
+        startsAt: new Date().toISOString(),
+        starts_at: new Date().toISOString(),
+        expiresAt: addHours(new Date(), 6).toISOString(),
+        expires_at: addHours(new Date(), 6).toISOString(),
+        currentVibe: 'chill',
+        current_vibe: 'chill',
+        description: 'Need help with your device or the Urban Hikers app? Our tech volunteers are here to help. Drop by the library hub for one-on-one assistance.'
       }
     ];
 
@@ -241,11 +324,11 @@ const seedData = async () => {
       // Add some sample reports
       const vibes: ('chill' | 'buzzing' | 'packed')[] = ['chill', 'chill', 'buzzing', 'buzzing', 'chill', 'buzzing', 'packed', 'buzzing'];
       for (let i = 0; i < vibes.length; i++) {
-        await addDoc(collection(db, 'vibeReports'), {
-          broadcastId: docRef.id,
+        await addDoc(collection(db, 'vibe_reports'), {
+          broadcast_id: docRef.id,
           vibe: vibes[i],
-          reportedAt: new Date(Date.now() - (vibes.length - i) * 10 * 60 * 1000).toISOString(),
-          sessionUuid: 'seed-session'
+          reported_at: new Date(Date.now() - (vibes.length - i) * 10 * 60 * 1000).toISOString(),
+          session_uuid: 'seed-session'
         });
       }
     }

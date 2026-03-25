@@ -1,10 +1,11 @@
 import React from 'react';
 import { Broadcast, Vibe } from '../types';
-import { Zap, Mic, Music, Palette, Ticket, Calendar } from 'lucide-react';
+import { Zap, Mic, Music, Palette, Ticket, Calendar, Book } from 'lucide-react';
 
 export const getIcon = (item: Broadcast) => {
   if (item.type === 'flash_deal') return <Zap size={18} className="text-[#BA7517]" />;
   if (item.type === 'conference_panel') return <Mic size={18} className="text-[#1A2B4A]" />;
+  if (item.type === 'civic_free') return <Book size={18} className="text-[#185FA5]" />;
   if (item.title.toLowerCase().includes('music') || item.title.toLowerCase().includes('jazz')) return <Music size={18} className="text-[#3B6D11]" />;
   if (item.title.toLowerCase().includes('art') || item.title.toLowerCase().includes('expo')) return <Palette size={18} className="text-[#534AB7]" />;
   if (item.type === 'event') return <Ticket size={18} className="text-[#185FA5]" />;
@@ -14,6 +15,7 @@ export const getIcon = (item: Broadcast) => {
 export const getIconBg = (item: Broadcast) => {
   if (item.type === 'flash_deal') return 'bg-[#FFF3CC]';
   if (item.type === 'conference_panel') return 'bg-[#E6F1FB]';
+  if (item.type === 'civic_free') return 'bg-[#E6F1FB]';
   if (item.title.toLowerCase().includes('music') || item.title.toLowerCase().includes('jazz')) return 'bg-[#EAF3DE]';
   if (item.title.toLowerCase().includes('art') || item.title.toLowerCase().includes('expo')) return 'bg-[#EEEDFE]';
   if (item.type === 'event') return 'bg-[#E6F1FB]';

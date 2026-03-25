@@ -22,6 +22,7 @@ interface BroadcastCardProps {
   onSelect: (broadcast: Broadcast) => void;
   onShareEvent: (broadcast: Broadcast) => void;
   handleDirections: (broadcast: Broadcast) => void;
+  onBook?: (broadcast: Broadcast) => void;
   partner: Partner | null;
   sponsor?: Sponsor | null;
 }
@@ -33,6 +34,7 @@ export const BroadcastCard: React.FC<BroadcastCardProps> = ({
   onSelect,
   onShareEvent,
   handleDirections,
+  onBook,
   partner,
   sponsor
 }) => {
@@ -44,69 +46,80 @@ export const BroadcastCard: React.FC<BroadcastCardProps> = ({
   ) : 0;
   const walkTime = Math.ceil(distance / 80);
   const status = getEventStatus(item);
-  const hasSponsorship = partner && (partner.logo_url || partner.brand_color);
-  const brandColor = partner?.brand_color ?? '#FFE01A';
+  
+  const logoUrl = partner?.logoUrl || partner?.logo_url;
+  const brandColor = partner?.brandColor || partner?.brand_color || '#FFE01A';
+  const sponsorZones = partner?.sponsorZones || partner?.sponsor_zones || [];
+  const hasSponsorship = partner && (logoUrl || brandColor);
+
+  // Zone E: Card Border
+  const showBorder = hasSponsorship && sponsorZones.includes('E');
+  // Zone B: Icon Background
+  const showIconBg = hasSponsorship && sponsorZones.includes('B');
+  // Zone C: Partner Name Color
+  const showPartnerColor = hasSponsorship && sponsorZones.includes('C');
 
   return (
     <motion.div
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: idx * 0.05 }}
-      className={`bg-white mb-3 shadow-sm hover:shadow-md transition-all cursor-pointer group overflow-hidden ${!status.isLive ? 'opacity-70' : ''}`}
+      className={`bg-navy-mid mb-2 shadow-lg transition-all cursor-pointer group overflow-hidden relative border border-white/5 ${!status.isLive ? 'opacity-60' : ''}`}
       style={{
-        borderRadius: '10px',
-        border: hasSponsorship 
-          ? `2px solid ${brandColor}99` // ~60% opacity hex
-          : '1px solid var(--md-sys-color-outline)'
+        borderRadius: '2px',
+        borderLeft: status.isLive ? '4px solid var(--color-live)' : '1px solid rgba(255,255,255,0.05)'
       }}
     >
       {/* Zone A: Sponsor Bar */}
       <SponsorBadge partner={partner} zone="A" />
 
-      <div className="p-4" onClick={() => onSelect(item)}>
-        <div className="flex justify-between items-start mb-3">
+      <div className="p-3" onClick={() => onSelect(item)}>
+        <div className="flex justify-between items-start mb-2">
           <div className="flex items-center gap-3">
-            <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${getIconBg(item)}`}>
+            <div 
+              className={`w-10 h-10 flex items-center justify-center shrink-0 border border-white/10 ${!showIconBg ? getIconBg(item) : ''}`}
+              style={showIconBg ? { backgroundColor: brandColor } : {}}
+            >
               {getIcon(item)}
             </div>
-            <div>
-              <div className="text-[14px] font-bold text-[#1A1A1A] leading-tight mb-0.5 font-sans">{item.title}</div>
-              <div className="text-[11px] text-[#888780] font-medium uppercase tracking-wide flex items-center gap-2 font-mono">
-                <span>{item.partner_id === 'admin' ? 'SYSTEM_ADMIN' : (partner?.name || item.partner_id || 'LOCAL_PARTNER')}</span>
-                <span className="w-1 h-1 rounded-full bg-[#888780]/30" />
-                <span className="text-[#1A1A1A]/60">
-                  {status.time}
+            <div className="flex flex-col">
+              <div className="text-[14px] font-black text-white leading-none mb-1 uppercase tracking-tight font-mono">{item.title}</div>
+              <div className="flex items-center gap-2">
+                <span className="text-[9px] font-black text-hud-yellow uppercase tracking-[0.15em] font-mono">
+                  {item.partner_id === 'admin' ? 'SYSTEM_ADMIN' : (partner?.name || item.partner_id || 'LOCAL_PARTNER')}
+                </span>
+                <span className="text-[9px] text-white/30 font-black font-mono">
+                  // {status.time}
                 </span>
               </div>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <span className={`badge text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider flex items-center gap-1.5 font-mono ${getBadgeStyle(item)}`}>
-              <div className={`w-1.5 h-1.5 rounded-full ${getDotColor(item)}`} />
+          <div className="flex flex-col items-end gap-1">
+            <span className={`text-[9px] font-black px-2 py-0.5 rounded-sm uppercase tracking-widest font-mono ${getBadgeStyle(item)}`}>
               {getBadgeLabel(item)}
             </span>
             {status.isLive && <MiniVibeTrend broadcastId={item.id} />}
           </div>
         </div>
 
-        <BroadcastCountdown broadcast={item} />
+        <div className="mt-3">
+          <BroadcastCountdown broadcast={item} />
+        </div>
         
         {/* Zone D: Deal Text */}
         <SponsorBadge partner={partner} zone="D" />
       </div>
 
-      <div className="flex items-center justify-between px-4 py-3 bg-[#F8F7F4] border-t border-[#F0EEE8]">
-        <div className="flex flex-col gap-1">
+      <div className="flex items-center justify-between px-3 py-2 bg-black/40 border-t border-white/5">
+        <div className="flex items-center gap-4">
           {item.address && (
-            <div className="flex items-center gap-1.5 text-[11px] text-[#2C2C2A] font-semibold font-sans">
-              <MapPin size={12} className="text-[#888780]" />
+            <div className="flex items-center gap-1 text-[9px] text-white/40 font-black font-mono uppercase tracking-wider">
+              <MapPin size={10} className="text-hud-teal" />
               {item.address.split(',')[0]}
             </div>
           )}
-          <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1 bg-[#1A2B4A] px-2 py-0.5 rounded-full">
-              <span className="text-[9px] font-black text-hud-yellow uppercase tracking-tighter font-mono">{walkTime} MIN WALK</span>
-            </div>
+          <div className="flex items-center gap-1 bg-hud-teal/10 px-1.5 py-0.5 rounded-sm border border-hud-teal/20">
+            <span className="text-[8px] font-black text-hud-teal uppercase tracking-tighter font-mono">{walkTime} MIN_WALK</span>
           </div>
         </div>
         
@@ -114,31 +127,21 @@ export const BroadcastCard: React.FC<BroadcastCardProps> = ({
           <button 
             onClick={(e) => {
               e.stopPropagation();
-              onSelect(item);
-            }}
-            className="flex items-center gap-1.5 bg-white border border-[#D3D1C7] text-[#1A1A1A] px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-[#F0EEE8] transition-colors"
-          >
-            READ MORE
-          </button>
-          <button 
-            onClick={(e) => {
-              e.stopPropagation();
               onShareEvent(item);
             }}
-            className="flex items-center gap-1.5 bg-white border border-[#D3D1C7] text-[#888780] px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-[#F0EEE8] transition-colors"
+            className="p-2 text-white/30 hover:text-hud-yellow transition-colors"
           >
-            <Share2 size={12} />
-            SHARE
+            <Share2 size={14} />
           </button>
+          
           <button 
             onClick={(e) => {
               e.stopPropagation();
               handleDirections(item);
             }}
-            className="flex items-center gap-1.5 bg-[#1A2B4A] text-hud-yellow px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest hover:opacity-90 transition-opacity"
+            className="flex items-center gap-2 bg-hud-yellow text-hud-dark px-4 py-1.5 rounded-sm text-[11px] font-black uppercase tracking-[0.1em] hover:bg-white transition-all font-mono shadow-[0_0_15px_rgba(255,224,26,0.2)]"
           >
-            DIRECTIONS
-            <ArrowRight size={12} />
+            GO <ArrowRight size={12} />
           </button>
         </div>
       </div>

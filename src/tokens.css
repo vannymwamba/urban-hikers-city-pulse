@@ -41,15 +41,19 @@
   --color-brand-dim:        rgba(255, 224, 26, 0.12);  /* Yellow tint for deal strips */
   --color-brand-border:     rgba(255, 224, 26, 0.45);  /* Yellow borders */
 
-  --color-live:             #1D9E75;
-  --color-live-dim:         rgba(29, 158, 117, 0.10);
-  --color-alert:            #E24B4A;
-  --color-sponsored-border: rgba(255, 224, 26, 0.60);  /* Card border when sponsored */
+  --color-live:             #00F5FF;   /* Electric Teal */
+  --color-live-dim:         rgba(0, 245, 255, 0.10);
+  --color-partner:          #FFB800;   /* Warm Amber */
+  --color-urgent:           #FF4D4D;   /* Coral */
+  --color-verified:         #39FF14;   /* Cool Neon Green */
+  --color-base:             #0A0A0A;   /* Near-black */
+  --color-alert:            #FF4D4D;
+  --color-sponsored-border: rgba(255, 184, 0, 0.60);  /* Amber border for partners */
   --color-node-label:       #FFE01A;   /* Node name in SectorHub */
 
   /* ── Typography ─────────────────────────────────────── */
   --font-system:  "JetBrains Mono", "Courier New", monospace;
-  --font-content: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-content: "JetBrains Mono", "Courier New", monospace;
 
   /* ── M3 Shape Scale ─────────────────────────────────── */
   --md-sys-shape-corner-none:         0px;

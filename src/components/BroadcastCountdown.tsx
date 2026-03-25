@@ -22,47 +22,41 @@ export const BroadcastCountdown: React.FC<BroadcastCountdownProps> = ({ broadcas
 
   if (now >= end || isNaN(start.getTime()) || isNaN(end.getTime())) return null;
 
-  let label = "STARTS IN";
-  let colorClass = "text-[#378ADD]"; // DORMANT Blue
-  let barColorClass = "bg-[#378ADD]";
+  let label = "STARTS_IN";
+  let colorClass = "text-white/40"; 
+  let barColorClass = "bg-white/10";
   let timeRemaining = 0;
   let progress = 0;
 
   if (isLive) {
-    if (currentVibe === 'packed') {
-      label = "ENDS IN";
-      colorClass = "text-[#E24B4A]"; // LIVE Red
-      barColorClass = "bg-[#E24B4A]";
-    } else if (currentVibe === 'buzzing') {
-      label = "DEAL EXPIRES IN";
-      colorClass = "text-[#EF9F27]"; // BUZZING Amber
-      barColorClass = "bg-[#EF9F27]";
-    } else {
-      label = "ENDS IN";
-      colorClass = "text-[#639922]"; // CHILL Green
-      barColorClass = "bg-[#639922]";
-    }
     timeRemaining = end.getTime() - now.getTime();
     const totalDuration = end.getTime() - start.getTime();
     progress = (timeRemaining / totalDuration) * 100;
+
+    if (timeRemaining < 1000 * 60 * 15) { // < 15 mins
+      label = "URGENT_EXPIRE";
+      colorClass = "text-hud-coral";
+      barColorClass = "bg-hud-coral";
+    } else if (currentVibe === 'packed') {
+      label = "LIVE_STATUS_PACKED";
+      colorClass = "text-hud-magenta";
+      barColorClass = "bg-hud-magenta";
+    } else if (currentVibe === 'buzzing') {
+      label = "LIVE_STATUS_BUZZING";
+      colorClass = "text-hud-amber";
+      barColorClass = "bg-hud-amber";
+    } else {
+      label = "LIVE_STATUS_CHILL";
+      colorClass = "text-hud-teal";
+      barColorClass = "bg-hud-teal";
+    }
   } else if (isUpcoming) {
     const diffToStart = start.getTime() - now.getTime();
-    const hrsToStart = diffToStart / (1000 * 60 * 60);
-    
-    if (hrsToStart < 2) { // Chill event (starts soon)
-      label = "STARTS IN";
-      colorClass = "text-[#639922]"; // CHILL Green
-      barColorClass = "bg-[#639922]";
-      // Progress fills from 0 to 100 as we approach start (last 2 hours)
-      progress = Math.max(0, Math.min(100, (1 - (diffToStart / (2 * 60 * 60 * 1000))) * 100));
-    } else { // Upcoming (far out)
-      label = "STARTS IN";
-      colorClass = "text-[#378ADD]"; // DORMANT Blue
-      barColorClass = "bg-[#378ADD]";
-      // Progress fills from 0 to 100 as we approach start (last 24 hours)
-      progress = Math.max(0, Math.min(100, (1 - (diffToStart / (24 * 60 * 60 * 1000))) * 100));
-    }
+    label = "T_MINUS_START";
+    colorClass = "text-white/40";
+    barColorClass = "bg-white/10";
     timeRemaining = diffToStart;
+    progress = Math.max(0, Math.min(100, (1 - (diffToStart / (24 * 60 * 60 * 1000))) * 100));
   }
 
   const hrs = Math.floor(timeRemaining / (1000 * 60 * 60));
@@ -70,46 +64,46 @@ export const BroadcastCountdown: React.FC<BroadcastCountdownProps> = ({ broadcas
   const secs = Math.floor((timeRemaining % (1000 * 60)) / 1000);
 
   return (
-    <div className="bg-[#F8F7F4] p-4 rounded-xl border border-black/5 mt-3 mb-1">
-      <div className="flex justify-between items-center mb-3">
-        <div className={`text-[10px] font-black tracking-[0.15em] uppercase ${colorClass}`}>
+    <div className="bg-black/20 p-3 border border-white/5 mt-2 mb-1">
+      <div className="flex justify-between items-center mb-2">
+        <div className={`text-[8px] font-black tracking-[0.2em] uppercase font-mono ${colorClass}`}>
           {label}
         </div>
-        <div className="text-[10px] font-bold text-[#1A1A1A]/40 uppercase tracking-widest">
+        <div className="text-[8px] font-black text-white/20 uppercase tracking-[0.2em] font-mono">
           {isLive 
-            ? end.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })
-            : start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })
+            ? `EXP: ${end.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })}`
+            : `START: ${start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })}`
           }
         </div>
       </div>
-      <div className="flex items-center gap-4 mb-4">
-        <div className="flex flex-col items-center">
-          <div className={`text-[22px] font-black tabular-nums leading-none ${colorClass}`}>
+      <div className="flex items-baseline gap-1 mb-3">
+        <div className="flex items-baseline gap-1">
+          <span className={`text-[28px] font-black tabular-nums leading-none font-mono ${colorClass}`}>
             {hrs.toString().padStart(2, '0')}
-          </div>
-          <div className="text-[9px] font-bold opacity-30 uppercase mt-1 tracking-widest">hr</div>
+          </span>
+          <span className="text-[8px] font-black opacity-20 uppercase tracking-widest font-mono">H</span>
         </div>
-        <div className={`text-xl font-black opacity-20 ${colorClass}`}>:</div>
-        <div className="flex flex-col items-center">
-          <div className={`text-[22px] font-black tabular-nums leading-none ${colorClass}`}>
+        <span className={`text-[20px] font-black opacity-10 font-mono ${colorClass}`}>:</span>
+        <div className="flex items-baseline gap-1">
+          <span className={`text-[28px] font-black tabular-nums leading-none font-mono ${colorClass}`}>
             {mins.toString().padStart(2, '0')}
-          </div>
-          <div className="text-[9px] font-bold opacity-30 uppercase mt-1 tracking-widest">min</div>
+          </span>
+          <span className="text-[8px] font-black opacity-20 uppercase tracking-widest font-mono">M</span>
         </div>
-        <div className={`text-xl font-black opacity-20 ${colorClass}`}>:</div>
-        <div className="flex flex-col items-center">
-          <div className={`text-[22px] font-black tabular-nums leading-none ${colorClass}`}>
+        <div className="ml-auto flex items-baseline gap-1 bg-white/5 px-2 py-1 rounded-sm border border-white/5">
+          <span className={`text-[16px] font-black tabular-nums leading-none font-mono ${colorClass}`}>
             {secs.toString().padStart(2, '0')}
-          </div>
-          <div className="text-[9px] font-bold opacity-30 uppercase mt-1 tracking-widest">sec</div>
+          </span>
+          <span className="text-[7px] font-black opacity-30 uppercase tracking-widest font-mono">S</span>
         </div>
       </div>
-      <div className="h-1.5 bg-black/5 rounded-full overflow-hidden relative">
+      <div className="h-1 bg-white/5 overflow-hidden relative">
         <motion.div 
           initial={false}
           animate={{ width: `${progress}%` }}
           transition={{ duration: 1, ease: "linear" }}
-          className={`h-full ${barColorClass}`}
+          className={`h-full ${barColorClass} shadow-[0_0_8px_currentColor]`}
+          style={{ color: 'inherit' }}
         />
       </div>
     </div>

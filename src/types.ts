@@ -1,6 +1,6 @@
 export type Vibe = 'chill' | 'buzzing' | 'packed';
 export type HubType = 'street' | 'conference_center';
-export type BroadcastType = 'flash_deal' | 'event' | 'conference_panel';
+export type BroadcastType = 'flash_deal' | 'event' | 'conference_panel' | 'civic_free';
 export type UserRole = 'admin' | 'partner' | 'user' | 'partner_admin' | 'partner_viewer' | 'partner_content_editor' | 'super_admin' | 'hiker';
 
 export interface UserProfile {
@@ -9,6 +9,7 @@ export interface UserProfile {
   role: UserRole;
   name?: string;
   partner_id?: string; // Link to partner entity if role is partner
+  partnerId?: string; // Alias for camelCase
 }
 
 export interface Node {
@@ -50,14 +51,21 @@ export interface Partner {
   address?: string;
   latitude: number;
   longitude: number;
-  owner_uid?: string;
+  ownerUid?: string;
+  ownerEmail?: string;
+  logoUrl?: string;
+  logoUpdatedAt?: string | any;
+  brandColor?: string;
+  dealText?: string;
+  sponsorZones?: string[];
+  role?: UserRole;
+  // Backward compatibility
   owner_email?: string;
   logo_url?: string;
   logo_updated_at?: string | any;
   brand_color?: string;
   deal_text?: string;
   sponsor_zones?: string[];
-  role?: UserRole;
 }
 
 export interface SponsorBadgeProps {
@@ -107,6 +115,7 @@ export interface Route {
   points?: { lat: number; lng: number }[];
   guideId?: string;
   sponsorId?: string;
+  partnerId?: string;
   endPartnerId?: string;
   imageUrl?: string;
   title?: string;

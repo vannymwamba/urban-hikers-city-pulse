@@ -20,9 +20,9 @@ export const MiniVibeTrend: React.FC<MiniVibeTrendProps> = ({ broadcastId }) => 
 
   useEffect(() => {
     const q = query(
-      collection(db, 'vibeReports'),
-      where('broadcastId', '==', broadcastId),
-      orderBy('reportedAt', 'desc'),
+      collection(db, 'vibe_reports'),
+      where('broadcast_id', '==', broadcastId),
+      orderBy('reported_at', 'desc'),
       limit(5)
     );
 
@@ -43,7 +43,7 @@ export const MiniVibeTrend: React.FC<MiniVibeTrendProps> = ({ broadcastId }) => 
       if (last > first) setTrend('up');
       else if (last < first) setTrend('down');
       else setTrend('stable');
-    }, (err) => handleFirestoreError(err, OperationType.LIST, 'vibeReports'));
+    }, (err) => handleFirestoreError(err, OperationType.LIST, 'vibe_reports'));
 
     return () => unsubscribe();
   }, [broadcastId]);
@@ -56,10 +56,10 @@ export const MiniVibeTrend: React.FC<MiniVibeTrendProps> = ({ broadcastId }) => 
         {history.map((val, i) => (
           <div 
             key={i}
-            className={`w-1 rounded-full transition-all duration-500 ${
-              trend === 'up' ? 'bg-hud-green' : 
-              trend === 'down' ? 'bg-hud-magenta' : 
-              'bg-hud-yellow'
+            className={`w-1 rounded-sm transition-all duration-500 ${
+              trend === 'up' ? 'bg-hud-teal' : 
+              trend === 'down' ? 'bg-hud-coral' : 
+              'bg-hud-amber'
             }`}
             style={{ 
               height: `${(val / 3) * 100}%`,
@@ -68,9 +68,9 @@ export const MiniVibeTrend: React.FC<MiniVibeTrendProps> = ({ broadcastId }) => 
           />
         ))}
       </div>
-      {trend === 'up' && <span className="text-[8px] font-black text-hud-green">↑</span>}
-      {trend === 'down' && <span className="text-[8px] font-black text-hud-magenta">↓</span>}
-      {trend === 'stable' && <span className="text-[8px] font-black text-hud-yellow">→</span>}
+      {trend === 'up' && <span className="text-[8px] font-black text-hud-teal font-mono">↑</span>}
+      {trend === 'down' && <span className="text-[8px] font-black text-hud-coral font-mono">↓</span>}
+      {trend === 'stable' && <span className="text-[8px] font-black text-hud-amber font-mono">→</span>}
     </div>
   );
 };

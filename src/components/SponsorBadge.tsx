@@ -5,10 +5,14 @@ import { getTextOnColor } from '../lib/color';
 export function SponsorBadge({ partner, zone, compact = false }: SponsorBadgeProps) {
   // Guard: no partner, no branding, or zone not assigned
   if (!partner) return null;
-  if (!partner.logo_url && !partner.brand_color) return null;
-  if (partner.sponsor_zones && !partner.sponsor_zones.includes(zone)) return null;
+  const logoUrl = partner.logoUrl || partner.logo_url;
+  const brandColor = partner.brandColor || partner.brand_color || '#FFE01A';
+  const dealText = partner.dealText || partner.deal_text;
+  const sponsorZones = partner.sponsorZones || partner.sponsor_zones;
 
-  const brandColor = partner.brand_color ?? '#FFE01A';
+  if (!logoUrl && !brandColor) return null;
+  if (sponsorZones && !sponsorZones.includes(zone)) return null;
+
   const textColor = getTextOnColor(brandColor);
 
   // Zone A: presented-by bar at top of card
@@ -30,10 +34,10 @@ export function SponsorBadge({ partner, zone, compact = false }: SponsorBadgePro
         fontFamily: 'var(--font-system)'
       }}>
         <div className="flex items-center gap-2">
-          {partner.logo_url &&
+          {logoUrl &&
             <img 
-              src={partner.logo_url} 
-              className="h-4 w-auto object-contain bg-black/10 p-0.5 rounded"
+              src={logoUrl} 
+              className={`${compact ? 'h-4' : 'h-6'} w-auto max-w-[120px] object-contain bg-black/10 p-0.5 rounded shadow-sm`}
               alt={partner.name} 
               referrerPolicy="no-referrer"
             />}
@@ -50,7 +54,7 @@ export function SponsorBadge({ partner, zone, compact = false }: SponsorBadgePro
   }
 
   // Zone D: deal text strip at bottom of card
-  if (zone === 'D' && partner.deal_text) {
+  if (zone === 'D' && dealText) {
     const dimBg = `${brandColor}1A`; // ~10% opacity hex
     const borderBg = `${brandColor}4D`; // ~30% opacity hex
     
@@ -69,16 +73,16 @@ export function SponsorBadge({ partner, zone, compact = false }: SponsorBadgePro
         alignItems: 'center',
         gap: 8
       }}>
-        {partner.logo_url && (
+        {logoUrl && (
           <img 
-            src={partner.logo_url} 
-            className="h-3.5 w-auto object-contain bg-white/20 p-0.5 rounded-sm"
+            src={logoUrl} 
+            className="h-4 w-auto max-w-[80px] object-contain bg-white/20 p-0.5 rounded-sm shadow-sm"
             alt=""
             referrerPolicy="no-referrer"
           />
         )}
         <span className="flex-1 tracking-tight">
-          {partner.deal_text?.toUpperCase() || ''}
+          {dealText?.toUpperCase() || ''}
         </span>
         <div className="flex items-center gap-1 px-1.5 py-0.5 bg-white/10 rounded text-[8px] font-black opacity-80">
           <span className="w-1 h-1 rounded-full" style={{ background: brandColor }} />

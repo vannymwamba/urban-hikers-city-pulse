@@ -183,7 +183,7 @@ export default function App() {
         
         // If they are currently a 'user' or 'admin', check if they should be linked to a 'partner'
         if (profile.role === 'user' || profile.role === 'admin') {
-          const partnerQuery = query(collection(db, 'partners'), where('owner_email', '==', user.email?.toLowerCase().trim()));
+          const partnerQuery = query(collection(db, 'partners'), where('ownerEmail', '==', user.email?.toLowerCase().trim()));
           let partnerSnap;
           try {
             partnerSnap = await getDocs(partnerQuery);
@@ -198,12 +198,12 @@ export default function App() {
             const partnerData = partnerDoc.data() as Partner;
             const partnerId = partnerDoc.id;
             
-            // Only update if partner_id is missing or role needs upgrading
-            if (profile.partner_id !== partnerId || (profile.role === 'user' && partnerData.role)) {
+            // Only update if partnerId is missing or role needs upgrading
+            if ((profile.partnerId || profile.partner_id) !== partnerId || (profile.role === 'user' && partnerData.role)) {
               const updatedProfile: UserProfile = {
                 ...profile,
                 role: profile.role === 'admin' ? 'admin' : (partnerData.role || 'partner'),
-                partner_id: partnerId
+                partnerId: partnerId
               };
               // This will trigger the snapshot listener again
               try {
@@ -218,7 +218,7 @@ export default function App() {
         }
       } else {
         // Profile doesn't exist yet, check if they are a partner first
-        const partnerQuery = query(collection(db, 'partners'), where('owner_email', '==', user.email?.toLowerCase().trim()));
+        const partnerQuery = query(collection(db, 'partners'), where('ownerEmail', '==', user.email?.toLowerCase().trim()));
         let partnerSnap;
         try {
           partnerSnap = await getDocs(partnerQuery);
@@ -236,13 +236,13 @@ export default function App() {
             uid: user.uid,
             email: user.email!,
             role: partnerData.role || 'partner',
-            partner_id: partnerId
+            partnerId: partnerId
           };
         } else {
           profile = {
             uid: user.uid,
             email: user.email!,
-            role: user.email === 'vannymwamba@gmail.com' ? 'admin' : 'user'
+            role: user.email === 'vannymwamba@gmail.com' ? 'super_admin' : 'user'
           };
         }
         // Create the profile
@@ -343,7 +343,7 @@ export default function App() {
   }, [partnersMap]);
 
   useEffect(() => {
-    if (!currentNode || isDashboard || isHome) return;
+    if (!currentNode || !nodeId || isDashboard || isHome) return;
 
     const recordTap = async () => {
       try {
@@ -385,7 +385,7 @@ export default function App() {
   }, [currentNode, nodeId, isDashboard, broadcasts, currentTab]);
 
   useEffect(() => {
-    if (isDashboard || isHome) return;
+    if (isDashboard || isHome || isLogin) return;
 
     const recordTabView = async () => {
       try {
