@@ -3,7 +3,8 @@ import { db, functions } from '../firebase';
 import { collection, addDoc, onSnapshot, query, where, doc, setDoc, getDocs, updateDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { Node, Broadcast, UserProfile, Partner, BroadcastType, HubType, VibeReport, Tap, UserRole } from '../types';
-import { Plus, MapPin, Link as LinkIcon, Send, LayoutDashboard, LogOut, ChevronRight, Globe, ShieldCheck, RefreshCw, BarChart3, Image as ImageIcon, Trash2 } from 'lucide-react';
+import { BASE_URL } from '../constants';
+import { Plus, MapPin, Link as LinkIcon, Send, LayoutDashboard, LogOut, ChevronRight, Globe, ShieldCheck, RefreshCw, BarChart3, Image as ImageIcon, Trash2, RotateCcw } from 'lucide-react';
 import { motion } from 'motion/react';
 import { handleFirestoreError, OperationType } from '../utils/firebaseErrors';
 import { LogoUpload } from './LogoUpload';
@@ -49,7 +50,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
     address: '', 
     lat: 0, 
     lng: 0, 
-    ownerEmail: '',
+    owner_email: '',
     role: 'partner_admin' as UserRole,
     logoUrl: '',
     logoUpdatedAt: null as string | null,
@@ -60,6 +61,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
   const [isGeocoding, setIsGeocoding] = useState(false);
   const [isSeeding, setIsSeeding] = useState(false);
   const [isSyncingLibrary, setIsSyncingLibrary] = useState(false);
+  const [isSyncingCivic, setIsSyncingCivic] = useState(false);
   
   const [activeTab, setActiveTab] = useState<'hubs' | 'broadcasts' | 'partners' | 'analytics' | 'profile'>(isAdmin ? 'hubs' : 'broadcasts');
   const [hudMessage, setHudMessage] = useState<{ text: string; type: 'info' | 'error' } | null>(null);
@@ -139,33 +141,39 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
     }
     else if (isPartner && (userProfile.partnerId || userProfile.partner_id)) {
       const pId = userProfile.partnerId || userProfile.partner_id;
+      
       const unsubBroadcasts = onSnapshot(
         query(collection(db, 'broadcasts'), where('partnerId', '==', pId)),
         (snap) => {
-          const bData = snap.docs.map(d => ({ id: d.id, ...d.data() } as Broadcast));
-          setBroadcasts(bData);
-          
-          // Fetch vibe reports for these broadcasts
-          const bIds = bData.map(b => b.id);
-          if (bIds.length > 0) {
-            // Firestore 'in' query limit is 10, but for simplicity let's assume small number or fetch all and filter
-            const unsubVibes = onSnapshot(collection(db, 'vibe_reports'), (vSnap) => {
-              setVibeReports(vSnap.docs.map(d => ({ id: d.id, ...d.data() } as VibeReport)).filter(v => bIds.includes(v.broadcast_id)));
-            }, (err) => handleFirestoreError(err, OperationType.LIST, 'vibe_reports'));
-            return () => unsubVibes();
-          }
+          setBroadcasts(snap.docs.map(d => ({ id: d.id, ...d.data() } as Broadcast)));
         }, (err) => handleFirestoreError(err, OperationType.LIST, 'broadcasts')
       );
+
+      const unsubVibes = onSnapshot(collection(db, 'vibe_reports'), (vSnap) => {
+        // We'll filter these in a useMemo or separate effect if needed, 
+        // but for now just set the state.
+        setVibeReports(vSnap.docs.map(d => ({ id: d.id, ...d.data() } as VibeReport)));
+      }, (err) => handleFirestoreError(err, OperationType.LIST, 'vibe_reports'));
+
       const unsubNodes = onSnapshot(collection(db, 'nodes'), (snap) => {
         setNodes(snap.docs.map(d => ({ id: d.id, ...d.data() } as Node)));
       }, (err) => handleFirestoreError(err, OperationType.LIST, 'nodes'));
+
       const unsubTaps = onSnapshot(collection(db, 'taps'), (snap) => {
         setTaps(snap.docs.map(d => ({ id: d.id, ...d.data() } as Tap)));
       }, (err) => handleFirestoreError(err, OperationType.LIST, 'taps'));
+
       const unsubPartners = onSnapshot(collection(db, 'partners'), (snap) => {
         setPartners(snap.docs.map(d => ({ id: d.id, ...d.data() } as Partner)).filter(p => p.id === pId));
       }, (err) => handleFirestoreError(err, OperationType.LIST, 'partners'));
-      return () => { unsubBroadcasts(); unsubNodes(); unsubTaps(); unsubPartners(); };
+
+      return () => { 
+        unsubBroadcasts(); 
+        unsubVibes();
+        unsubNodes(); 
+        unsubTaps(); 
+        unsubPartners(); 
+      };
     }
   }, [userProfile, isAdmin, isPartner]);
 
@@ -259,6 +267,33 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
       setHudMessage({ text: `SYNC_FAILED: [${errorCode.toUpperCase()}] ${errorMessage}`, type: 'error' });
     } finally {
       setIsSyncingLibrary(false);
+    }
+  };
+
+  const handleSyncCivic = async () => {
+    if (!isAdmin) return;
+    setIsSyncingCivic(true);
+    setHudMessage({ text: "SYNCING_CIVIC_EVENTS...", type: 'info' });
+    try {
+      const response = await fetch('/api/admin/sync-civic-events', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'SYNC_FAILED');
+      }
+      
+      const data = await response.json();
+      setHudMessage({ text: `SYNC_COMPLETE: ${data.processed} EVENTS_LOADED`, type: 'info' });
+    } catch (err: any) {
+      console.error("Civic sync error:", err);
+      setHudMessage({ text: `SYNC_FAILED: ${err.message || 'INTERNAL_ERROR'}`, type: 'error' });
+    } finally {
+      setIsSyncingCivic(false);
     }
   };
 
@@ -396,19 +431,21 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
     
     try {
       // 1. Create/Update Partner document
-      await setDoc(doc(db, 'partners', id), {
+      const partnerPayload = {
         name: newPartner.name,
-        tier: newPartner.tier,
-        latitude: Number(newPartner.lat),
-        longitude: Number(newPartner.lng),
-        ownerEmail: newPartner.ownerEmail.toLowerCase().trim(),
-        logoUrl: newPartner.logoUrl || null,
-        brandColor: newPartner.brandColor || null,
-        dealText: newPartner.dealText || null,
-        sponsorZones: newPartner.sponsorZones,
+        tier: newPartner.tier.toLowerCase(), // Must be lowercase to pass 'premium' rule
+        latitude: parseFloat(newPartner.lat.toString()),  // Must be cast to number, not string
+        longitude: parseFloat(newPartner.lng.toString()),// Must be cast to number, not string
+        owner_email: newPartner.owner_email.toLowerCase().trim(), // Must use the key 'owner_email'
+        logo_url: newPartner.logoUrl || null,
+        brand_color: newPartner.brandColor || null,
+        deal_text: newPartner.dealText || null,
+        sponsor_zones: newPartner.sponsorZones,
         updatedAt: serverTimestamp(),
         ...(editingPartnerId ? {} : { createdAt: serverTimestamp() })
-      }, { merge: true });
+      };
+
+      await setDoc(doc(db, 'partners', id), partnerPayload, { merge: true });
 
       // 2. Clear old owner(s) if we are editing (to handle reassignment)
       if (editingPartnerId) {
@@ -419,7 +456,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
           const isTargetAdmin = userData.role === 'admin' || userData.role === 'super_admin' || userData.email === 'vannymwamba@gmail.com';
           
           // Only clear if the email is NOT the new owner email
-          if (userData.email.toLowerCase().trim() !== newPartner.ownerEmail.toLowerCase().trim()) {
+          if (userData.email.toLowerCase().trim() !== newPartner.owner_email.toLowerCase().trim()) {
             await setDoc(doc(db, 'users', userDoc.id), {
               role: isTargetAdmin ? userData.role : 'user',
               partnerId: null
@@ -429,7 +466,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
       }
 
       // 3. Update User Profile if a user with this email already exists
-      const userQuery = query(collection(db, 'users'), where('email', '==', newPartner.ownerEmail.toLowerCase().trim()));
+      const userQuery = query(collection(db, 'users'), where('email', '==', newPartner.owner_email.toLowerCase().trim()));
       let userSnap;
       try {
         userSnap = await getDocs(userQuery);
@@ -448,6 +485,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
             role: isTargetAdmin ? userData.role : newPartner.role,
             partnerId: id
           }, { merge: true });
+          
+          // Also link the partner to the user's UID for storage rules
+          await updateDoc(doc(db, 'partners', id), {
+            associated_owner_uid: userDoc.id
+          });
         } catch (err) {
           handleFirestoreError(err, OperationType.WRITE, `users/${userDoc.id}`);
         }
@@ -460,7 +502,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
         address: '', 
         lat: 0, 
         lng: 0, 
-        ownerEmail: '',
+        owner_email: '',
         role: 'partner_admin',
         logoUrl: '',
         logoUpdatedAt: null,
@@ -471,6 +513,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
       setEditingPartnerId(null);
     } catch (err) {
       console.error("Partner creation/update error:", err);
+      handleFirestoreError(err, editingPartnerId ? OperationType.UPDATE : OperationType.CREATE, editingPartnerId ? `partners/${editingPartnerId}` : 'partners');
       setHudMessage({ text: editingPartnerId ? "PARTNER_UPDATE_FAILED" : "PARTNER_CREATION_FAILED", type: 'error' });
     }
   };
@@ -499,6 +542,29 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
       setHudMessage({ text: `PARTNER_TERMINATED: ${partnerName?.toUpperCase() || 'UNKNOWN'}`, type: 'info' });
     } catch (err) {
       handleFirestoreError(err, OperationType.DELETE, `partners/${partnerId}`);
+    }
+  };
+
+  const handleResetBranding = async () => {
+    const pId = userProfile.partnerId || userProfile.partner_id;
+    if (!pId || !canWrite) return;
+
+    if (!window.confirm("CRITICAL: This will wipe your custom branding (logo, color, and deal text) and restore system defaults. Proceed?")) return;
+
+    try {
+      await updateDoc(doc(db, 'partners', pId), {
+        logo_url: null,
+        logoUrl: null,
+        brand_color: '#C4832A',
+        brandColor: '#C4832A',
+        deal_text: '',
+        dealText: '',
+        logo_updated_at: serverTimestamp(),
+        logoUpdatedAt: new Date().toISOString()
+      });
+      setHudMessage({ text: 'BRANDING_RESTORED_TO_DEFAULTS', type: 'info' });
+    } catch (err) {
+      handleFirestoreError(err, OperationType.UPDATE, `partners/${pId}`);
     }
   };
 
@@ -611,6 +677,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
                         >
                           <RefreshCw size={12} className={isSyncingLibrary ? 'animate-spin' : ''} />
                           SYNC_LIBRARY_EVENTS
+                        </button>
+                        <button 
+                          onClick={handleSyncCivic}
+                          disabled={isSyncingCivic}
+                          className="flex items-center gap-2 px-3 py-1 border border-hud-magenta/30 text-hud-magenta text-[9px] font-bold hover:bg-hud-magenta/10 transition-all disabled:opacity-50"
+                        >
+                          <RefreshCw size={12} className={isSyncingCivic ? 'animate-spin' : ''} />
+                          SYNC_CIVIC_EVENTS
                         </button>
                         <button 
                           onClick={handleRestoreData}
@@ -769,7 +843,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
                           )}
                           <button 
                             onClick={() => {
-                              const url = `${window.location.origin}/tap/${node.id}`;
+                              const url = `${BASE_URL}/tap/${node.id}`;
                               navigator.clipboard.writeText(url);
                               setHudMessage({ text: `URL_COPIED: ${node.id.toUpperCase()}`, type: 'info' });
                             }}
@@ -819,7 +893,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
                           address: '', 
                           lat: 0, 
                           lng: 0, 
-                          ownerEmail: '',
+                          owner_email: '',
                           role: 'partner_admin',
                           logoUrl: '',
                           logoUpdatedAt: null,
@@ -907,8 +981,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
                     type="email"
                     placeholder="partner@example.com"
                     className="bg-black border border-white/20 p-3 text-sm focus:border-hud-yellow outline-none"
-                    value={newPartner.ownerEmail}
-                    onChange={e => setNewPartner({...newPartner, ownerEmail: e.target.value})}
+                    value={newPartner.owner_email}
+                    onChange={e => setNewPartner({...newPartner, owner_email: e.target.value})}
                     required
                   />
                   <p className="text-[8px] opacity-40 mt-1">USER_WILL_GAIN_PARTNER_ACCESS_UPON_LOGIN</p>
@@ -1012,7 +1086,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
                       </div>
                       <div className="text-[10px] opacity-40 font-mono">
                         TIER: {partner.tier?.toUpperCase() || 'STANDARD'} // 
-                        OWNER: {partner.ownerEmail || partner.owner_email || 'UNASSIGNED'} //
+                        OWNER: {partner.owner_email || partner.ownerEmail || 'UNASSIGNED'} //
                         ZONES: {(partner.sponsorZones || partner.sponsor_zones)?.join(', ') || 'NONE'}
                       </div>
                       {(partner.dealText || partner.deal_text) && (
@@ -1034,7 +1108,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
                               address: partner.address || '',
                               lat: partner.latitude,
                               lng: partner.longitude,
-                              ownerEmail: partner.ownerEmail || partner.owner_email || '',
+                              owner_email: partner.owner_email || partner.ownerEmail || '',
                               role: partner.role || 'partner_admin',
                               logoUrl: partner.logoUrl || partner.logo_url || '',
                               logoUpdatedAt: partner.logoUpdatedAt || partner.logo_updated_at || null,
@@ -1243,11 +1317,19 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
           {activeTab === 'profile' && isPartner && (
             <div className="max-w-4xl mx-auto">
               <div className="flex justify-between items-end mb-8 border-b border-hud-yellow/20 pb-4">
-                <h2 className="text-2xl font-black tracking-tighter text-hud-yellow">PARTNER_PROFILE_CONFIG</h2>
-                <div className="text-[10px] text-hud-yellow/40 font-bold">PARTNER_ID: {userProfile.partner_id}</div>
+                <div>
+                  <h2 className="text-2xl font-black tracking-tighter text-hud-yellow">PARTNER_PROFILE_CONFIG</h2>
+                  <div className="text-[10px] text-hud-yellow/40 font-bold">PARTNER_ID: {userProfile.partner_id || userProfile.partnerId}</div>
+                </div>
+                <button 
+                  onClick={handleResetBranding}
+                  className="flex items-center gap-2 px-4 py-2 border border-hud-magenta/30 text-hud-magenta text-[10px] font-bold hover:bg-hud-magenta/10 transition-all"
+                >
+                  <RotateCcw size={14} /> RESET_TO_DEFAULTS
+                </button>
               </div>
 
-              {partners.find(p => p.id === userProfile.partner_id) ? (
+              {partners.find(p => p.id === (userProfile.partner_id || userProfile.partnerId)) ? (
                 <div className="bg-white/5 border border-white/10 p-6">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                     <div>
@@ -1256,8 +1338,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
                         <div className="flex flex-col gap-2">
                           <label className="text-[9px] opacity-40 font-bold uppercase">Partner_Logo</label>
                           <LogoUpload 
-                            partnerId={userProfile.partner_id!} 
-                            currentLogoUrl={partners.find(p => p.id === userProfile.partner_id)?.logoUrl || partners.find(p => p.id === userProfile.partner_id)?.logo_url}
+                            partnerId={(userProfile.partner_id || userProfile.partnerId)!} 
+                            partnerEmail={partners.find(p => p.id === (userProfile.partner_id || userProfile.partnerId))?.owner_email || partners.find(p => p.id === (userProfile.partner_id || userProfile.partnerId))?.ownerEmail || ''}
+                            currentLogoUrl={partners.find(p => p.id === (userProfile.partner_id || userProfile.partnerId))?.logoUrl || partners.find(p => p.id === (userProfile.partner_id || userProfile.partnerId))?.logo_url}
                             onLogoUploaded={(url) => {
                               setHudMessage({ text: 'LOGO_UPDATED_SUCCESSFULLY', type: 'info' });
                             }}

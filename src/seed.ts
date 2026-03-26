@@ -27,11 +27,11 @@ const seedData = async () => {
         address: '1401 Vine St, Cincinnati, OH',
         latitude: 39.1105,
         longitude: -84.5145,
-        ownerEmail: 'vannymwamba@gmail.com',
-        logoUrl: 'https://picsum.photos/seed/kroger/200/200',
-        brandColor: '#002D72',
-        dealText: 'Show NFC stamp — $2 off select items',
-        sponsorZones: ['A', 'D']
+        owner_email: 'vannymwamba@gmail.com',
+        logo_url: 'https://picsum.photos/seed/kroger/200/200',
+        brand_color: '#002D72',
+        deal_text: 'Show NFC stamp — $2 off select items',
+        sponsor_zones: ['A', 'D']
       },
       {
         id: 'partner-allez',
@@ -40,11 +40,11 @@ const seedData = async () => {
         address: '1208 Main St, Cincinnati, OH',
         latitude: 39.1085,
         longitude: -84.5120,
-        ownerEmail: 'allez@example.com',
-        logoUrl: 'https://picsum.photos/seed/bakery/200/200',
-        brandColor: '#F5DEB3',
-        dealText: 'Free pastry with Urban Hiker ticket',
-        sponsorZones: ['B', 'C']
+        owner_email: 'allez@example.com',
+        logo_url: 'https://picsum.photos/seed/bakery/200/200',
+        brand_color: '#F5DEB3',
+        deal_text: 'Free pastry with Urban Hiker ticket',
+        sponsor_zones: ['B', 'C']
       },
       {
         id: 'partner-fotofocus',
@@ -53,11 +53,11 @@ const seedData = async () => {
         address: '1230 Elm St, Cincinnati, OH',
         latitude: 39.1115,
         longitude: -84.5185,
-        ownerEmail: 'arts@example.com',
-        logoUrl: 'https://picsum.photos/seed/arts/200/200',
-        brandColor: '#1A1A2E',
-        dealText: 'Free Biennial Passport — tap 8 venues',
-        sponsorZones: ['A', 'B', 'D']
+        owner_email: 'arts@example.com',
+        logo_url: 'https://picsum.photos/seed/arts/200/200',
+        brand_color: '#1A1A2E',
+        deal_text: 'Free Biennial Passport — tap 8 venues',
+        sponsor_zones: ['A', 'B', 'D']
       },
       {
         id: 'partner-music-hall',
@@ -66,11 +66,11 @@ const seedData = async () => {
         address: '1241 Elm St, Cincinnati, OH',
         latitude: 39.1095,
         longitude: -84.5188,
-        ownerEmail: 'musichall@example.com',
-        logoUrl: 'https://picsum.photos/seed/musichall/200/200',
-        brandColor: '#8E1B1B',
-        dealText: 'Show NFC for 10% off concessions',
-        sponsorZones: ['A', 'B']
+        owner_email: 'musichall@example.com',
+        logo_url: 'https://picsum.photos/seed/musichall/200/200',
+        brand_color: '#8E1B1B',
+        deal_text: 'Show NFC for 10% off concessions',
+        sponsor_zones: ['A', 'B']
       },
       {
         id: 'partner-rhinegeist',
@@ -79,11 +79,11 @@ const seedData = async () => {
         address: '1910 Elm St, Cincinnati, OH',
         latitude: 39.1172,
         longitude: -84.5191,
-        ownerEmail: 'beer@example.com',
-        logoUrl: 'https://picsum.photos/seed/beer/200/200',
-        brandColor: '#000000',
-        dealText: 'Happy Hour: $1 off all pints',
-        sponsorZones: ['C', 'D']
+        owner_email: 'beer@example.com',
+        logo_url: 'https://picsum.photos/seed/beer/200/200',
+        brand_color: '#000000',
+        deal_text: 'Happy Hour: $1 off all pints',
+        sponsor_zones: ['C', 'D']
       },
       {
         id: 'partner-cac',
@@ -92,11 +92,11 @@ const seedData = async () => {
         address: '44 E 6th St, Cincinnati, OH',
         latitude: 39.1031,
         longitude: -84.5121,
-        ownerEmail: 'cac@example.com',
-        logoUrl: 'https://picsum.photos/seed/cac/200/200',
-        brandColor: '#FF3B30',
-        dealText: 'Free admission with NFC tap',
-        sponsorZones: ['B']
+        owner_email: 'cac@example.com',
+        logo_url: 'https://picsum.photos/seed/cac/200/200',
+        brand_color: '#FF3B30',
+        deal_text: 'Free admission with NFC tap',
+        sponsor_zones: ['B']
       },
       {
         id: 'partner-btw26',
@@ -105,11 +105,11 @@ const seedData = async () => {
         address: '525 Elm St, Cincinnati, OH',
         latitude: 39.1015,
         longitude: -84.5165,
-        ownerEmail: 'btw26@example.com',
-        logoUrl: 'https://picsum.photos/seed/btw26/200/200',
-        brandColor: '#5856D6',
-        dealText: 'Conference Pass: 50% off for locals',
-        sponsorZones: ['A', 'B', 'C', 'D']
+        owner_email: 'btw26@example.com',
+        logo_url: 'https://picsum.photos/seed/btw26/200/200',
+        brand_color: '#5856D6',
+        deal_text: 'Conference Pass: 50% off for locals',
+        sponsor_zones: ['A', 'B', 'C', 'D']
       },
       {
         id: 'chpl',
@@ -118,11 +118,11 @@ const seedData = async () => {
         address: '800 Vine St, Cincinnati, OH',
         latitude: 39.1064,
         longitude: -84.5125,
-        ownerEmail: 'chpl@example.com',
-        logoUrl: 'https://picsum.photos/seed/library/200/200',
-        brandColor: '#185FA5',
-        dealText: 'Free resources & community events',
-        sponsorZones: ['A', 'D']
+        owner_email: 'chpl@example.com',
+        logo_url: 'https://picsum.photos/seed/library/200/200',
+        brand_color: '#185FA5',
+        deal_text: 'Free resources & community events',
+        sponsor_zones: ['A', 'D']
       }
     ];
 
@@ -335,9 +335,9 @@ const seedData = async () => {
 
     // Seed Taps
     const sampleTaps = [
-      { nodeId: 'OTR-ALPHA-01', sessionUuid: 's1', accessVector: 'nfc', timestamp: new Date().toISOString() },
-      { nodeId: 'OTR-ALPHA-01', sessionUuid: 's2', accessVector: 'qr', timestamp: new Date().toISOString() },
-      { nodeId: 'sector-beta', sessionUuid: 's3', accessVector: 'nfc', timestamp: new Date().toISOString() },
+      { node_id: 'OTR-ALPHA-01', session_uuid: 's1', access_vector: 'nfc', timestamp: new Date().toISOString() },
+      { node_id: 'OTR-ALPHA-01', session_uuid: 's2', access_vector: 'qr', timestamp: new Date().toISOString() },
+      { node_id: 'sector-beta', session_uuid: 's3', access_vector: 'nfc', timestamp: new Date().toISOString() },
     ];
 
     for (const tap of sampleTaps) {

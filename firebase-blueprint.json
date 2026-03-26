@@ -57,7 +57,7 @@
         "partner_id": { "type": "string", "description": "Optional partner link" },
         "node_id": { "type": "string", "description": "Node where it was ignited (for flash events)" },
         "title": { "type": "string" },
-        "type": { "type": "string", "enum": ["flash_deal", "event", "conference_panel"] },
+        "type": { "type": "string", "enum": ["flash_deal", "event", "conference_panel", "civic_event"] },
         "latitude": { "type": "number" },
         "longitude": { "type": "number" },
         "expires_at": { "type": "string", "format": "date-time" },

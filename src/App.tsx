@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { auth, db } from './firebase';
 import { signInWithPopup, GoogleAuthProvider, onAuthStateChanged, User } from 'firebase/auth';
-import { collection, onSnapshot, query, where, addDoc, doc, getDoc, setDoc, getDocs, orderBy, getDocFromServer } from 'firebase/firestore';
+import { collection, onSnapshot, query, where, addDoc, doc, getDoc, setDoc, getDocs, orderBy, getDocFromServer, updateDoc } from 'firebase/firestore';
 import { Node, Broadcast, Vibe, UserProfile, UserRole, Partner } from './types';
+import { BASE_URL } from './constants';
 import { DepartureBoard } from './components/DepartureBoard';
 import { VibeCheck } from './components/VibeCheck';
 import { VibeTrend } from './components/VibeTrend';
@@ -83,6 +84,7 @@ export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [currentNode, setCurrentNode] = useState<Node | null>(null);
+  const [rawBroadcasts, setRawBroadcasts] = useState<Broadcast[]>([]);
   const [broadcasts, setBroadcasts] = useState<Broadcast[]>([]);
   const [partnersMap, setPartnersMap] = useState<Record<string, Partner>>({});
   const [selectedBroadcast, setSelectedBroadcast] = useState<Broadcast | null>(null);
@@ -159,9 +161,18 @@ export default function App() {
   }, [hudMessage]);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (u) => {
+    const unsubscribe = onAuthStateChanged(auth, async (u) => {
       console.log("AUTH_STATE_CHANGED:", u?.uid || "NO_USER");
       setUser(u);
+      if (u) {
+        try {
+          const tokenResult = await u.getIdTokenResult();
+          console.log("AUTH_TOKEN_CLAIMS:", tokenResult.claims);
+          console.log("AUTH_TOKEN_ROLE_CLAIM:", tokenResult.claims.role);
+        } catch (err) {
+          console.error("Error getting token result:", err);
+        }
+      }
       if (!u) {
         setUserProfile(null);
         setLoading(false);
@@ -183,7 +194,7 @@ export default function App() {
         
         // If they are currently a 'user' or 'admin', check if they should be linked to a 'partner'
         if (profile.role === 'user' || profile.role === 'admin') {
-          const partnerQuery = query(collection(db, 'partners'), where('ownerEmail', '==', user.email?.toLowerCase().trim()));
+          const partnerQuery = query(collection(db, 'partners'), where('owner_email', '==', user.email?.toLowerCase().trim()));
           let partnerSnap;
           try {
             partnerSnap = await getDocs(partnerQuery);
@@ -205,6 +216,18 @@ export default function App() {
                 role: profile.role === 'admin' ? 'admin' : (partnerData.role || 'partner'),
                 partnerId: partnerId
               };
+              
+              // Ensure partner has associated_owner_uid for storage rules
+              if (partnerData.associated_owner_uid !== user.uid) {
+                try {
+                  await updateDoc(doc(db, 'partners', partnerId), {
+                    associated_owner_uid: user.uid
+                  });
+                } catch (err) {
+                  console.error("Error updating partner owner UID:", err);
+                }
+              }
+
               // This will trigger the snapshot listener again
               try {
                 await setDoc(profileRef, updatedProfile);
@@ -218,7 +241,7 @@ export default function App() {
         }
       } else {
         // Profile doesn't exist yet, check if they are a partner first
-        const partnerQuery = query(collection(db, 'partners'), where('ownerEmail', '==', user.email?.toLowerCase().trim()));
+        const partnerQuery = query(collection(db, 'partners'), where('owner_email', '==', user.email?.toLowerCase().trim()));
         let partnerSnap;
         try {
           partnerSnap = await getDocs(partnerQuery);
@@ -232,6 +255,18 @@ export default function App() {
           const partnerDoc = partnerSnap.docs[0];
           const partnerData = partnerDoc.data() as Partner;
           const partnerId = partnerDoc.id;
+          
+          // Ensure partner has associated_owner_uid for storage rules
+          if (partnerData.associated_owner_uid !== user.uid) {
+            try {
+              await updateDoc(doc(db, 'partners', partnerId), {
+                associated_owner_uid: user.uid
+              });
+            } catch (err) {
+              console.error("Error updating partner owner UID:", err);
+            }
+          }
+
           profile = {
             uid: user.uid,
             email: user.email!,
@@ -446,15 +481,8 @@ export default function App() {
     return () => unsubscribe();
   }, [nodeId, isDashboard, isHome]);
 
+  // Connection Test - Run once on mount
   useEffect(() => {
-    if (!currentNode) {
-      console.log("BROADCASTS_EFFECT_SKIPPED: NO_CURRENT_NODE");
-      return;
-    }
-
-    console.log(`SUBSCRIBING_TO_BROADCASTS_FOR_NODE: ${currentNode.id}`);
-    
-    // Connection Test
     const testConnection = async () => {
       try {
         await getDocFromServer(doc(db, 'nodes', 'connection-test'));
@@ -466,13 +494,24 @@ export default function App() {
       }
     };
     testConnection();
+  }, []);
 
+  useEffect(() => {
+    if (!currentNode) {
+      console.log("BROADCASTS_EFFECT_SKIPPED: NO_CURRENT_NODE");
+      return;
+    }
+
+    console.log(`SUBSCRIBING_TO_BROADCASTS_FOR_NODE: ${currentNode.id}`);
+    
     // Real-time subscription to broadcasts
-    const twentyFourHoursFromNow = new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString();
+    // We use a stable query (broadcasts expiring after the app started)
+    // and filter client-side to save quota.
+    const sessionStartTime = new Date().toISOString();
     
     const q = query(
       collection(db, 'broadcasts'),
-      where('expires_at', '>', now.toISOString()),
+      where('expires_at', '>', sessionStartTime),
       orderBy('expires_at')
     );
 
@@ -483,39 +522,9 @@ export default function App() {
         ...doc.data()
       })) as Broadcast[];
       
-      // Filter by distance to current node and start time
-      const filtered = data.filter(b => {
-        const radiusLimit = currentNode.radius_limit || (currentNode as any).radiusLimit || 5000;
-        
-        const distance = getDistance(
-          currentNode.latitude, 
-          currentNode.longitude, 
-          b.latitude, 
-          b.longitude
-        );
-
-        const startsAt = b.starts_at || b.startsAt || '';
-        const isWithinWindow = !startsAt || startsAt <= twentyFourHoursFromNow;
-
-        return distance <= radiusLimit && isWithinWindow;
-      });
-
-      console.log(`BROADCASTS_FILTERED: ${filtered.length} OF ${data.length} WITHIN_RADIUS`);
-
-      const sortedBroadcasts = [...filtered].sort((a, b) => {
-        const partnerA = partnersMap[a.partner_id || a.partnerId || ''];
-        const partnerB = partnersMap[b.partner_id || b.partnerId || ''];
-        const aSponsored = !!(partnerA?.logo_url || partnerA?.brand_color);
-        const bSponsored = !!(partnerB?.logo_url || partnerB?.brand_color);
-        
-        if (aSponsored && !bSponsored) return -1;
-        if (!aSponsored && bSponsored) return 1;
-        const aStart = new Date(a.starts_at || a.startsAt || 0).getTime();
-        const bStart = new Date(b.starts_at || b.startsAt || 0).getTime();
-        return aStart - bStart;
-      });
-
-      setBroadcasts(sortedBroadcasts);
+      // We'll store the raw data and filter in a separate effect/memo
+      // to avoid re-subscribing when 'now' changes.
+      setRawBroadcasts(data);
       setLoading(false);
     }, (err) => {
       console.error("BROADCASTS_SNAPSHOT_ERROR:", err);
@@ -524,7 +533,52 @@ export default function App() {
     });
 
     return () => unsubscribe();
-  }, [currentNode, now, partnersMap]);
+  }, [currentNode]); // Removed 'now' and 'partnersMap' from dependencies
+
+  // Client-side filtering and sorting
+  useEffect(() => {
+    if (!rawBroadcasts.length || !currentNode) {
+      setBroadcasts([]);
+      return;
+    }
+
+    const twentyFourHoursFromNow = new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString();
+    const nowIso = now.toISOString();
+
+    const filtered = rawBroadcasts.filter(b => {
+      const radiusLimit = currentNode.radius_limit || (currentNode as any).radiusLimit || 5000;
+      
+      const distance = getDistance(
+        currentNode.latitude, 
+        currentNode.longitude, 
+        b.latitude, 
+        b.longitude
+      );
+
+      const startsAt = b.starts_at || b.startsAt || '';
+      const expiresAt = b.expires_at || b.expiresAt || '';
+      
+      const isWithinWindow = !startsAt || startsAt <= twentyFourHoursFromNow;
+      const isNotExpired = expiresAt > nowIso;
+
+      return distance <= radiusLimit && isWithinWindow && isNotExpired;
+    });
+
+    const sortedBroadcasts = [...filtered].sort((a, b) => {
+      const partnerA = partnersMap[a.partner_id || a.partnerId || ''];
+      const partnerB = partnersMap[b.partner_id || b.partnerId || ''];
+      const aSponsored = !!(partnerA?.logo_url || partnerA?.brand_color);
+      const bSponsored = !!(partnerB?.logo_url || partnerB?.brand_color);
+      
+      if (aSponsored && !bSponsored) return -1;
+      if (!aSponsored && bSponsored) return 1;
+      const aStart = new Date(a.starts_at || a.startsAt || 0).getTime();
+      const bStart = new Date(b.starts_at || b.startsAt || 0).getTime();
+      return aStart - bStart;
+    });
+
+    setBroadcasts(sortedBroadcasts);
+  }, [rawBroadcasts, now, currentNode, partnersMap]);
 
   const handleVibeReport = async (vibe: Vibe) => {
     if (!selectedBroadcast) return;
@@ -794,7 +848,7 @@ export default function App() {
           onShareEvent={(b) => handleShare(
             b.title,
             `Check out this event at ${currentNode?.name}!`,
-            `${window.location.origin}/tap/${nodeId}`
+            `${BASE_URL}/tap/${nodeId}`
           )}
           onSaveToWallet={(node) => (node || currentNode) && toggleSaveHub(node || currentNode!)}
           isSaved={currentNode ? savedHubs.some(h => h.id === currentNode.id) : false}
@@ -851,7 +905,7 @@ export default function App() {
                       onClick={() => handleShare(
                         selectedBroadcast.title,
                         `Check out this event at ${currentNode?.name}!`,
-                        `${window.location.origin}/tap/${nodeId}`
+                        `${BASE_URL}/tap/${nodeId}`
                       )}
                       className="flex items-center justify-center w-10 h-10 bg-hud-green/10 text-hud-green rounded-xl hover:bg-hud-green/20 transition-colors"
                       title="Share Signal"

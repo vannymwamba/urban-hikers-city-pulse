@@ -123,13 +123,26 @@ export const BroadcastCard: React.FC<BroadcastCardProps> = ({
           </div>
         </div>
         
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
+          {onBook && (
+            <button 
+              onClick={(e) => {
+                e.stopPropagation();
+                onBook(item);
+              }}
+              className="text-[9px] font-black text-white/30 hover:text-white uppercase tracking-[0.2em] px-2 py-1 transition-colors font-mono"
+            >
+              BOOK
+            </button>
+          )}
+          
           <button 
             onClick={(e) => {
               e.stopPropagation();
               onShareEvent(item);
             }}
-            className="p-2 text-white/30 hover:text-hud-yellow transition-colors"
+            className="p-2 text-white/20 hover:text-hud-yellow transition-colors"
+            title="SHARE_EVENT"
           >
             <Share2 size={14} />
           </button>
@@ -139,9 +152,9 @@ export const BroadcastCard: React.FC<BroadcastCardProps> = ({
               e.stopPropagation();
               handleDirections(item);
             }}
-            className="flex items-center gap-2 bg-hud-yellow text-hud-dark px-4 py-1.5 rounded-sm text-[11px] font-black uppercase tracking-[0.1em] hover:bg-white transition-all font-mono shadow-[0_0_15px_rgba(255,224,26,0.2)]"
+            className="flex items-center gap-2 bg-hud-yellow text-hud-dark px-6 py-2 rounded-sm text-[12px] font-black uppercase tracking-[0.15em] hover:bg-white transition-all font-mono shadow-[0_0_20px_rgba(255,224,26,0.3)] active:scale-95"
           >
-            GO <ArrowRight size={12} />
+            GO <ArrowRight size={14} />
           </button>
         </div>
       </div>

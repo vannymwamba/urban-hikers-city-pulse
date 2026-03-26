@@ -3,31 +3,46 @@ rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
     
-    // 1. Temporary uploads (used during Partner Creation)
-    match /sponsors/temp/{fileName} {
-      allow read: if true;
-      allow write: if request.auth != null && isAdmin(request.auth.uid);
-    }
-
-    // 2. Permanent Partner Logos
-    match /partners/{partnerId}/logo/{fileName} {
+    // 1. Partner Logos (New Path)
+    match /partner_logos/{partnerId}/{fileName} {
       allow read: if true;
       allow write: if request.auth != null && (
-        isAdmin(request.auth.uid) || 
-        isAuthorizedPartnerUser(request.auth.uid, partnerId)
-      );
+        request.auth.token.role == 'super_admin' || 
+        isPartnerOwner(request.auth.uid, partnerId)
+      ) && isValidImage();
+    }
+    
+    // 2. Partners Logo (Requested Path)
+    match /partners/{partnerId}/logo/{fileName} {
+      allow read: if true;
+      allow write: if request.auth != null 
+                   && request.resource.contentType.matches('image/.*') 
+                   && request.resource.size < 5 * 1024 * 1024
+                   && (isAdmin(request.auth) || isAuthorizedPartnerUser(request.auth.uid, partnerId));
+    }
+
+    match /sponsors/temp/{fileName} {
+      allow read: if true;
+      allow write: if request.auth != null && isAdmin(request.auth);
     }
   }
 }
 
-function isAdmin(uid) {
-  // Using the specific database ID from the config
+function isAdmin(auth) {
   let user = firestore.get(
-    /databases/ai-studio-8d3a18ac-9f60-480e-8200-f9f5e01c389a/documents/users/$(uid)
+    /databases/ai-studio-8d3a18ac-9f60-480e-8200-f9f5e01c389a/documents/users/$(auth.uid)
   ).data;
   
   return user.role in ['admin', 'super_admin'] || 
-         (request.auth.token.email == "vannymwamba@gmail.com" && request.auth.token.email_verified == true);
+         (auth.token.email == "vannymwamba@gmail.com" && auth.token.email_verified == true);
+}
+
+function isPartnerOwner(uid, partnerId) {
+  let partner = firestore.get(
+    /databases/ai-studio-8d3a18ac-9f60-480e-8200-f9f5e01c389a/documents/partners/$(partnerId)
+  ).data;
+  
+  return partner.associated_owner_uid == uid;
 }
 
 function isAuthorizedPartnerUser(uid, partnerId) {
@@ -35,6 +50,10 @@ function isAuthorizedPartnerUser(uid, partnerId) {
     /databases/ai-studio-8d3a18ac-9f60-480e-8200-f9f5e01c389a/documents/users/$(uid)
   ).data;
 
-  return user.partner_id == partnerId && 
-         user.role in ['partner_admin', 'partner_content_editor', 'partner'];
+  return user.partnerId == partnerId || user.partner_id == partnerId;
+}
+
+function isValidImage() {
+  return request.resource.size < 5 * 1024 * 1024 &&
+         request.resource.contentType.matches('image/.*');
 }

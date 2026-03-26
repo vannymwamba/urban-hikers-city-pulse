@@ -6,11 +6,12 @@ import { Upload, X, ImageIcon, AlertCircle, RefreshCw, RotateCcw } from 'lucide-
 
 interface LogoUploadProps {
   partnerId: string;
+  partnerEmail?: string;
   currentLogoUrl?: string;
   onLogoUploaded: (downloadURL: string) => void;
 }
 
-export const LogoUpload: React.FC<LogoUploadProps> = ({ partnerId, currentLogoUrl, onLogoUploaded }) => {
+export const LogoUpload: React.FC<LogoUploadProps> = ({ partnerId, partnerEmail, currentLogoUrl, onLogoUploaded }) => {
   const [status, setStatus] = useState<'idle' | 'compressing' | 'uploading' | 'success' | 'error'>('idle');
   const [progress, setProgress] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -45,19 +46,19 @@ export const LogoUpload: React.FC<LogoUploadProps> = ({ partnerId, currentLogoUr
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    startUpload(file);
+    handleLogoUpload(file, partnerId);
   };
 
-  const startUpload = async (file: File) => {
+  const handleLogoUpload = async (file: File, partnerId: string) => {
     // Validation
     const allowedTypes = ['image/png', 'image/jpeg', 'image/svg+xml', 'image/webp'];
     if (!allowedTypes.includes(file.type)) {
-      setError('INVALID_FILE_TYPE: PNG, JPG, SVG, or WEBP only.');
+      setError('[ UPLOAD_FAILED: Check permissions or file limit ]');
       return;
     }
 
-    if (file.size > 5 * 1024 * 1024) { // Max 5MB before compression
-      setError('FILE_TOO_LARGE: Max 5MB.');
+    if (file.size > 5 * 1024 * 1024) { // Max 5MB
+      setError('[ UPLOAD_FAILED: Check permissions or file limit ]');
       return;
     }
 
@@ -81,11 +82,9 @@ export const LogoUpload: React.FC<LogoUploadProps> = ({ partnerId, currentLogoUr
       const uploadData = await compressImage(file);
       
       setStatus('uploading');
-      // 2. Prepare storage path
-      const extension = file.type === 'image/svg+xml' ? 'svg' : 'webp';
-      const storagePath = partnerId === 'temp' 
-        ? `sponsors/temp/logo_${Date.now()}.${extension}`
-        : `partners/${partnerId}/logo/logo_${Date.now()}.${extension}`;
+      // 2. Prepare storage path using email if available, otherwise ID
+      const sanitizedEmail = partnerEmail ? partnerEmail.toLowerCase().replace(/[^a-z0-9]/g, '_') : partnerId;
+      const storagePath = `partners/${sanitizedEmail}/logo/${file.name}`;
       const storageRef = ref(storage, storagePath);
       
       // 3. Start upload with metadata
@@ -108,12 +107,10 @@ export const LogoUpload: React.FC<LogoUploadProps> = ({ partnerId, currentLogoUr
           }
           console.error('Upload error:', err);
           
-          if (err.code === 'storage/retry-limit-exceeded') {
-            setError('UPLOAD_TIMEOUT: CORS configuration might be missing or network is slow.');
-          } else if (err.code === 'storage/unauthorized') {
-            setError('PERMISSION_DENIED: Check Storage rules.');
+          if (err.code === 'storage/unauthorized') {
+            setError('[ UPLOAD_FAILED: Check permissions or file limit ]');
           } else {
-            setError(`UPLOAD_FAILED: ${err.message}`);
+            setError(`[ UPLOAD_FAILED: ${err.message} ]`);
           }
           
           setProgress(null);
@@ -130,7 +127,9 @@ export const LogoUpload: React.FC<LogoUploadProps> = ({ partnerId, currentLogoUr
               try {
                 await updateDoc(doc(db, 'partners', partnerId), {
                   logo_url: downloadURL,
-                  logo_updated_at: serverTimestamp()
+                  logoUrl: downloadURL,
+                  logo_updated_at: serverTimestamp(),
+                  logoUpdatedAt: new Date().toISOString()
                 });
               } catch (fsErr) {
                 console.error('Firestore write-back failed:', fsErr);
@@ -178,7 +177,7 @@ export const LogoUpload: React.FC<LogoUploadProps> = ({ partnerId, currentLogoUr
   const handleRetry = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (lastFile) {
-      startUpload(lastFile);
+      handleLogoUpload(lastFile, partnerId);
     } else {
       fileInputRef.current?.click();
     }

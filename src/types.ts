@@ -52,20 +52,21 @@ export interface Partner {
   latitude: number;
   longitude: number;
   ownerUid?: string;
-  ownerEmail?: string;
-  logoUrl?: string;
-  logoUpdatedAt?: string | any;
-  brandColor?: string;
-  dealText?: string;
-  sponsorZones?: string[];
-  role?: UserRole;
-  // Backward compatibility
+  associated_owner_uid?: string;
   owner_email?: string;
   logo_url?: string;
   logo_updated_at?: string | any;
   brand_color?: string;
   deal_text?: string;
   sponsor_zones?: string[];
+  role?: UserRole;
+  // Backward compatibility
+  ownerEmail?: string;
+  logoUrl?: string;
+  logoUpdatedAt?: string | any;
+  brandColor?: string;
+  dealText?: string;
+  sponsorZones?: string[];
 }
 
 export interface SponsorBadgeProps {

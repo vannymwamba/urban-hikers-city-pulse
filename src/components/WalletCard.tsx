@@ -1,5 +1,6 @@
 import React from 'react';
 import { Node } from '../types';
+import { BASE_URL } from '../constants';
 
 interface WalletCardProps {
   sector: Node;
@@ -12,7 +13,7 @@ interface WalletCardProps {
  */
 export const WalletCard: React.FC<WalletCardProps> = ({ sector, vibe = 'UNKNOWN' }) => {
   const { name, id: slug, address } = sector;
-  const tapUrl = `${window.location.origin}/tap/${slug}`;
+  const tapUrl = `${BASE_URL}/tap/${slug}`;
 
   // Color Palette
   const colors = {

@@ -96,11 +96,21 @@ export const onUserSignup = beforeUserCreated(async event => {
   } else {
     // Check if user is a partner owner
     const partnerSnap = await db.collection('partners')
-      .where('ownerEmail', '==', email).limit(1).get()
+      .where('owner_email', '==', email).limit(1).get()
     
-    if (!partnerSnap.empty) {
+    let partnerDoc = partnerSnap.empty ? null : partnerSnap.docs[0]
+    
+    if (!partnerDoc) {
+      const partnerSnapLegacy = await db.collection('partners')
+        .where('ownerEmail', '==', email).limit(1).get()
+      if (!partnerSnapLegacy.empty) {
+        partnerDoc = partnerSnapLegacy.docs[0]
+      }
+    }
+    
+    if (partnerDoc) {
       role = 'partner_admin'
-      partnerId = partnerSnap.docs[0].id
+      partnerId = partnerDoc.id
     }
   }
 
@@ -208,7 +218,7 @@ export const ingestCHPLEvents = onSchedule({
     try {
       response = await fetch(API_URL, {
         headers: {
-          'User-Agent': 'UrbanHikers/1.0 (https://ais-dev-atv2qbzhhwmlxoimxismo4-19077719913.us-east1.run.app)',
+          'User-Agent': 'UrbanHikers/1.0 (https://www.urbanhikers.org)',
           'Accept': 'application/json'
         }
       });
@@ -331,7 +341,7 @@ export const triggerCHPLIngest = onCall({ enforceAppCheck: false }, async (req) 
     try {
       response = await fetch(API_URL, {
         headers: {
-          'User-Agent': 'UrbanHikers/1.0 (https://ais-dev-atv2qbzhhwmlxoimxismo4-19077719913.us-east1.run.app)',
+          'User-Agent': 'UrbanHikers/1.0 (https://www.urbanhikers.org)',
           'Accept': 'application/json'
         }
       });
