@@ -16,7 +16,7 @@
 // Fields:
 //   - id: string (required)
 //   - title: string (required)
-//   - type: string (required, enum: flash_deal, event, conference_panel, civic_event)
+//   - type: string (required, enum: flash_deal, event, conference_panel, civic_event, live_performance)
 //   - latitude: number (required)
 //   - longitude: number (required)
 //   - expires_at: timestamp (required)
@@ -24,6 +24,7 @@
 //   - partner_id: string (optional)
 //   - node_id: string (optional)
 //   - active: boolean (optional)
+//   - tip_url: string (optional)
 //
 // Collection: taps
 // Fields:
@@ -62,8 +63,21 @@
 // Fields:
 //   - id: string (required)
 //   - session_uuid: string (required)
-//   - tab: string (required, enum: feed, wallet, map, routes)
+//   - tab: string (required, enum: home, feed, explore, wallet, profile, map, routes)
 //   - timestamp: string (required, ISO 8601)
+//
+// Collection: pois
+// Fields:
+//   - name: string (required)
+//   - artist: string (required)
+//   - address: string (required)
+//   - latitude: number (required)
+//   - longitude: number (required)
+//   - description: string (optional)
+//   - imageUrl: string (required)
+//   - type: string (required, enum: civic_mural)
+//   - createdAt: string (required)
+//   - active: boolean (required)
 //
 // ===============================================================
 
@@ -104,7 +118,7 @@ service cloud.firestore {
     }
 
     function isValidBroadcastType(type) {
-      return type in ['flash_deal', 'event', 'conference_panel', 'civic_event'];
+      return type in ['flash_deal', 'event', 'conference_panel', 'civic_event', 'civic_free'];
     }
 
     function isPartner() {
@@ -129,9 +143,9 @@ service cloud.firestore {
 
     function isValidBroadcast(data) {
       return data.title is string && data.title.size() < 100 &&
-             data.type in ['flash_deal', 'event', 'conference_panel', 'civic_event'] &&
-             data.latitude is number && data.latitude >= -90 && data.latitude <= 90 &&
-             data.longitude is number && data.longitude >= -180 && data.longitude <= 180 &&
+             data.type in ['flash_deal', 'event', 'conference_panel', 'civic_event', 'civic_free', 'live_performance', 'guided_walk'] &&
+             (data.latitude is number || data.latitude is string) &&
+             (data.longitude is number || data.longitude is string) &&
              ( ('expiresAt' in data && (data.expiresAt is string || data.expiresAt is timestamp)) || 
                ('expires_at' in data && (data.expires_at is string || data.expires_at is timestamp)) ) &&
              ( ('currentVibe' in data && data.currentVibe in ['chill', 'buzzing', 'packed']) || 
@@ -139,15 +153,20 @@ service cloud.firestore {
              ( ('partnerId' in data && data.partnerId is string) || 
                ('partner_id' in data && data.partner_id is string) || 
                (!('partnerId' in data) && !('partner_id' in data)) ) &&
+             ( !('tip_url' in data) || data.tip_url == null || (data.tip_url is string && isValidUrl(data.tip_url)) ) &&
              ( ('active' in data && data.active is bool) || !('active' in data) );
     }
 
     function isValidPartner(data) {
       return data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
-             data.tier in ['standard', 'premium', 'anchor'] &&
-             data.latitude is number && data.latitude >= -90 && data.latitude <= 90 &&
-             data.longitude is number && data.longitude >= -180 && data.longitude <= 180 &&
-             ( ('owner_email' in data && isValidEmail(data.owner_email)) || ('ownerEmail' in data && isValidEmail(data.ownerEmail)) ) &&
+             data.tier.lower() in ['standard', 'premium', 'anchor'] &&
+             (data.latitude is number || data.latitude is string) &&
+             (data.longitude is number || data.longitude is string) &&
+             ( 
+               ('owner_email' in data && isValidEmail(data.owner_email)) || 
+               ('ownerEmail' in data && isValidEmail(data.ownerEmail)) ||
+               ('associate_owner_email' in data && isValidEmail(data.associate_owner_email))
+             ) &&
              ( !('logoUrl' in data) || data.logoUrl == null || (data.logoUrl is string && isValidUrl(data.logoUrl)) ) &&
              ( !('logo_url' in data) || data.logo_url == null || (data.logo_url is string && isValidUrl(data.logo_url)) ) &&
              ( !('brandColor' in data) || data.brandColor == null || (data.brandColor is string && data.brandColor.matches("^#[0-9a-fA-F]{6}$")) ) &&
@@ -174,7 +193,8 @@ service cloud.firestore {
              data.session_uuid is string &&
              data.timestamp is string &&
              (data.access_vector in ['nfc', 'direct', 'qr'] || !('access_vector' in data)) &&
-             (data.tab in ['feed', 'wallet', 'map', 'routes'] || !('tab' in data));
+             (data.tab in ['home', 'feed', 'explore', 'wallet', 'profile', 'map', 'routes'] || !('tab' in data)) &&
+             (data.sponsor_id is string || data.sponsor_id == null || !('sponsor_id' in data));
     }
 
     function isValidVibeReport(data) {
@@ -182,14 +202,42 @@ service cloud.firestore {
              data.broadcast_id is string &&
              data.session_uuid is string &&
              data.vibe in ['chill', 'buzzing', 'packed'] &&
-             data.reported_at is string;
+             data.reported_at is string &&
+             (data.access_vector in ['nfc', 'direct', 'qr'] || !('access_vector' in data)) &&
+             (data.sponsor_id is string || data.sponsor_id == null || !('sponsor_id' in data));
     }
 
     function isValidTabView(data) {
       return data.keys().hasAll(['session_uuid', 'tab', 'timestamp']) &&
              data.session_uuid is string &&
-             data.tab in ['feed', 'wallet', 'map', 'routes'] &&
-             data.timestamp is string;
+             data.tab in ['home', 'feed', 'explore', 'wallet', 'profile', 'map', 'routes'] &&
+             data.timestamp is string &&
+             (data.access_vector in ['nfc', 'direct', 'qr'] || !('access_vector' in data)) &&
+             (data.sponsor_id is string || data.sponsor_id == null || !('sponsor_id' in data));
+    }
+
+    function isValidPoi(data) {
+      return data.keys().hasAll(['name', 'artist', 'address', 'latitude', 'longitude', 'imageUrl', 'type', 'createdAt', 'active']) &&
+             data.name is string && data.name.size() > 0 &&
+             data.artist is string && data.artist.size() > 0 &&
+             data.address is string && data.address.size() > 0 &&
+             (data.latitude is number || data.latitude is string) &&
+             (data.longitude is number || data.longitude is string) &&
+             data.imageUrl is string && isValidUrl(data.imageUrl) &&
+             data.type == 'civic_mural' &&
+             data.createdAt is string &&
+             data.active is bool;
+    }
+
+    function isValidInteraction(data) {
+      return data.keys().hasAll(['type', 'session_uuid', 'access_vector', 'timestamp']) &&
+             data.type in ['wallet_save', 'share', 'vibe_report', 'login', 'seed'] &&
+             data.session_uuid is string &&
+             data.access_vector in ['nfc', 'direct', 'qr'] &&
+             data.timestamp is string &&
+             (data.node_id is string || !('node_id' in data)) &&
+             (data.sponsor_id is string || data.sponsor_id == null || !('sponsor_id' in data)) &&
+             (data.tab in ['home', 'feed', 'explore', 'wallet', 'profile', 'map', 'routes'] || !('tab' in data));
     }
 
     function isValidGuide(data) {
@@ -219,7 +267,7 @@ service cloud.firestore {
     
     match /nodes/{nodeId} {
       allow read: if true;
-      allow write: if isAdmin();
+      allow write: if request.auth != null && request.auth.token.admin == true;
     }
 
     match /broadcasts/{broadcastId} {
@@ -234,19 +282,32 @@ service cloud.firestore {
 
     match /taps/{tapId} {
       allow create: if isValidTap(request.resource.data);
-      allow read: if isAdmin() || isPartner();
+      allow read: if isAdmin() || (isPartner() && resource.data.sponsor_id == getPartnerId());
       allow delete: if isAdmin();
     }
 
     match /vibe_reports/{reportId} {
       allow create: if isValidVibeReport(request.resource.data);
-      allow read: if true; // Allowed for client-side aggregation
+      allow read: if isAdmin() || (isPartner() && resource.data.sponsor_id == getPartnerId()) || true; // Keep true for client-side aggregation if needed, but scoped is better
       allow delete: if isAdmin();
     }
 
     match /tab_views/{viewId} {
       allow create: if isValidTabView(request.resource.data);
-      allow read: if isAdmin();
+      allow read: if isAdmin() || (isPartner() && resource.data.sponsor_id == getPartnerId());
+      allow delete: if isAdmin();
+    }
+
+    match /pois/{poiId} {
+      allow read: if true;
+      allow create: if isAdmin() && isValidPoi(request.resource.data);
+      allow update: if isAdmin() && isValidPoi(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    match /interactions/{interactionId} {
+      allow create: if isValidInteraction(request.resource.data);
+      allow read: if isAdmin() || (isPartner() && resource.data.sponsor_id == getPartnerId());
       allow delete: if isAdmin();
     }
 

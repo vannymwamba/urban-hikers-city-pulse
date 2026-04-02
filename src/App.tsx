@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { auth, db } from './firebase';
 import { signInWithPopup, GoogleAuthProvider, onAuthStateChanged, User } from 'firebase/auth';
+import { useLocation } from 'react-router-dom';
 import { collection, onSnapshot, query, where, addDoc, doc, getDoc, setDoc, getDocs, orderBy, getDocFromServer, updateDoc } from 'firebase/firestore';
 import { Node, Broadcast, Vibe, UserProfile, UserRole, Partner } from './types';
 import { BASE_URL } from './constants';
@@ -11,6 +12,8 @@ import { Dashboard } from './components/Dashboard';
 import { LandingPage } from './components/LandingPage';
 import { Login } from './components/Login';
 import { WalletCard } from './components/WalletCard';
+import { CreatorIntakeWindow } from './components/CreatorIntakeWindow';
+import MuralNodeAdmin from './components/MuralNodeAdmin';
 import seedData from './seed';
 import { getDistance } from './utils/geo';
 import { handleFirestoreError, OperationType } from './utils/firebaseErrors';
@@ -85,31 +88,30 @@ export default function App() {
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [currentNode, setCurrentNode] = useState<Node | null>(null);
   const [rawBroadcasts, setRawBroadcasts] = useState<Broadcast[]>([]);
+  const [rawPois, setRawPois] = useState<Broadcast[]>([]);
   const [broadcasts, setBroadcasts] = useState<Broadcast[]>([]);
   const [partnersMap, setPartnersMap] = useState<Record<string, Partner>>({});
   const [selectedBroadcast, setSelectedBroadcast] = useState<Broadcast | null>(null);
   const [selectedBroadcastNode, setSelectedBroadcastNode] = useState<Node | null>(null);
   const [isTappedIn, setIsTappedIn] = useState(true);
+  const [nfcStatus, setNfcStatus] = useState<'idle' | 'scanning' | 'error' | 'unsupported'>('idle');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isReporting, setIsReporting] = useState(false);
   const [isSeeding, setIsSeeding] = useState(false);
   const [hudMessage, setHudMessage] = useState<{ text: string; type: 'error' | 'info' } | null>(null);
-  const [path, setPath] = useState(window.location.pathname);
+  const location = useLocation();
+  const [path, setPath] = useState(location.pathname);
   const [now, setNow] = useState(new Date());
-  const [currentTab, setCurrentTab] = useState<'feed' | 'wallet' | 'map' | 'routes'>(() => {
+  const [currentTab, setCurrentTab] = useState<'home' | 'feed' | 'explore' | 'wallet' | 'profile'>(() => {
     const initial = localStorage.getItem('uh_initial_tab');
     if (initial === 'wallet') {
       localStorage.removeItem('uh_initial_tab');
       return 'wallet';
     }
-    if (initial === 'map') {
+    if (initial === 'explore') {
       localStorage.removeItem('uh_initial_tab');
-      return 'map';
-    }
-    if (initial === 'routes') {
-      localStorage.removeItem('uh_initial_tab');
-      return 'routes';
+      return 'explore';
     }
     return 'feed';
   });
@@ -122,7 +124,7 @@ export default function App() {
     localStorage.setItem('uh_saved_hubs', JSON.stringify(savedHubs));
   }, [savedHubs]);
 
-  const toggleSaveHub = (node: Node) => {
+  const toggleSaveHub = async (node: Node) => {
     setSavedHubs(prev => {
       const isSaved = prev.some(h => h.id === node.id);
       if (isSaved) {
@@ -130,6 +132,25 @@ export default function App() {
         return prev.filter(h => h.id !== node.id);
       } else {
         setHudMessage({ text: "HUB_SECURED_IN_WALLET", type: 'info' });
+        
+        // Track interaction
+        const activeSponsor = broadcasts.find(b => 
+          b.node_id === node.id && 
+          b.partner_id && 
+          b.partner_id !== 'admin' &&
+          new Date(b.expires_at) > new Date()
+        );
+
+        addDoc(collection(db, 'interactions'), {
+          type: 'wallet_save',
+          session_uuid: SESSION_ID,
+          access_vector: ACCESS_VECTOR,
+          timestamp: new Date().toISOString(),
+          node_id: node.id,
+          tab: currentTab,
+          sponsor_id: activeSponsor?.partner_id || null
+        }).catch(err => console.error("Error tracking wallet save:", err));
+
         return [...prev, node];
       }
     });
@@ -192,15 +213,19 @@ export default function App() {
       if (docSnap.exists()) {
         profile = docSnap.data() as UserProfile;
         
-        // If they are currently a 'user' or 'admin', check if they should be linked to a 'partner'
-        if (profile.role === 'user' || profile.role === 'admin') {
-          const partnerQuery = query(collection(db, 'partners'), where('owner_email', '==', user.email?.toLowerCase().trim()));
+        // If they are currently a 'user' or 'admin' without a partner link, check if they should be linked
+        const currentPartnerId = profile.partnerId || profile.partner_id;
+        if (profile.role === 'user' || (profile.role === 'admin' && !currentPartnerId)) {
+          const email = user.email?.toLowerCase().trim();
+          if (!email) return;
+
+          const partnerQuery = query(collection(db, 'partners'), where('owner_email', '==', email));
           let partnerSnap;
           try {
             partnerSnap = await getDocs(partnerQuery);
           } catch (err) {
-            setLoading(false);
-            handleFirestoreError(err, OperationType.LIST, 'partners');
+            console.error("Error querying partners:", err);
+            // Don't call handleFirestoreError here to avoid spamming if quota is already hit
             return;
           }
           
@@ -210,12 +235,18 @@ export default function App() {
             const partnerId = partnerDoc.id;
             
             // Only update if partnerId is missing or role needs upgrading
-            if ((profile.partnerId || profile.partner_id) !== partnerId || (profile.role === 'user' && partnerData.role)) {
-              const updatedProfile: UserProfile = {
-                ...profile,
-                role: profile.role === 'admin' ? 'admin' : (partnerData.role || 'partner'),
+            const needsRoleUpgrade = profile.role === 'user' && partnerData.role && profile.role !== partnerData.role;
+            const needsPartnerLink = currentPartnerId !== partnerId;
+
+            if (needsPartnerLink || needsRoleUpgrade) {
+              const updates: any = {
                 partnerId: partnerId
               };
+              if (needsRoleUpgrade) {
+                updates.role = partnerData.role;
+              } else if (profile.role === 'user') {
+                updates.role = 'partner';
+              }
               
               // Ensure partner has associated_owner_uid for storage rules
               if (partnerData.associated_owner_uid !== user.uid) {
@@ -228,12 +259,10 @@ export default function App() {
                 }
               }
 
-              // This will trigger the snapshot listener again
               try {
-                await setDoc(profileRef, updatedProfile);
+                await updateDoc(profileRef, updates);
               } catch (err) {
-                setLoading(false);
-                handleFirestoreError(err, OperationType.WRITE, `users/${user.uid}`);
+                console.error("Error updating user profile:", err);
               }
               return;
             }
@@ -241,13 +270,15 @@ export default function App() {
         }
       } else {
         // Profile doesn't exist yet, check if they are a partner first
-        const partnerQuery = query(collection(db, 'partners'), where('owner_email', '==', user.email?.toLowerCase().trim()));
+        const email = user.email?.toLowerCase().trim();
+        if (!email) return;
+
+        const partnerQuery = query(collection(db, 'partners'), where('owner_email', '==', email));
         let partnerSnap;
         try {
           partnerSnap = await getDocs(partnerQuery);
         } catch (err) {
-          setLoading(false);
-          handleFirestoreError(err, OperationType.LIST, 'partners');
+          console.error("Error querying partners for new profile:", err);
           return;
         }
         
@@ -256,7 +287,6 @@ export default function App() {
           const partnerData = partnerDoc.data() as Partner;
           const partnerId = partnerDoc.id;
           
-          // Ensure partner has associated_owner_uid for storage rules
           if (partnerData.associated_owner_uid !== user.uid) {
             try {
               await updateDoc(doc(db, 'partners', partnerId), {
@@ -280,12 +310,10 @@ export default function App() {
             role: user.email === 'vannymwamba@gmail.com' ? 'super_admin' : 'user'
           };
         }
-        // Create the profile
         try {
           await setDoc(profileRef, profile);
         } catch (err) {
-          setLoading(false);
-          handleFirestoreError(err, OperationType.WRITE, `users/${user.uid}`);
+          console.error("Error creating user profile:", err);
         }
       }
 
@@ -316,7 +344,7 @@ export default function App() {
     return () => unsub();
   }, []);
 
-  const handleLogin = () => {
+  const handleLogin = (isPartner = false) => {
     // Save the current path to redirect back after login
     if (nodeId) {
       sessionStorage.setItem('uh_login_redirect', `/tap/${nodeId}`);
@@ -325,7 +353,31 @@ export default function App() {
     } else {
       sessionStorage.removeItem('uh_login_redirect');
     }
+
+    if (isPartner) {
+      sessionStorage.setItem('uh_login_partner_mode', 'true');
+    } else {
+      sessionStorage.removeItem('uh_login_partner_mode');
+    }
+
     window.history.pushState({}, '', '/login');
+    window.dispatchEvent(new PopStateEvent('popstate'));
+  };
+
+  const handleTapIntoPulse = () => {
+    // 1. Direct to hub (defaulting to Alpha Plaza)
+    const defaultHub = 'otr-alpha-01';
+    sessionStorage.setItem('uh_login_redirect', `/tap/${defaultHub}`);
+    
+    // 2. Direct to login with partner mode
+    sessionStorage.setItem('uh_login_partner_mode', 'true');
+    
+    window.history.pushState({}, '', '/login');
+    window.dispatchEvent(new PopStateEvent('popstate'));
+  };
+
+  const handleCreatorIgnite = () => {
+    window.history.pushState({}, '', '/creator/ignite');
     window.dispatchEvent(new PopStateEvent('popstate'));
   };
 
@@ -361,9 +413,25 @@ export default function App() {
   const pathParts = path.split('/').filter(Boolean);
   const isDashboard = pathParts.includes('dashboard');
   const isLogin = pathParts.includes('login');
+  const isMuralAdmin = pathParts.includes('admin') && pathParts.includes('mural');
   const tapIndex = pathParts.indexOf('tap');
-  const nodeId = tapIndex !== -1 && pathParts[tapIndex + 1] ? pathParts[tapIndex + 1].toUpperCase() : null;
+  const creatorIndex = pathParts.indexOf('creator');
+  const isCreatorIgnite = creatorIndex !== -1 && pathParts[creatorIndex + 1] === 'ignite';
+  const nodeId = tapIndex !== -1 && pathParts[tapIndex + 1] ? pathParts[tapIndex + 1].toUpperCase() : 
+                 (isCreatorIgnite && pathParts[creatorIndex + 2] ? pathParts[creatorIndex + 2].toUpperCase() : null);
   const isHome = path === '/' || path === '';
+
+  useEffect(() => {
+    setPath(location.pathname);
+  }, [location]);
+
+  useEffect(() => {
+    const handlePopState = () => {
+      setPath(window.location.pathname);
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
 
   useEffect(() => {
     console.log("PATH_STATE_CHANGED:", path, "NODE_ID:", nodeId, "IS_HOME:", isHome, "IS_DASHBOARD:", isDashboard);
@@ -377,66 +445,130 @@ export default function App() {
     console.log("PARTNERS_MAP_UPDATED:", Object.keys(partnersMap).length, "PARTNERS");
   }, [partnersMap]);
 
-  useEffect(() => {
-    if (!currentNode || !nodeId || isDashboard || isHome) return;
+  const recordTap = useCallback(async (vectorOverride?: 'nfc' | 'qr' | 'direct') => {
+    if (!currentNode || !nodeId) return;
+    
+    try {
+      const vector = vectorOverride || ACCESS_VECTOR;
+      const tapKey = `uh_tapped_${nodeId}_${SESSION_ID}_${vector}`;
+      const hasTapped = sessionStorage.getItem(tapKey);
+      
+      if (!hasTapped) {
+        const activeSponsor = broadcasts.find(b => 
+          b.node_id === nodeId && 
+          b.partner_id && 
+          b.partner_id !== 'admin' &&
+          new Date(b.expires_at) > new Date()
+        );
 
-    const recordTap = async () => {
-      try {
-        // We use a session-based approach to avoid double-counting 
-        // rapid refreshes, but still track unique visits.
-        const tapKey = `uh_tapped_${nodeId}_${SESSION_ID}`;
-        const hasTapped = sessionStorage.getItem(tapKey);
-        
-        if (!hasTapped) {
-          // Find if there's an active sponsored broadcast at this node
-          const activeSponsor = broadcasts.find(b => 
-            b.node_id === nodeId && 
-            b.partner_id && 
-            b.partner_id !== 'admin' &&
-            new Date(b.expires_at) > new Date()
-          );
-
-          try {
-            await addDoc(collection(db, 'taps'), {
-              node_id: nodeId,
-              session_uuid: SESSION_ID,
-              access_vector: ACCESS_VECTOR,
-              timestamp: new Date().toISOString(),
-              tab: currentTab,
-              sponsor_id: activeSponsor?.partner_id || null
-            });
-          } catch (err) {
-            handleFirestoreError(err, OperationType.CREATE, 'taps');
-          }
-          sessionStorage.setItem(tapKey, 'true');
-          console.log(`TAP_RECORDED: ${nodeId} via ${ACCESS_VECTOR}`);
+        if (activeSponsor) {
+          sessionStorage.setItem(`uh_sponsor_${SESSION_ID}`, activeSponsor.partner_id || activeSponsor.partnerId || '');
         }
-      } catch (err) {
-        console.error("Error recording tap:", err);
+
+        console.log(`RECORDING_TAP: NODE=${nodeId} VECTOR=${vector} SPONSOR=${activeSponsor?.partner_id || 'NONE'}`);
+
+        try {
+          await addDoc(collection(db, 'taps'), {
+            node_id: nodeId,
+            session_uuid: SESSION_ID,
+            access_vector: vector,
+            timestamp: new Date().toISOString(),
+            tab: currentTab,
+            sponsor_id: activeSponsor?.partner_id || null
+          });
+          sessionStorage.setItem(tapKey, 'true');
+        } catch (err) {
+          console.error("Error adding tap doc:", err);
+          // handleFirestoreError(err, OperationType.CREATE, 'taps');
+        }
+      }
+    } catch (err) {
+      console.error("Error recording tap:", err);
+    }
+  }, [currentNode, nodeId, broadcasts, currentTab]);
+
+  // NFC Support
+  useEffect(() => {
+    if (!('NDEFReader' in window)) {
+      setNfcStatus('unsupported');
+      return;
+    }
+
+    if (isDashboard || isHome || isLogin) return;
+
+    let ndef: any = null;
+    const startNFC = async () => {
+      try {
+        ndef = new (window as any).NDEFReader();
+        await ndef.scan();
+        setNfcStatus('scanning');
+        console.log("NFC_SCAN_STARTED");
+        
+        ndef.onreading = (event: any) => {
+          console.log("NFC_TAG_DETECTED", event);
+          setIsTappedIn(true);
+          recordTap('nfc');
+          setHudMessage({ text: "NFC_TAP_SUCCESSFUL", type: 'info' });
+        };
+
+        ndef.onreadingerror = () => {
+          console.error("NFC_READ_ERROR: CANNOT_READ_TAG");
+          setHudMessage({ text: "NFC_READ_ERROR", type: 'error' });
+        };
+      } catch (error) {
+        console.error("NFC_ERROR: SCAN_FAILED", error);
+        setNfcStatus('error');
       }
     };
 
-    recordTap();
-  }, [currentNode, nodeId, isDashboard, broadcasts, currentTab]);
+    // NFC scan() requires a user gesture. 
+    // We'll attempt to start it on the first click on the page.
+    const handleFirstInteraction = () => {
+      if (nfcStatus === 'idle') {
+        startNFC();
+      }
+      window.removeEventListener('click', handleFirstInteraction);
+    };
+
+    window.addEventListener('click', handleFirstInteraction);
+
+    return () => {
+      window.removeEventListener('click', handleFirstInteraction);
+      if (ndef) ndef.onreading = null;
+    };
+  }, [isDashboard, isHome, isLogin, nfcStatus, recordTap]);
 
   useEffect(() => {
-    if (isDashboard || isHome || isLogin) return;
+    if (!currentNode || !nodeId || isDashboard || isHome) return;
+    recordTap();
+  }, [currentNode, nodeId, isDashboard, isHome, recordTap]);
+
+  useEffect(() => {
+    if (isDashboard || isLogin) return;
 
     const recordTabView = async () => {
       try {
-        await addDoc(collection(db, 'tab_views'), {
-          session_uuid: SESSION_ID,
-          tab: currentTab,
-          timestamp: new Date().toISOString()
-        });
-        console.log(`TAB_VIEW_RECORDED: ${currentTab}`);
+        const viewKey = `uh_viewed_${currentTab}_${SESSION_ID}_${ACCESS_VECTOR}`;
+        const hasViewed = sessionStorage.getItem(viewKey);
+        
+        if (!hasViewed) {
+          await addDoc(collection(db, 'tab_views'), {
+            session_uuid: SESSION_ID,
+            tab: currentTab,
+            access_vector: ACCESS_VECTOR,
+            timestamp: new Date().toISOString(),
+            sponsor_id: sessionStorage.getItem(`uh_sponsor_${SESSION_ID}`) || null
+          });
+          sessionStorage.setItem(viewKey, 'true');
+          console.log(`TAB_VIEW_RECORDED: ${currentTab} VECTOR: ${ACCESS_VECTOR}`);
+        }
       } catch (err) {
-        handleFirestoreError(err, OperationType.CREATE, 'tab_views');
+        console.error("Error recording tab view:", err);
       }
     };
 
     recordTabView();
-  }, [currentTab, isDashboard, isHome]);
+  }, [currentTab, isDashboard, isLogin]);
 
   useEffect(() => {
     if (isDashboard || isHome) {
@@ -483,13 +615,20 @@ export default function App() {
 
   // Connection Test - Run once on mount
   useEffect(() => {
-    const testConnection = async () => {
+    const testConnection = async (retries = 3) => {
       try {
+        console.log(`FIREBASE_CONNECTION_TEST: ATTEMPTING (REMAINING_RETRIES: ${retries})...`);
+        // Use getDocFromServer to bypass local cache and force a network request
         await getDocFromServer(doc(db, 'nodes', 'connection-test'));
         console.log("FIREBASE_CONNECTION_TEST: SUCCESS");
-      } catch (err) {
-        if (err instanceof Error && err.message.includes('offline')) {
-          console.error("FIREBASE_OFFLINE: CHECK_CONFIG");
+      } catch (err: any) {
+        console.error("FIREBASE_CONNECTION_TEST: ERROR", err);
+        if (retries > 0) {
+          console.log("FIREBASE_CONNECTION_TEST: RETRYING_IN_2S...");
+          setTimeout(() => testConnection(retries - 1), 2000);
+        } else if (err.message?.includes('offline') || err.code === 'unavailable') {
+          console.error("FIREBASE_OFFLINE: CHECK_CONFIG_OR_NETWORK");
+          setHudMessage({ text: "FIREBASE_OFFLINE: CHECK_CONFIG", type: 'error' });
         }
       }
     };
@@ -507,7 +646,8 @@ export default function App() {
     // Real-time subscription to broadcasts
     // We use a stable query (broadcasts expiring after the app started)
     // and filter client-side to save quota.
-    const sessionStartTime = new Date().toISOString();
+    const sessionStartTime = new Date(Date.now() - 3600000).toISOString(); // 1 hour ago for leniency
+    console.log(`FETCHING_BROADCASTS_AFTER: ${sessionStartTime} FOR_NODE: ${currentNode.id}`);
     
     const q = query(
       collection(db, 'broadcasts'),
@@ -522,8 +662,6 @@ export default function App() {
         ...doc.data()
       })) as Broadcast[];
       
-      // We'll store the raw data and filter in a separate effect/memo
-      // to avoid re-subscribing when 'now' changes.
       setRawBroadcasts(data);
       setLoading(false);
     }, (err) => {
@@ -535,9 +673,50 @@ export default function App() {
     return () => unsubscribe();
   }, [currentNode]); // Removed 'now' and 'partnersMap' from dependencies
 
+  // Fetch POIs (Murals)
+  useEffect(() => {
+    if (!currentNode) return;
+
+    console.log(`SUBSCRIBING_TO_POIS_FOR_HUB: ${currentNode.id}`);
+    const q = query(
+      collection(db, 'pois'),
+      where('active', '==', true)
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      console.log(`POIS_SNAPSHOT_RECEIVED: ${snapshot.size} DOCS`);
+      const data = snapshot.docs.map(doc => {
+        const poi = doc.data();
+        // Map POI to Broadcast structure
+        return {
+          id: doc.id,
+          title: poi.name,
+          type: 'civic_mural',
+          latitude: poi.latitude,
+          longitude: poi.longitude,
+          description: poi.description,
+          imageUrl: poi.imageUrl,
+          venue: poi.artist, // Use venue field for artist name
+          address: poi.address,
+          expires_at: '2099-12-31T23:59:59Z', // Murals are permanent
+          starts_at: poi.createdAt,
+          current_vibe: 'chill',
+          active: true,
+          partner_id: 'admin' // Mark as admin/civic content
+        } as Broadcast;
+      });
+      setRawPois(data);
+    }, (err) => {
+      console.error("POIS_SNAPSHOT_ERROR:", err);
+      handleFirestoreError(err, OperationType.LIST, 'pois');
+    });
+
+    return () => unsubscribe();
+  }, [currentNode]);
+
   // Client-side filtering and sorting
   useEffect(() => {
-    if (!rawBroadcasts.length || !currentNode) {
+    if ((!rawBroadcasts.length && !rawPois.length) || !currentNode) {
       setBroadcasts([]);
       return;
     }
@@ -545,7 +724,9 @@ export default function App() {
     const twentyFourHoursFromNow = new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString();
     const nowIso = now.toISOString();
 
-    const filtered = rawBroadcasts.filter(b => {
+    const allRaw = [...rawBroadcasts, ...rawPois];
+
+    const filtered = allRaw.filter(b => {
       const radiusLimit = currentNode.radius_limit || (currentNode as any).radiusLimit || 5000;
       
       const distance = getDistance(
@@ -561,9 +742,14 @@ export default function App() {
       const isWithinWindow = !startsAt || startsAt <= twentyFourHoursFromNow;
       const isNotExpired = expiresAt > nowIso;
 
-      return distance <= radiusLimit && isWithinWindow && isNotExpired;
+      const passed = distance <= radiusLimit && isWithinWindow && isNotExpired;
+      if (!passed) {
+        // console.log(`BROADCAST_FILTERED: ${b.title} | dist: ${distance.toFixed(0)}m | limit: ${radiusLimit}m | window: ${isWithinWindow} | expired: ${!isNotExpired}`);
+      }
+      return passed;
     });
 
+    console.log(`FILTERED_BROADCASTS: ${filtered.length} FROM_RAW: ${rawBroadcasts.length}`);
     const sortedBroadcasts = [...filtered].sort((a, b) => {
       const partnerA = partnersMap[a.partner_id || a.partnerId || ''];
       const partnerB = partnersMap[b.partner_id || b.partnerId || ''];
@@ -594,7 +780,8 @@ export default function App() {
           session_uuid: SESSION_ID,
           vibe,
           reported_at: new Date().toISOString(),
-          access_vector: ACCESS_VECTOR
+          access_vector: ACCESS_VECTOR,
+          sponsor_id: selectedBroadcast.partner_id || selectedBroadcast.partnerId || null
         });
       } catch (err) {
         handleFirestoreError(err, OperationType.CREATE, 'vibe_reports');
@@ -661,6 +848,24 @@ export default function App() {
   };
 
   const handleShare = async (title: string, text: string, url: string) => {
+    // Track interaction
+    const activeSponsor = broadcasts.find(b => 
+      b.node_id === nodeId && 
+      b.partner_id && 
+      b.partner_id !== 'admin' &&
+      new Date(b.expires_at) > new Date()
+    );
+
+    addDoc(collection(db, 'interactions'), {
+      type: 'share',
+      session_uuid: SESSION_ID,
+      access_vector: ACCESS_VECTOR,
+      timestamp: new Date().toISOString(),
+      tab: currentTab,
+      node_id: nodeId || null,
+      sponsor_id: activeSponsor?.partner_id || null
+    }).catch(err => console.error("Error tracking share:", err));
+
     if (navigator.share) {
       try {
         await navigator.share({ title, text, url });
@@ -677,8 +882,16 @@ export default function App() {
     if (!userProfile) return;
     const isPartnerRole = ['partner', 'partner_admin', 'partner_viewer', 'partner_content_editor'].includes(userProfile.role);
     const isSystemAdmin = userProfile.role === 'admin' || userProfile.role === 'super_admin' || userProfile.email === 'vannymwamba@gmail.com';
+    
     if ((isHome || isLogin) && (isSystemAdmin || isPartnerRole)) {
-      window.history.pushState({}, '', '/dashboard');
+      const redirect = sessionStorage.getItem('uh_login_redirect');
+      if (redirect) {
+        sessionStorage.removeItem('uh_login_redirect');
+        sessionStorage.removeItem('uh_login_partner_mode');
+        window.history.pushState({}, '', redirect);
+      } else {
+        window.history.pushState({}, '', '/dashboard');
+      }
       window.dispatchEvent(new PopStateEvent('popstate'));
     }
   }, [isHome, isLogin, userProfile]);
@@ -750,6 +963,7 @@ export default function App() {
           
           const redirect = sessionStorage.getItem('uh_login_redirect');
           sessionStorage.removeItem('uh_login_redirect');
+          sessionStorage.removeItem('uh_login_partner_mode');
           
           const isPartnerRole = ['partner', 'partner_admin', 'partner_viewer', 'partner_content_editor'].includes(profile.role);
           const isSystemAdmin = profile.role === 'admin' || profile.role === 'super_admin' || profile.email === 'vannymwamba@gmail.com';
@@ -775,7 +989,10 @@ export default function App() {
     return (
       <LandingPage 
         onLoginSuccess={setUserProfile} 
-        onLogin={handleLogin}
+        onLogin={() => handleLogin(false)}
+        onPartnerLogin={() => handleLogin(true)}
+        onTapIntoPulse={handleTapIntoPulse}
+        onCreatorIgnite={handleCreatorIgnite}
         userProfile={userProfile}
         onOpenWallet={() => {
           // Redirect to a default hub to show the wallet
@@ -792,7 +1009,10 @@ export default function App() {
       return (
         <LandingPage 
           onLoginSuccess={setUserProfile} 
-          onLogin={handleLogin}
+          onLogin={() => handleLogin(false)}
+          onPartnerLogin={() => handleLogin(true)}
+          onTapIntoPulse={handleTapIntoPulse}
+          onCreatorIgnite={handleCreatorIgnite}
           userProfile={userProfile}
           onOpenWallet={() => {
             window.location.href = '/tap/otr-alpha-01';
@@ -821,6 +1041,22 @@ export default function App() {
     }
 
     return <Dashboard userProfile={userProfile} onLogout={() => auth.signOut()} />;
+  }
+
+  if (isCreatorIgnite) {
+    return (
+      <ErrorBoundary>
+        <CreatorIntakeWindow nodeId={nodeId || undefined} />
+      </ErrorBoundary>
+    );
+  }
+
+  if (isMuralAdmin) {
+    return (
+      <ErrorBoundary>
+        <MuralNodeAdmin />
+      </ErrorBoundary>
+    );
   }
 
   return (
@@ -856,6 +1092,7 @@ export default function App() {
           onTabChange={setCurrentTab}
           savedHubs={savedHubs}
           partnersMap={partnersMap}
+          nfcStatus={nfcStatus}
         />
 
         {/* HUD Notifications */}

@@ -1,6 +1,6 @@
 export type Vibe = 'chill' | 'buzzing' | 'packed';
 export type HubType = 'street' | 'conference_center';
-export type BroadcastType = 'flash_deal' | 'event' | 'conference_panel' | 'civic_free';
+export type BroadcastType = 'flash_deal' | 'event' | 'conference_panel' | 'civic_free' | 'civic_event' | 'live_performance' | 'civic_mural';
 export type UserRole = 'admin' | 'partner' | 'user' | 'partner_admin' | 'partner_viewer' | 'partner_content_editor' | 'super_admin' | 'hiker';
 
 export interface UserProfile {
@@ -29,19 +29,30 @@ export interface Broadcast {
   partnerId?: string; // Alias for camelCase
   node_id?: string;
   nodeId?: string; // Alias for camelCase
+  sectorId?: string | null;
   title: string;
   type: BroadcastType;
+  venue?: string | null;
   address?: string;
-  latitude: number;
-  longitude: number;
-  starts_at: string;
+  latitude?: number;
+  longitude?: number;
+  coords?: { lat: number; lng: number } | null;
+  starts_at?: string;
   startsAt?: string; // Alias for camelCase
-  expires_at: string;
+  startTime?: any;
+  expires_at?: string;
   expiresAt?: string; // Alias for camelCase
-  current_vibe: Vibe;
+  current_vibe?: Vibe;
   currentVibe?: Vibe; // Alias for camelCase
   description?: string;
   sponsorId?: string; // Additional field
+  source?: string;
+  sourceHash?: string;
+  sourceUrl?: string | null;
+  imageUrl?: string | null;
+  ingestedAt?: any;
+  active?: boolean;
+  tip_url?: string | null;
 }
 
 export interface Partner {
@@ -91,15 +102,28 @@ export interface Tap {
   session_uuid: string;
   access_vector: 'nfc' | 'direct' | 'qr';
   timestamp: string;
-  tab?: 'feed' | 'wallet' | 'map';
+  tab?: 'home' | 'feed' | 'explore' | 'wallet' | 'profile';
   sponsor_id?: string | null;
 }
 
 export interface TabView {
   id: string;
   session_uuid: string;
-  tab: 'feed' | 'wallet' | 'map';
+  tab: 'home' | 'feed' | 'explore' | 'wallet' | 'profile';
+  access_vector?: 'nfc' | 'direct' | 'qr';
   timestamp: string;
+  sponsor_id?: string | null;
+}
+
+export interface Interaction {
+  id: string;
+  type: 'wallet_save' | 'share' | 'vibe_report' | 'login' | 'seed';
+  session_uuid: string;
+  access_vector: 'nfc' | 'direct' | 'qr';
+  timestamp: string;
+  node_id?: string;
+  broadcast_id?: string;
+  tab?: string;
 }
 
 export interface Route {
@@ -143,4 +167,18 @@ export interface Sponsor {
   name: string;
   logo_url?: string;
   brand_color?: string;
+}
+
+export interface Poi {
+  id: string;
+  name: string;
+  artist: string;
+  address: string;
+  latitude: number;
+  longitude: number;
+  description: string;
+  imageUrl: string;
+  type: 'civic_mural';
+  createdAt: string;
+  active: boolean;
 }

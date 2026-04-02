@@ -5,13 +5,14 @@ import { fileURLToPath } from "url";
 import cors from "cors";
 import Stripe from "stripe";
 import { createCanvas, loadImage } from "canvas";
-import { initializeApp } from "firebase/app";
-import { getFirestore, collection, getDocs, writeBatch, doc } from "firebase/firestore";
+import admin from "firebase-admin";
+import { getFirestore } from "firebase-admin/firestore";
 import dotenv from "dotenv";
 import fs from "fs";
 import { Client } from "@googlemaps/google-maps-services-js";
 import axios from "axios";
 import cron from "node-cron";
+import { runVisitCincyAgent } from "./agents/visitCincyAgent.ts";
 
 dotenv.config();
 
@@ -44,16 +45,39 @@ async function startServer() {
   // Firebase initialization for server-side stats
   let db: any = null;
   try {
-    const firebaseConfig = {
-      apiKey: "AIzaSyCX-Zg48Ej5o62PvXGa3Eq5PWZKtOi9ETo",
-      authDomain: "gen-lang-client-0404340863.firebaseapp.com",
-      projectId: "gen-lang-client-0404340863",
-      storageBucket: "gen-lang-client-0404340863.firebasestorage.app",
-    };
-    const firebaseApp = initializeApp(firebaseConfig);
-    db = getFirestore(firebaseApp, "ai-studio-8d3a18ac-9f60-480e-8200-f9f5e01c389a");
+    if (!admin.apps.length) {
+      admin.initializeApp();
+    }
+    
+    // Load config to get database ID
+    const configPath = path.join(process.cwd(), 'firebase-applet-config.json');
+    let databaseId = '(default)';
+    if (fs.existsSync(configPath)) {
+      const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+      databaseId = config.firestoreDatabaseId || '(default)';
+    }
+
+    db = getFirestore(databaseId);
+    console.log(`Firebase Admin SDK initialized successfully with DB: ${databaseId}`);
+    
+    // Test connection
+    db.collection("nodes").limit(1).get()
+      .then(() => console.log("Firebase Admin: Connection test SUCCESS"))
+      .catch((err: any) => {
+        console.error("Firebase Admin: Connection test FAILED", err);
+        if (err.code === 7 || err.message?.includes('permission')) {
+          console.warn("PERMISSION_DENIED: Attempting fallback to (default) database...");
+          const fallbackDb = getFirestore('(default)');
+          fallbackDb.collection("nodes").limit(1).get()
+            .then(() => {
+              console.log("Firebase Admin: Fallback (default) SUCCESS");
+              db = fallbackDb;
+            })
+            .catch((fallbackErr: any) => console.error("Firebase Admin: Fallback (default) FAILED", fallbackErr));
+        }
+      });
   } catch (error) {
-    console.error("Firebase init error in server:", error);
+    console.error("Firebase Admin init error in server:", error);
   }
 
   // API Routes
@@ -75,7 +99,7 @@ async function startServer() {
     let tapCount = 0;
     if (db) {
       try {
-        const tapsSnapshot = await getDocs(collection(db, "taps"));
+        const tapsSnapshot = await db.collection("taps").get();
         tapCount = tapsSnapshot.size;
       } catch (error) {
         console.error("Error fetching taps for OG:", error);
@@ -113,6 +137,179 @@ async function startServer() {
     canvas.createPNGStream().pipe(res);
   });
 
+  // CHPL Library Ingestion Agent
+  const syncLibraryEvents = async () => {
+    if (!db) {
+      console.error("Sync Error: Firebase DB not initialized");
+      return { error: "Firebase DB not initialized" };
+    }
+
+    const CHPL_BRANCHES: Record<string, { lat: number, lng: number }> = {
+      'Main Library': { lat: 39.1064, lng: -84.5125 },
+      'Walnut Hills': { lat: 39.1287, lng: -84.4844 },
+      'Corryville': { lat: 39.1333, lng: -84.5083 },
+      'Northside': { lat: 39.1625, lng: -84.5375 },
+      'Avondale': { lat: 39.1464, lng: -84.4925 },
+      'Price Hill': { lat: 39.1089, lng: -84.5625 },
+      'Westwood': { lat: 39.1467, lng: -84.5983 },
+      'Hyde Park': { lat: 39.1414, lng: -84.4439 },
+      'Oakley': { lat: 39.1539, lng: -84.4333 },
+      'Pleasant Ridge': { lat: 39.1811, lng: -84.4267 },
+      'Bond Hill': { lat: 39.1783, lng: -84.4683 },
+      'Roselawn': { lat: 39.1911, lng: -84.4617 },
+      'Hartwell': { lat: 39.2067, lng: -84.4750 },
+      'College Hill': { lat: 39.2017, lng: -84.5450 },
+      'Mt. Healthy': { lat: 39.2333, lng: -84.5500 },
+      'Groesbeck': { lat: 39.2167, lng: -84.5917 },
+      'Monfort Heights': { lat: 39.1833, lng: -84.6167 },
+      'Cheviot': { lat: 39.1583, lng: -84.6133 },
+      'Covedale': { lat: 39.1167, lng: -84.6083 },
+      'Delhi Township': { lat: 39.0917, lng: -84.6167 },
+      'Sayler Park': { lat: 39.1167, lng: -84.7000 },
+      'Miami Township': { lat: 39.1667, lng: -84.7500 },
+      'Harrison': { lat: 39.2667, lng: -84.8000 },
+      'Green Township': { lat: 39.1583, lng: -84.6500 },
+      'North Central': { lat: 39.2667, lng: -84.4500 },
+      'Sharonville': { lat: 39.2667, lng: -84.4167 },
+      'Blue Ash': { lat: 39.2333, lng: -84.3833 },
+      'Deer Park': { lat: 39.2000, lng: -84.4000 },
+      'Madeira': { lat: 39.1833, lng: -84.3667 },
+      'Mariemont': { lat: 39.1417, lng: -84.3833 },
+      'Anderson': { lat: 39.0667, lng: -84.3500 },
+      'Mt. Washington': { lat: 39.0833, lng: -84.3833 },
+      'Forest Park': { lat: 39.2500, lng: -84.5000 },
+      'Greenhills': { lat: 39.2667, lng: -84.5167 },
+      'Wyoming': { lat: 39.2250, lng: -84.4833 },
+      'Reading': { lat: 39.2250, lng: -84.4417 },
+      'St. Bernard': { lat: 39.1667, lng: -84.4917 },
+      'Elmwood Place': { lat: 39.1833, lng: -84.4917 },
+      'Norwood': { lat: 39.1583, lng: -84.4583 },
+      'Madisonville': { lat: 39.1583, lng: -84.3917 },
+      'Loveland': { lat: 39.2667, lng: -84.2500 },
+      'Symmes Township': { lat: 39.2667, lng: -84.3167 },
+    };
+
+    const API_URL = 'https://cincinnatilibrary.bibliocommons.com/events/api/v1/events?limit=100';
+    
+    try {
+      console.log(`Library Agent: Fetching events from ${API_URL}`);
+      const response = await axios.get(API_URL, {
+        headers: {
+          'User-Agent': 'UrbanHikers/1.0 (https://www.urbanhikers.org)',
+          'Accept': 'application/json'
+        }
+      });
+
+      const events = response.data.events || [];
+      console.log(`Library Agent: Received ${events.length} events from CHPL API`);
+      
+      const batch = db.batch();
+      let count = 0;
+
+      for (const evt of events) {
+        if (!evt.id || !evt.title || !evt.start_datetime || !evt.end_datetime) continue;
+
+        const branchName = evt.location?.name || 'Main Library';
+        const coords = CHPL_BRANCHES[branchName] || CHPL_BRANCHES['Main Library'];
+        const broadcastId = `chpl-${evt.id}`;
+        const broadcastRef = db.collection("broadcasts").doc(broadcastId);
+        
+        const startsAt = new Date(evt.start_datetime);
+        const expiresAt = new Date(evt.end_datetime);
+
+        if (isNaN(startsAt.getTime()) || isNaN(expiresAt.getTime())) continue;
+        if (expiresAt.getTime() < Date.now()) continue;
+
+        batch.set(broadcastRef, {
+          title: evt.title,
+          description: evt.description || '',
+          starts_at: startsAt.toISOString(),
+          expires_at: expiresAt.toISOString(),
+          current_vibe: 'chill',
+          type: 'civic_free',
+          partner_id: 'chpl',
+          latitude: coords.lat,
+          longitude: coords.lng,
+          address: branchName,
+          active: true,
+          updated_at: admin.firestore.FieldValue.serverTimestamp()
+        }, { merge: true });
+        
+        count++;
+        if (count >= 500) break;
+      }
+
+      if (count > 0) {
+        await batch.commit();
+        console.log(`Library Agent: Ingest Success. ${count} events synced.`);
+      }
+      return { success: true, count };
+    } catch (error) {
+      console.error("Library Agent: Sync Error:", error);
+      return { error: "Failed to sync library events", details: String(error) };
+    }
+  };
+
+  // Creator Flash Node Ignite Endpoint
+  app.post("/api/creator/ignite", async (req, res) => {
+    const { nodeId, creatorName, performanceType, durationHours, tipUrl } = req.body;
+
+    if (!nodeId || !creatorName || !performanceType || !durationHours) {
+      return res.status(400).json({ error: "Missing required fields" });
+    }
+
+    if (!db) {
+      return res.status(500).json({ error: "Database not initialized" });
+    }
+
+    try {
+      // 1. Fetch Node Coordinates
+      const nodeDoc = await db.collection("nodes").doc(nodeId).get();
+      if (!nodeDoc.exists) {
+        return res.status(404).json({ error: "Node not found" });
+      }
+
+      const nodeData = nodeDoc.data();
+      const { latitude, longitude } = nodeData;
+
+      // 2. Calculate Expiration
+      const expiresAt = new Date(Date.now() + durationHours * 3600000).toISOString();
+
+      // 3. Create Broadcast
+      const broadcastData = {
+        title: creatorName,
+        type: "live_performance",
+        performance_type: performanceType, // Extra metadata
+        latitude,
+        longitude,
+        node_id: nodeId,
+        starts_at: new Date().toISOString(),
+        expires_at: expiresAt,
+        current_vibe: "chill",
+        active: true,
+        tip_url: tipUrl || null,
+        created_at: admin.firestore.FieldValue.serverTimestamp(),
+      };
+
+      const docRef = await db.collection("broadcasts").add(broadcastData);
+      
+      console.log(`Creator Ignite: ${creatorName} at ${nodeId} for ${durationHours}h`);
+      res.json({ success: true, id: docRef.id });
+    } catch (error) {
+      console.error("Creator Ignite Error:", error);
+      res.status(500).json({ error: "Failed to ignite flash node", details: String(error) });
+    }
+  });
+
+  // Manual trigger for library sync
+  app.post("/api/admin/sync-library-events", async (req, res) => {
+    const result = await syncLibraryEvents();
+    if ('error' in result) {
+      return res.status(500).json(result);
+    }
+    res.json(result);
+  });
+
   // Visit Cincy Civic Ingestion Agent
   const syncCivicEvents = async () => {
     const googleMapsKey = process.env.GOOGLE_MAPS_API_KEY;
@@ -127,16 +324,10 @@ async function startServer() {
     }
 
     const mapsClient = new Client({});
-    const batch = writeBatch(db);
+    const batch = db.batch();
 
     try {
       console.log("Visit Cincy Agent: Starting autonomous sync...");
-      
-      // Step 1: Fetch from Visit Cincy (Simulating Simpleview API call)
-      // In a real scenario, we'd use the actual Simpleview endpoint:
-      // https://www.visitcincy.com/includes/rest/v1/events/
-      // For this implementation, we'll fetch a sample or mock the response
-      // to ensure the schema mapping and geocoding logic is solid.
       
       const mockEvents = [
         {
@@ -181,7 +372,7 @@ async function startServer() {
           const { lat, lng } = geoResponse.data.results[0].geometry.location;
 
           // Step 4: Schema Mapping & Injection
-          const broadcastRef = doc(collection(db, "broadcasts"), event.id);
+          const broadcastRef = db.collection("broadcasts").doc(event.id);
           const broadcastData = {
             title: event.title.substring(0, 100),
             description: event.description,
@@ -192,15 +383,17 @@ async function startServer() {
             partner_id: "visit-cincy",
             latitude: lat,
             longitude: lng,
-            created_at: new Date().toISOString(),
+            created_at: admin.firestore.FieldValue.serverTimestamp(),
           };
 
-          batch.set(broadcastRef, broadcastData);
+          batch.set(broadcastRef, broadcastData, { merge: true });
           results.push({ id: event.id, title: event.title, lat, lng });
         }
       }
 
-      await batch.commit();
+      if (results.length > 0) {
+        await batch.commit();
+      }
       console.log(`Visit Cincy Agent: Sync Complete. Processed ${results.length} events.`);
       return { 
         status: "Sync Complete", 
@@ -223,6 +416,17 @@ async function startServer() {
     res.json(result);
   });
 
+  // Manual trigger for Visit Cincy sync
+  app.post("/api/admin/sync/visit-cincy", async (req, res) => {
+    try {
+      const result = await runVisitCincyAgent();
+      res.json(result);
+    } catch (error) {
+      console.error("Visit Cincy Agent: Sync Error:", error);
+      res.status(500).json({ error: "Failed to sync Visit Cincy events", details: String(error) });
+    }
+  });
+
   // Step 1: Schedule: Run daily at 3:00 AM EST (0 3 * * *)
   // Note: Server time is UTC. 3:00 AM EST is 7:00 AM or 8:00 AM UTC.
   // We'll use the 'America/New_York' timezone if supported by node-cron, 
@@ -230,6 +434,22 @@ async function startServer() {
   cron.schedule('0 3 * * *', async () => {
     console.log("Visit Cincy Agent: Running scheduled 3:00 AM sync...");
     await syncCivicEvents();
+  }, {
+    timezone: "America/New_York"
+  });
+
+  // Library Agent Schedule: Run daily at 2:00 AM EST (0 2 * * *)
+  cron.schedule('0 2 * * *', async () => {
+    console.log("Library Agent: Running scheduled 2:00 AM sync...");
+    await syncLibraryEvents();
+  }, {
+    timezone: "America/New_York"
+  });
+
+  // Visit Cincy Schedule: Run every 6 hours
+  cron.schedule('0 */6 * * *', async () => {
+    console.log("Visit Cincy Agent: Running scheduled 6-hour sync...");
+    await runVisitCincyAgent();
   }, {
     timezone: "America/New_York"
   });

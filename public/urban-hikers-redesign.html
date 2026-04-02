@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>URBAN HIKERS / LOCAL PULSE</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,900;1,900&family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        display: ['"Barlow Condensed"', 'sans-serif'],
+                        sans: ['"Space Grotesk"', 'sans-serif'],
+                    },
+                    colors: {
+                        uh: {
+                            yellow: '#FFE01A',
+                            black: '#0A0A0A',
+                            magenta: '#FF2D6F',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            background-color: #0A0A0A;
+            background-image: 
+                linear-gradient(rgba(255, 224, 26, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255, 224, 26, 0.03) 1px, transparent 1px);
+            background-size: 40px 40px;
+            background-attachment: fixed;
+            color: white;
+            overflow-x: hidden;
+        }
+        .vertical-text {
+            writing-mode: vertical-rl;
+            text-orientation: mixed;
+        }
+        .shimmer-sweep {
+            position: relative;
+            overflow: hidden;
+        }
+        .shimmer-sweep::after {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+            transition: 0.5s;
+        }
+        .shimmer-sweep:hover::after {
+            left: 100%;
+        }
+        @keyframes pulse-magenta {
+            0%, 100% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.5); opacity: 0.5; }
+        }
+        .animate-pulse-magenta {
+            animation: pulse-magenta 1.4s infinite;
+        }
+    </style>
+</head>
+<body class="font-sans">
+    <!-- Rotated Side Labels -->
+    <div class="fixed left-4 bottom-12 z-50 hidden lg:block">
+        <div class="font-display text-[10px] text-white/20 tracking-[4px] uppercase vertical-text rotate-180">
+            ESTABLISHED_2024_CINCINNATI
+        </div>
+    </div>
+    <div class="fixed right-4 bottom-12 z-50 hidden lg:block">
+        <div class="font-display text-[10px] text-white/20 tracking-[4px] uppercase vertical-text">
+            HYPER_LOCAL_CIVIC_OS
+        </div>
+    </div>
+
+    <!-- NAV -->
+    <nav class="fixed top-0 left-0 right-0 z-[100] px-6 md:px-12 h-20 flex items-center justify-between bg-uh-black/80 backdrop-blur-md border-b border-white/5">
+        <div class="flex items-center gap-3">
+            <div class="w-8 h-8 bg-uh-yellow rounded-full flex items-center justify-center">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M12 2L4.5 20.29L5.21 21L12 18L18.79 21L19.5 20.29L12 2Z" fill="#0A0A0A"/>
+                </svg>
+            </div>
+            <div class="flex flex-col leading-none">
+                <span class="font-display text-xl tracking-[1px] text-white uppercase">Urban Hikers</span>
+                <span class="font-sans text-[9px] text-uh-yellow/60 tracking-[2px] uppercase font-bold">Local Pulse</span>
+            </div>
+        </div>
+        <button class="px-8 py-2 rounded-full border border-white/20 text-white text-[12px] font-bold tracking-[1px] hover:bg-white hover:text-uh-black transition-all uppercase">
+            Login
+        </button>
+    </nav>
+
+    <!-- HERO -->
+    <section class="relative min-h-screen flex flex-col items-center justify-center px-6 text-center pt-20">
+        <div class="relative mb-8">
+            <div class="relative w-48 h-48 sm:w-56 sm:h-56 mx-auto mb-12 flex items-center justify-center">
+                <div class="absolute inset-0 bg-uh-yellow/5 rounded-full border border-uh-yellow/20 shadow-[0_0_50px_rgba(255,224,26,0.1)]"></div>
+                <svg width="60%" height="60%" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <g transform="translate(15, 25) scale(0.7)">
+                        <circle cx="25" cy="15" r="8" fill="#FFE01A" />
+                        <path d="M25 25 L25 50 L10 75 M25 50 L40 75 M25 35 L10 50 M25 35 L40 50" stroke="#FFE01A" stroke-width="6" stroke-linecap="round" />
+                    </g>
+                    <g transform="translate(40, 20) scale(0.8)">
+                        <circle cx="25" cy="15" r="8" fill="#FFE01A" />
+                        <path d="M25 25 L25 50 L15 75 M25 50 L35 75 M25 35 L15 55 M25 35 L35 55" stroke="#FFE01A" stroke-width="6" stroke-linecap="round" />
+                        <rect x="15" y="25" width="10" height="15" rx="2" fill="#FFE01A" />
+                    </g>
+                    <g transform="translate(65, 25) scale(0.7)">
+                        <circle cx="25" cy="15" r="8" fill="#FFE01A" />
+                        <path d="M25 25 L25 50 L10 75 M25 50 L40 75 M25 35 L10 50 M25 35 L40 50" stroke="#FFE01A" stroke-width="6" stroke-linecap="round" />
+                        <path d="M45 30 L45 75" stroke="#FFE01A" stroke-width="3" stroke-linecap="round" />
+                    </g>
+                </svg>
+            </div>
+            
+            <h1 class="font-display text-7xl sm:text-9xl tracking-[4px] text-white mb-4 uppercase italic">Urban Hikers</h1>
+            <div class="w-48 h-[2px] bg-uh-yellow mx-auto mb-8"></div>
+            
+            <div class="font-display text-2xl sm:text-4xl tracking-[1px] text-white mb-12 uppercase">
+                Walking to Inspire / <span class="text-uh-yellow italic">Curiosity of Exploration</span>
+            </div>
+
+            <div class="flex flex-col sm:flex-row items-center justify-center gap-4">
+                <button class="w-full sm:w-auto px-10 py-4 bg-uh-yellow text-uh-black font-bold tracking-[1px] uppercase hover:scale-105 transition-all shadow-[0_0_30px_rgba(255,224,26,0.3)]">
+                    Tap into the Pulse
+                </button>
+                <a href="#board" class="w-full sm:w-auto px-10 py-4 border border-white/20 text-white font-bold tracking-[1px] uppercase hover:bg-white/5 transition-all">
+                    ↓ Open Departure Board
+                </a>
+                <button class="w-full sm:w-auto px-10 py-4 text-white/40 font-bold tracking-[1px] uppercase hover:text-white transition-all">
+                    Learn More
+                </button>
+            </div>
+        </div>
+    </section>
+
+    <!-- DEPARTURE BOARD -->
+    <section id="board" class="px-6 md:px-12 py-24 border-t border-white/5 bg-uh-black/50">
+        <div class="max-w-6xl mx-auto">
+            <div class="flex items-center gap-4 mb-12">
+                <div class="relative">
+                    <div class="w-3 h-3 bg-uh-magenta rounded-full"></div>
+                    <div class="absolute inset-0 bg-uh-magenta rounded-full animate-pulse-magenta"></div>
+                </div>
+                <h2 class="font-display text-3xl tracking-[2px] text-white uppercase">Departure Board — Cincinnati</h2>
+            </div>
+
+            <div class="border border-white/10 rounded-lg overflow-hidden">
+                <div class="grid grid-cols-[80px_1fr_auto] md:grid-cols-[120px_1fr_200px_auto] gap-4 p-6 border-b border-white/5 hover:bg-white/[0.02] transition-colors items-center">
+                    <div class="font-display text-2xl text-uh-yellow italic">18:30</div>
+                    <div class="flex flex-col">
+                        <span class="font-bold text-lg tracking-tight uppercase">LIVE JAZZ @ GHOST BABY</span>
+                        <span class="text-[10px] text-white/40 tracking-[2px] uppercase font-mono">OTR-04 SECTOR</span>
+                    </div>
+                    <div class="hidden md:block">
+                        <div class="w-full h-1 bg-white/5 rounded-full overflow-hidden">
+                            <div class="h-full bg-uh-yellow/20 w-3/4"></div>
+                        </div>
+                    </div>
+                    <div class="px-4 py-1 rounded text-[10px] font-black tracking-[2px] uppercase bg-uh-yellow text-uh-black">
+                        BUZZING
+                    </div>
+                </div>
+                <div class="grid grid-cols-[80px_1fr_auto] md:grid-cols-[120px_1fr_200px_auto] gap-4 p-6 border-b border-white/5 hover:bg-white/[0.02] transition-colors items-center">
+                    <div class="font-display text-2xl text-uh-yellow italic">19:00</div>
+                    <div class="flex flex-col">
+                        <span class="font-bold text-lg tracking-tight uppercase">ROOFTOP YOGA</span>
+                        <span class="text-[10px] text-white/40 tracking-[2px] uppercase font-mono">PEND-02 SECTOR</span>
+                    </div>
+                    <div class="hidden md:block">
+                        <div class="w-full h-1 bg-white/5 rounded-full overflow-hidden">
+                            <div class="h-full bg-uh-yellow/20 w-1/4"></div>
+                        </div>
+                    </div>
+                    <div class="px-4 py-1 rounded text-[10px] font-black tracking-[2px] uppercase bg-white/10 text-white/60">
+                        CHILL
+                    </div>
+                </div>
+                <div class="grid grid-cols-[80px_1fr_auto] md:grid-cols-[120px_1fr_200px_auto] gap-4 p-6 border-b border-white/5 hover:bg-white/[0.02] transition-colors items-center">
+                    <div class="font-display text-2xl text-uh-yellow italic">20:15</div>
+                    <div class="flex flex-col">
+                        <span class="font-bold text-lg tracking-tight uppercase">TECH MIXER</span>
+                        <span class="text-[10px] text-white/40 tracking-[2px] uppercase font-mono">CBD-09 SECTOR</span>
+                    </div>
+                    <div class="hidden md:block">
+                        <div class="w-full h-1 bg-white/5 rounded-full overflow-hidden">
+                            <div class="h-full bg-uh-yellow/20 w-full"></div>
+                        </div>
+                    </div>
+                    <div class="px-4 py-1 rounded text-[10px] font-black tracking-[2px] uppercase bg-uh-magenta text-white">
+                        LIVE
+                    </div>
+                </div>
+            </div>
+
+            <div class="mt-8 flex justify-end">
+                <button class="shimmer-sweep group flex items-center gap-2 px-8 py-3 bg-uh-yellow text-uh-black font-bold tracking-[1px] uppercase transition-all">
+                    View Full Board &rarr;
+                </button>
+            </div>
+        </div>
+    </section>
+
+    <!-- STATS BAR -->
+    <section class="px-6 md:px-12 py-12 border-y border-white/5 bg-uh-black">
+        <div class="max-w-6xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-8">
+            <div class="flex flex-col">
+                <span class="text-[10px] text-white/40 tracking-[2px] uppercase mb-1">Active Nodes</span>
+                <span class="font-display text-4xl text-white italic">42</span>
+            </div>
+            <div class="flex flex-col">
+                <span class="text-[10px] text-white/40 tracking-[2px] uppercase mb-1">Partners</span>
+                <span class="font-display text-4xl text-white italic">128</span>
+            </div>
+            <div class="flex flex-col">
+                <span class="text-[10px] text-white/40 tracking-[2px] uppercase mb-1">Taps Today</span>
+                <span id="taps-counter" class="font-display text-4xl text-uh-yellow italic">12,482</span>
+            </div>
+            <div class="flex flex-col">
+                <span class="text-[10px] text-white/40 tracking-[2px] uppercase mb-1">Network</span>
+                <div class="flex items-center gap-2">
+                    <div class="w-2 h-2 bg-uh-magenta rounded-full animate-pulse"></div>
+                    <span class="font-display text-4xl text-white italic">CIN-ON</span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- FOOTER -->
+    <footer class="px-6 md:px-12 py-20 bg-uh-black border-t border-white/5">
+        <div class="max-w-6xl mx-auto flex flex-col md:flex-row justify-between items-start gap-12">
+            <div>
+                <div class="font-display text-3xl tracking-[2px] text-white mb-2 uppercase italic">Urban Hikers</div>
+                <div class="font-sans text-[10px] text-uh-yellow tracking-[3px] uppercase font-bold">Local Pulse OS v2.4.0</div>
+            </div>
+            <div class="font-display text-[10px] text-white/20 tracking-[2px] uppercase text-right">
+                &copy; 2024 Urban Hikers / Cincinnati_OH / All Rights Reserved
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        // Taps counter increment
+        let taps = 12482;
+        const counterEl = document.getElementById('taps-counter');
+        setInterval(() => {
+            taps += Math.floor(Math.random() * 3) + 1;
+            counterEl.innerText = taps.toLocaleString();
+        }, 3000);
+    </script>
+</body>
+</html>

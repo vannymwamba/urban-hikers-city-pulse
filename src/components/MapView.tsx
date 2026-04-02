@@ -118,6 +118,7 @@ export const MapView: React.FC<MapViewProps> = ({ currentNode, broadcasts, onSel
   const getBroadcastType = (b: Broadcast) => {
     if (b.type === 'flash_deal') return 'flash_deal';
     if (b.type === 'conference_panel') return 'conference_panel';
+    if (b.type === 'civic_mural') return 'art';
     const title = b.title?.toLowerCase() || '';
     if (title.includes('music')) return 'music';
     if (title.includes('art')) return 'art';
@@ -127,6 +128,7 @@ export const MapView: React.FC<MapViewProps> = ({ currentNode, broadcasts, onSel
   const getBroadcastColor = (b: Broadcast) => {
     if (b.type === 'flash_deal') return '#EF9F27';
     if (b.type === 'conference_panel') return '#378ADD';
+    if (b.type === 'civic_mural') return '#534AB7';
     const title = b.title?.toLowerCase() || '';
     if (title.includes('music')) return '#639922';
     if (title.includes('art')) return '#534AB7';
@@ -227,6 +229,10 @@ export const MapView: React.FC<MapViewProps> = ({ currentNode, broadcasts, onSel
           <div className="flex items-center gap-2">
             <div className="w-2 h-2 rounded-full bg-[#378ADD]" />
             <span className="text-[9px] font-bold uppercase tracking-wider">Panels</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full bg-[#534AB7]" />
+            <span className="text-[9px] font-bold uppercase tracking-wider">Murals</span>
           </div>
         </div>
       </div>

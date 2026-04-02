@@ -24,8 +24,8 @@ interface DepartureBoardProps {
   onShareEvent: (broadcast: Broadcast) => void;
   onSaveToWallet?: (node?: Node) => void;
   isSaved?: boolean;
-  activeTab?: 'feed' | 'wallet' | 'map' | 'routes';
-  onTabChange?: (tab: 'feed' | 'wallet' | 'map' | 'routes') => void;
+  activeTab?: 'home' | 'feed' | 'explore' | 'wallet' | 'profile';
+  onTabChange?: (tab: 'home' | 'feed' | 'explore' | 'wallet' | 'profile') => void;
   savedHubs?: Node[];
   partnersMap?: Record<string, Partner>;
   routes?: Route[];
@@ -33,6 +33,7 @@ interface DepartureBoardProps {
   sponsorsMap?: Record<string, Sponsor>;
   onStartRoute?: (route: Route) => void;
   onBookRoute?: (route: Route) => void;
+  nfcStatus?: 'idle' | 'scanning' | 'error' | 'unsupported';
 }
 
 export const DepartureBoard: React.FC<DepartureBoardProps> = ({ 
@@ -58,7 +59,8 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
   guidesMap = {},
   sponsorsMap = {},
   onStartRoute = () => {},
-  onBookRoute = () => {}
+  onBookRoute = () => {},
+  nfcStatus = 'idle'
 }) => {
   const [time, setTime] = useState(new Date());
   const [showConfirmation, setShowConfirmation] = useState(false);
@@ -116,6 +118,7 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
   const flashDeals = broadcasts.filter(b => b.type === 'flash_deal');
   const liveEvents = broadcasts.filter(b => b.type === 'event');
   const civicEvents = broadcasts.filter(b => b.type === 'civic_free');
+  const murals = broadcasts.filter(b => b.type === 'civic_mural');
   const conferenceFeed = broadcasts.filter(b => b.type === 'conference_panel');
 
   const renderSection = (title: string, items: Broadcast[]) => {
@@ -124,7 +127,7 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
     return (
       <div className="mb-6">
         <div className="flex items-center gap-3 mb-3">
-          <span className="text-[10px] font-black tracking-[0.2em] text-[#888780] uppercase whitespace-nowrap">{title}</span>
+          <span className="text-[10px] font-bold tracking-wider text-[#888780] font-sans whitespace-nowrap">{title}</span>
           <div className="flex-1 h-[1px] bg-[#D3D1C7]" />
         </div>
         
@@ -229,61 +232,54 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
         </div>
       </div>
 
-      {/* Tap & Login Section */}
-      <div className="p-4 bg-hud-bg shrink-0 border-b border-white/5">
-        <div className="flex gap-4 mb-4">
-          <div className="flex-1 flex flex-col gap-1">
-            <div className="text-[8px] font-black text-hud-teal uppercase tracking-[0.15em] flex items-center gap-1.5 font-mono">
-              <div className="w-1 h-1 bg-hud-teal" />
-              ANONYMOUS_SESSION
-            </div>
-            <button
-              onClick={() => setTapConfirmAction('in')}
-              className={`w-full py-4 rounded-sm text-[14px] font-black tracking-[0.1em] uppercase transition-all font-mono border-2 ${
-                isTappedIn 
-                  ? 'bg-hud-teal border-hud-teal text-hud-dark shadow-[0_0_20px_rgba(0,245,255,0.3)]' 
-                  : 'bg-transparent border-hud-teal/30 text-hud-teal/50'
-              }`}
-            >
-              TAP IN {isTappedIn && '✓'}
-            </button>
-          </div>
-          <div className="w-[35%] flex flex-col gap-1">
-            <div className="text-[8px] font-black text-hud-magenta uppercase tracking-[0.15em] flex items-center gap-1.5 font-mono">
-              <div className="w-1 h-1 bg-hud-magenta" />
-              TERMINATE
-            </div>
-            <button
-              onClick={() => setTapConfirmAction('out')}
-              className={`w-full py-4 rounded-sm text-[11px] font-black tracking-[0.1em] uppercase border-2 transition-all font-mono ${
-                !isTappedIn 
-                  ? 'bg-hud-magenta border-hud-magenta text-white shadow-[0_0_20px_rgba(255,77,77,0.3)]' 
-                  : 'bg-transparent border-white/10 text-white/20'
-              }`}
-            >
-              TAP OUT
-            </button>
-          </div>
+      {/* Session Status Strip */}
+      <div className="px-4 py-3 bg-hud-dark border-b border-white/5 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <div className={`w-2 h-2 rounded-full ${isTappedIn ? 'bg-hud-yellow animate-pulse' : 'bg-white/20'}`} />
+          <span className="text-[11px] font-medium text-white/90 font-sans">
+            {isTappedIn ? (
+              <>Checked in · <span className="font-mono font-black text-hud-yellow">NODE #{currentNode?.id || '00'}</span> · 14 min</>
+            ) : (
+              "Not checked in"
+            )}
+          </span>
         </div>
+        {isTappedIn ? (
+          <button 
+            onClick={() => setTapConfirmAction('out')}
+            className="text-[10px] font-black text-hud-magenta uppercase tracking-widest font-mono px-3 py-1 border border-hud-magenta/30 rounded-sm bg-hud-magenta/5 hover:bg-hud-magenta/10 transition-colors"
+          >
+            [End session]
+          </button>
+        ) : (
+          <button 
+            onClick={() => setTapConfirmAction('in')}
+            className="text-[10px] font-black text-hud-yellow uppercase tracking-widest font-mono px-3 py-1 border border-hud-yellow/30 rounded-sm bg-hud-yellow/5 hover:bg-hud-yellow/10 transition-colors"
+          >
+            [Start session]
+          </button>
+        )}
+      </div>
 
-        <div className="mt-2">
+      <div className="p-4 bg-hud-bg shrink-0 border-b border-white/5">
+        <div className="mt-0">
           {!user ? (
-            <div className="text-[9px] font-black text-white/30 flex items-center justify-between font-mono uppercase tracking-wider">
+            <div className="text-[9px] font-medium text-white/30 flex items-center justify-between font-sans">
               <div className="flex items-center gap-1.5">
                 <ShieldCheck size={10} className="text-hud-teal" />
-                ANONYMOUS_BY_DEFAULT
+                Anonymous by default
               </div>
               <button 
                 onClick={() => setShowLogin(!showLogin)}
-                className="text-hud-yellow font-black hover:underline flex items-center gap-1"
+                className="text-hud-yellow font-black hover:underline flex items-center gap-1 font-mono uppercase tracking-wider"
               >
                 UPGRADE_TO_PERSISTENT <ArrowRight size={10} />
               </button>
             </div>
           ) : (
-            <div className="text-[9px] font-black text-hud-green flex items-center gap-1.5 font-mono uppercase tracking-wider">
+            <div className="text-[9px] font-medium text-hud-green flex items-center gap-1.5 font-sans">
               <ShieldCheck size={10} />
-              IDENTITY_VERIFIED // WALLET_ACTIVE
+              Identity verified · Wallet active
             </div>
           )}
 
@@ -320,54 +316,63 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
       {/* Open Bar — System Declaration */}
       <div className="bg-hud-teal/10 px-4 py-3 flex items-center gap-3 border-y border-hud-teal/20 shrink-0">
         <div className="w-2 h-2 bg-hud-teal animate-pulse" />
-        <div className="text-[10px] text-hud-teal font-black tracking-[0.2em] font-mono uppercase">
-          OPEN_FEED // ALL_LIVE_EVENTS_VISIBLE // NO_ACCOUNT_REQUIRED
+        <div className="text-[10px] text-hud-teal font-medium tracking-wider font-sans">
+          Open feed · All live events visible · No account required
         </div>
       </div>
 
-      {/* Feed Area */}
-      <div className={`flex-1 ${activeTab === 'map' ? 'overflow-hidden' : 'overflow-y-auto'} bg-feed-bg transition-all duration-500 ${!isTappedIn && activeTab === 'feed' ? 'opacity-60 grayscale' : ''}`}>
-        {activeTab === 'routes' ? (
-          <div className="p-4 flex flex-col gap-4">
-            <div className="flex items-center gap-3 mb-2">
-              <span className="text-[10px] font-black tracking-[0.2em] text-[#888780] uppercase whitespace-nowrap">MISSION_BOARD</span>
-              <div className="flex-1 h-[1px] bg-[#D3D1C7]" />
+      <div className={`flex-1 ${activeTab === 'explore' ? 'overflow-hidden' : 'overflow-y-auto'} bg-feed-bg transition-all duration-500 ${!isTappedIn && activeTab === 'feed' ? 'opacity-60 grayscale' : ''}`}>
+        {activeTab === 'explore' ? (
+          <div className="h-full flex flex-col">
+            <div className="h-1/2 min-h-[300px]">
+              <MapView 
+                currentNode={currentNode} 
+                broadcasts={broadcasts} 
+                onSelect={onSelect} 
+                partnersMap={partnersMap}
+              />
             </div>
-            
-            {routes.length === 0 ? (
-              <div className="py-12 text-center flex flex-col items-center justify-center">
-                <div className="text-white/40 italic mb-4 tracking-[0.2em] text-[10px] uppercase leading-relaxed max-w-[280px]">
-                  NO_ROUTES_AVAILABLE_IN_THIS_SECTOR.
-                </div>
+            <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-4 border-t border-white/10">
+              <div className="flex items-center gap-3 mb-2">
+                <span className="text-[10px] font-bold tracking-wider text-[#888780] font-sans whitespace-nowrap">Mission Board</span>
+                <div className="flex-1 h-[1px] bg-[#D3D1C7]" />
               </div>
-            ) : (
-              routes.map((route) => (
-                <RouteCard 
-                  key={route.id} 
-                  route={route} 
-                  guide={guidesMap[route.guideId || '']}
-                  sponsor={sponsorsMap[route.sponsorId || '']}
-                  endPartner={partnersMap[route.endPartnerId || '']}
-                  onStart={onStartRoute} 
-                  onBook={onBookRoute} 
-                />
-              ))
-            )}
+              
+              {routes.length === 0 ? (
+                <div className="py-12 text-center flex flex-col items-center justify-center">
+                  <div className="text-white/40 italic mb-4 tracking-wider text-[10px] font-sans leading-relaxed max-w-[280px]">
+                    No routes available in this sector.
+                  </div>
+                </div>
+              ) : (
+                routes.map((route) => (
+                  <RouteCard 
+                    key={route.id} 
+                    route={route} 
+                    guide={guidesMap[route.guideId || '']}
+                    sponsor={sponsorsMap[route.sponsorId || '']}
+                    endPartner={partnersMap[route.endPartnerId || '']}
+                    onStart={onStartRoute} 
+                    onBook={onBookRoute} 
+                  />
+                ))
+              )}
+            </div>
           </div>
         ) : activeTab === 'wallet' ? (
           <div className="p-4 flex flex-col gap-6 py-4">
             <div className="flex items-center gap-3 mb-2">
-              <span className="text-[10px] font-black tracking-[0.2em] text-[#888780] uppercase whitespace-nowrap">MY_SECURED_HUBS</span>
+              <span className="text-[10px] font-bold tracking-wider text-[#888780] font-sans whitespace-nowrap">Wallet</span>
               <div className="flex-1 h-[1px] bg-[#D3D1C7]" />
             </div>
             
             {savedHubs.length === 0 ? (
               <div className="py-12 text-center flex flex-col items-center justify-center">
-                <div className="text-white/40 italic mb-4 tracking-[0.2em] text-[10px] uppercase leading-relaxed max-w-[280px]">
-                  WALLET_EMPTY.
+                <div className="text-white/40 italic mb-4 tracking-wider text-[10px] font-sans leading-relaxed max-w-[280px]">
+                  Wallet empty.
                 </div>
-                <div className="text-hud-yellow font-black tracking-[0.1em] text-sm uppercase leading-relaxed max-w-[280px]">
-                  SAVE_HUBS_TO_ACCESS_THEM_QUICKLY_LATER.
+                <div className="text-hud-yellow font-bold tracking-tight text-sm font-sans leading-relaxed max-w-[280px]">
+                  Save hubs to access them quickly later.
                 </div>
               </div>
             ) : (
@@ -391,19 +396,79 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
                     href={`/tap/${hub.id}`}
                     className="absolute bottom-4 right-16 p-2 bg-hud-green text-hud-bg rounded-lg opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 text-[10px] font-black"
                   >
-                    GO_TO_HUB
+                    Go to hub
                   </a>
                 </motion.div>
               ))
             )}
           </div>
-        ) : activeTab === 'map' ? (
-          <MapView 
-            currentNode={currentNode} 
-            broadcasts={broadcasts} 
-            onSelect={onSelect} 
-            partnersMap={partnersMap}
-          />
+        ) : activeTab === 'profile' ? (
+          <div className="p-4 flex flex-col gap-6 py-4">
+            <div className="flex items-center gap-3 mb-2">
+              <span className="text-[10px] font-bold tracking-wider text-[#888780] font-sans whitespace-nowrap">User Profile</span>
+              <div className="flex-1 h-[1px] bg-[#D3D1C7]" />
+            </div>
+            
+            <div className="bg-white/5 p-6 rounded-sm border border-white/5">
+              {user ? (
+                <div className="space-y-4">
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-full bg-hud-yellow/20 flex items-center justify-center border border-hud-yellow/40">
+                      <Users className="text-hud-yellow" size={24} />
+                    </div>
+                    <div>
+                      <div className="text-white font-bold">{user.email}</div>
+                      <div className="text-[10px] text-white/40 font-mono">UID: {user.uid}</div>
+                    </div>
+                  </div>
+                  <div className="pt-4 border-t border-white/5">
+                    <div className="text-[10px] text-white/40 uppercase tracking-widest font-mono mb-2">Access Level</div>
+                    <div className="text-hud-teal font-black uppercase tracking-widest font-mono">Verified_Hiker</div>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <div className="text-white/40 text-[10px] mb-6 uppercase tracking-[0.2em] font-mono">Identity_Not_Verified</div>
+                  <button 
+                    onClick={onLogin}
+                    className="bg-hud-yellow text-hud-dark px-8 py-3 rounded-sm text-[12px] font-black uppercase tracking-widest shadow-[0_0_20px_rgba(255,224,26,0.3)]"
+                  >
+                    Login to Pulse
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        ) : activeTab === 'home' ? (
+          <div className="p-4 flex flex-col gap-4">
+            <div className="flex items-center gap-3 mb-2">
+              <span className="text-[10px] font-bold tracking-wider text-[#888780] font-sans whitespace-nowrap">Home Highlights</span>
+              <div className="flex-1 h-[1px] bg-[#D3D1C7]" />
+            </div>
+            
+            {flashDeals.length > 0 ? (
+              <div className="space-y-4">
+                <div className="text-[11px] text-white/60 font-sans italic">Top deals in your sector:</div>
+                {flashDeals.slice(0, 2).map((item, idx) => (
+                  <BroadcastCard 
+                    key={item.id}
+                    item={item}
+                    idx={idx}
+                    currentNode={currentNode}
+                    onSelect={onSelect}
+                    onShareEvent={onShareEvent}
+                    handleDirections={handleDirections}
+                    partner={partnersMap[item.partnerId || item.partner_id || ''] || null}
+                    sponsor={sponsorsMap[item.sponsorId || ''] || null}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="py-12 text-center text-white/40 text-[10px] uppercase tracking-widest font-mono">
+                No highlights available.
+              </div>
+            )}
+          </div>
         ) : (
           <div className="p-4">
             {currentNode?.type === 'conference_center' && (
@@ -440,8 +505,8 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
               exit={{ opacity: 0, scale: 0.95 }}
               className="mb-4 p-4 rounded-2xl border border-hud-magenta bg-hud-magenta/5 text-hud-magenta text-center"
             >
-              <div className="text-xs font-black tracking-[0.2em] mb-1">SESSION_TERMINATED</div>
-              <div className="text-[10px] font-bold opacity-80 uppercase">ZERO_DATA_STORED // ANONYMITY_PRESERVED</div>
+              <div className="text-xs font-black tracking-[0.2em] mb-1">Session terminated</div>
+              <div className="text-[10px] font-bold opacity-80 uppercase">Zero data stored · Anonymity preserved</div>
             </motion.div>
           )}
         </AnimatePresence>
@@ -476,11 +541,11 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
 
             <div className="space-y-2">
               <div className="text-hud-yellow font-black tracking-[0.2em] text-xs uppercase">
-                THE_SECTOR_IS_SILENT.
+                The sector is silent.
               </div>
               <div className="text-white/40 font-bold tracking-[0.1em] text-[10px] uppercase leading-relaxed max-w-[240px] mx-auto">
-                GO_WANDER. DISCOVER_NEW_PLACES.
-                THE_PULSE_OF_THE_CITY_AWAITS.
+                Go wander. Discover new places.
+                The pulse of the city awaits.
               </div>
             </div>
             
@@ -488,10 +553,11 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
           </div>
         ) : (
           <>
-            {renderSection('FLASH DEALS', flashDeals)}
-            {renderSection('CIVIC EVENTS', civicEvents)}
-            {renderSection('LIVE EVENTS', liveEvents)}
-            {renderSection('CONFERENCE FEED', conferenceFeed)}
+            {renderSection('Flash Deals', flashDeals)}
+            {renderSection('Civic Events', civicEvents)}
+            {renderSection('Murals', murals)}
+            {renderSection('Live Events', liveEvents)}
+            {renderSection('Conference Feed', conferenceFeed)}
           </>
         )}
       </div>
@@ -522,13 +588,11 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
       {/* Bottom Navigation — Utility Rail */}
       <div className="bg-hud-dark px-2 py-2 flex justify-between items-center border-t border-white/10 shrink-0">
         {[
-          { id: 'home', icon: Home, label: 'HOME', href: '/' },
-          { id: 'feed', icon: Clock, label: 'FEED' },
-          { id: 'routes', icon: Navigation, label: 'ROUTES' },
-          { id: 'map', icon: MapIcon, label: 'MAP' },
-          { id: 'wallet', icon: Ticket, label: 'WALLET', badge: savedHubs.length > 0 },
-          { id: 'partner', icon: Lock, label: 'PARTNER', href: '/dashboard' },
-          { id: 'control', icon: ShieldCheck, label: 'CONTROL', href: '/dashboard' }
+          { id: 'home', icon: Home, label: 'Home', href: '/' },
+          { id: 'feed', icon: Clock, label: 'Feed' },
+          { id: 'explore', icon: Navigation, label: 'Explore' },
+          { id: 'wallet', icon: Ticket, label: 'Wallet', badge: savedHubs.length > 0 },
+          { id: 'profile', icon: Users, label: 'Profile', href: '/dashboard' }
         ].map((item) => {
           const isActive = activeTab === item.id;
           const Icon = item.icon;
@@ -540,7 +604,7 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
                 <div className="absolute -top-1 -right-1 w-1.5 h-1.5 bg-hud-magenta rounded-full shadow-[0_0_8px_var(--color-urgent)]" />
               )}
               <span className={`text-[7px] font-black tracking-[0.15em] uppercase font-mono ${isActive ? 'text-hud-yellow' : 'text-white/20 group-hover:text-white/50'} transition-colors`}>
-                {item.label}
+                {item.label.toUpperCase()}
               </span>
             </div>
           );
@@ -583,11 +647,11 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
               <div className="w-12 h-12 rounded-sm bg-hud-yellow/10 flex items-center justify-center mx-auto mb-4 border border-hud-yellow/20">
                 <AlertCircle className="text-hud-yellow" size={24} />
               </div>
-              <h3 className="text-[14px] font-black tracking-[0.2em] uppercase mb-3 font-mono text-white">SYSTEM_CONFIRMATION_REQUIRED</h3>
-              <p className="text-[10px] text-white/50 leading-relaxed mb-8 uppercase tracking-[0.1em] font-mono">
+              <h3 className="text-[14px] font-bold tracking-wider mb-3 font-sans text-white">System Confirmation Required</h3>
+              <p className="text-[10px] text-white/50 leading-relaxed mb-8 font-sans">
                 {tapConfirmAction === 'in' 
-                  ? 'INITIATE_ANONYMOUS_SESSION_IN_CURRENT_SECTOR?' 
-                  : 'TERMINATE_ACTIVE_SESSION_AND_DISCONNECT_FROM_NODE?'}
+                  ? 'Initiate anonymous session in current sector?' 
+                  : 'Terminate active session and disconnect from node?'}
               </p>
               <div className="flex flex-col gap-3">
                 <button
@@ -598,13 +662,13 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
                       : 'bg-hud-magenta text-white shadow-[0_0_20px_rgba(255,77,77,0.3)]'
                   }`}
                 >
-                  EXECUTE_{tapConfirmAction === 'in' ? 'TAP_IN' : 'TAP_OUT'}
+                  {tapConfirmAction === 'in' ? 'Execute Tap In' : 'Execute Tap Out'}
                 </button>
                 <button
                   onClick={() => setTapConfirmAction(null)}
                   className="w-full py-3 text-[10px] font-black text-white/30 uppercase tracking-[0.2em] hover:text-white transition-colors font-mono"
                 >
-                  ABORT_ACTION
+                  Abort Action
                 </button>
               </div>
             </motion.div>

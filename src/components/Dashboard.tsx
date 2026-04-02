@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { db, functions } from '../firebase';
-import { collection, addDoc, onSnapshot, query, where, doc, setDoc, getDocs, updateDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, onSnapshot, query, where, doc, setDoc, getDocs, updateDoc, deleteDoc, serverTimestamp, limit, orderBy } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
-import { Node, Broadcast, UserProfile, Partner, BroadcastType, HubType, VibeReport, Tap, UserRole } from '../types';
+import { Node, Broadcast, UserProfile, Partner, BroadcastType, HubType, VibeReport, Tap, UserRole, Interaction, TabView } from '../types';
 import { BASE_URL } from '../constants';
-import { Plus, MapPin, Link as LinkIcon, Send, LayoutDashboard, LogOut, ChevronRight, Globe, ShieldCheck, RefreshCw, BarChart3, Image as ImageIcon, Trash2, RotateCcw } from 'lucide-react';
+import { Plus, MapPin, Link as LinkIcon, Send, LayoutDashboard, LogOut, ChevronRight, Globe, ShieldCheck, RefreshCw, BarChart3, Image as ImageIcon, Trash2, RotateCcw, Palette } from 'lucide-react';
 import { motion } from 'motion/react';
 import { handleFirestoreError, OperationType } from '../utils/firebaseErrors';
 import { LogoUpload } from './LogoUpload';
@@ -29,7 +29,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [vibeReports, setVibeReports] = useState<VibeReport[]>([]);
   const [taps, setTaps] = useState<Tap[]>([]);
-  const [tabViews, setTabViews] = useState<any[]>([]);
+  const [tabViews, setTabViews] = useState<TabView[]>([]);
+  const [interactions, setInteractions] = useState<Interaction[]>([]);
   
   // Form states
   const [newNode, setNewNode] = useState({ name: '', type: 'street' as HubType, address: '', lat: 0, lng: 0, radius: 500 });
@@ -116,28 +117,53 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
 
   useEffect(() => {
     if (isAdmin) {
-      const unsubNodes = onSnapshot(collection(db, 'nodes'), (snap) => {
-        setNodes(snap.docs.map(d => ({ id: d.id, ...d.data() } as Node)));
-      }, (err) => handleFirestoreError(err, OperationType.LIST, 'nodes'));
-      const unsubPartners = onSnapshot(collection(db, 'partners'), (snap) => {
-        setPartners(snap.docs.map(d => ({ id: d.id, ...d.data() } as Partner)));
-      }, (err) => handleFirestoreError(err, OperationType.LIST, 'partners'));
-      const unsubBroadcasts = onSnapshot(collection(db, 'broadcasts'), (snap) => {
-        setBroadcasts(snap.docs.map(d => ({ id: d.id, ...d.data() } as Broadcast)));
-      }, (err) => handleFirestoreError(err, OperationType.LIST, 'broadcasts'));
-      const unsubUsers = onSnapshot(collection(db, 'users'), (snap) => {
-        setUsers(snap.docs.map(d => ({ uid: d.id, ...d.data() } as UserProfile)));
-      }, (err) => handleFirestoreError(err, OperationType.LIST, 'users'));
-      const unsubVibeReports = onSnapshot(collection(db, 'vibe_reports'), (snap) => {
-        setVibeReports(snap.docs.map(d => ({ id: d.id, ...d.data() } as VibeReport)));
-      }, (err) => handleFirestoreError(err, OperationType.LIST, 'vibe_reports'));
-      const unsubTaps = onSnapshot(collection(db, 'taps'), (snap) => {
-        setTaps(snap.docs.map(d => ({ id: d.id, ...d.data() } as Tap)));
-      }, (err) => handleFirestoreError(err, OperationType.LIST, 'taps'));
-      const unsubTabViews = onSnapshot(collection(db, 'tab_views'), (snap) => {
-        setTabViews(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-      }, (err) => handleFirestoreError(err, OperationType.LIST, 'tab_views'));
-      return () => { unsubNodes(); unsubPartners(); unsubBroadcasts(); unsubUsers(); unsubVibeReports(); unsubTaps(); unsubTabViews(); };
+      // Only listen to the collections relevant to the active tab
+      const unsubscribers: (() => void)[] = [];
+
+      if (activeTab === 'hubs') {
+        unsubscribers.push(onSnapshot(collection(db, 'nodes'), (snap) => {
+          setNodes(snap.docs.map(d => ({ id: d.id, ...d.data() } as Node)));
+        }, (err) => handleFirestoreError(err, OperationType.LIST, 'nodes')));
+      }
+
+      if (activeTab === 'partners') {
+        unsubscribers.push(onSnapshot(collection(db, 'partners'), (snap) => {
+          setPartners(snap.docs.map(d => ({ id: d.id, ...d.data() } as Partner)));
+        }, (err) => handleFirestoreError(err, OperationType.LIST, 'partners')));
+      }
+
+      if (activeTab === 'broadcasts') {
+        unsubscribers.push(onSnapshot(collection(db, 'broadcasts'), (snap) => {
+          setBroadcasts(snap.docs.map(d => ({ id: d.id, ...d.data() } as Broadcast)));
+        }, (err) => handleFirestoreError(err, OperationType.LIST, 'broadcasts')));
+        unsubscribers.push(onSnapshot(collection(db, 'nodes'), (snap) => {
+          setNodes(snap.docs.map(d => ({ id: d.id, ...d.data() } as Node)));
+        }, (err) => handleFirestoreError(err, OperationType.LIST, 'nodes')));
+      }
+
+      if (activeTab === 'analytics') {
+        const vibesQuery = query(collection(db, 'vibe_reports'), orderBy('reported_at', 'desc'), limit(200));
+        unsubscribers.push(onSnapshot(vibesQuery, (snap) => {
+          setVibeReports(snap.docs.map(d => ({ id: d.id, ...d.data() } as VibeReport)));
+        }, (err) => handleFirestoreError(err, OperationType.LIST, 'vibe_reports')));
+
+        const tapsQuery = query(collection(db, 'taps'), orderBy('timestamp', 'desc'), limit(200));
+        unsubscribers.push(onSnapshot(tapsQuery, (snap) => {
+          setTaps(snap.docs.map(d => ({ id: d.id, ...d.data() } as Tap)));
+        }, (err) => handleFirestoreError(err, OperationType.LIST, 'taps')));
+
+        const viewsQuery = query(collection(db, 'tab_views'), orderBy('timestamp', 'desc'), limit(200));
+        unsubscribers.push(onSnapshot(viewsQuery, (snap) => {
+          setTabViews(snap.docs.map(d => ({ id: d.id, ...d.data() } as TabView)));
+        }, (err) => handleFirestoreError(err, OperationType.LIST, 'tab_views')));
+
+        const interactionsQuery = query(collection(db, 'interactions'), orderBy('timestamp', 'desc'), limit(200));
+        unsubscribers.push(onSnapshot(interactionsQuery, (snap) => {
+          setInteractions(snap.docs.map(d => ({ id: d.id, ...d.data() } as Interaction)));
+        }, (err) => handleFirestoreError(err, OperationType.LIST, 'interactions')));
+      }
+
+      return () => unsubscribers.forEach(unsub => unsub());
     }
     else if (isPartner && (userProfile.partnerId || userProfile.partner_id)) {
       const pId = userProfile.partnerId || userProfile.partner_id;
@@ -149,33 +175,47 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
         }, (err) => handleFirestoreError(err, OperationType.LIST, 'broadcasts')
       );
 
-      const unsubVibes = onSnapshot(collection(db, 'vibe_reports'), (vSnap) => {
-        // We'll filter these in a useMemo or separate effect if needed, 
-        // but for now just set the state.
-        setVibeReports(vSnap.docs.map(d => ({ id: d.id, ...d.data() } as VibeReport)));
-      }, (err) => handleFirestoreError(err, OperationType.LIST, 'vibe_reports'));
-
       const unsubNodes = onSnapshot(collection(db, 'nodes'), (snap) => {
         setNodes(snap.docs.map(d => ({ id: d.id, ...d.data() } as Node)));
       }, (err) => handleFirestoreError(err, OperationType.LIST, 'nodes'));
 
-      const unsubTaps = onSnapshot(collection(db, 'taps'), (snap) => {
-        setTaps(snap.docs.map(d => ({ id: d.id, ...d.data() } as Tap)));
-      }, (err) => handleFirestoreError(err, OperationType.LIST, 'taps'));
+      const unsubPartner = onSnapshot(doc(db, 'partners', pId!), (snap) => {
+        if (snap.exists()) {
+          setPartners([{ id: snap.id, ...snap.data() } as Partner]);
+        }
+      }, (err) => handleFirestoreError(err, OperationType.GET, `partners/${pId}`));
 
-      const unsubPartners = onSnapshot(collection(db, 'partners'), (snap) => {
-        setPartners(snap.docs.map(d => ({ id: d.id, ...d.data() } as Partner)).filter(p => p.id === pId));
-      }, (err) => handleFirestoreError(err, OperationType.LIST, 'partners'));
+      const unsubscribers: (() => void)[] = [];
+      if (activeTab === 'analytics') {
+        const vibesQuery = query(collection(db, 'vibe_reports'), where('sponsor_id', '==', pId), orderBy('reported_at', 'desc'), limit(200));
+        unsubscribers.push(onSnapshot(vibesQuery, (vSnap) => {
+          setVibeReports(vSnap.docs.map(d => ({ id: d.id, ...d.data() } as VibeReport)));
+        }, (err) => handleFirestoreError(err, OperationType.LIST, 'vibe_reports')));
+
+        const tapsQuery = query(collection(db, 'taps'), where('sponsor_id', '==', pId), orderBy('timestamp', 'desc'), limit(200));
+        unsubscribers.push(onSnapshot(tapsQuery, (snap) => {
+          setTaps(snap.docs.map(d => ({ id: d.id, ...d.data() } as Tap)));
+        }, (err) => handleFirestoreError(err, OperationType.LIST, 'taps')));
+
+        const interactionsQuery = query(collection(db, 'interactions'), where('sponsor_id', '==', pId), orderBy('timestamp', 'desc'), limit(200));
+        unsubscribers.push(onSnapshot(interactionsQuery, (snap) => {
+          setInteractions(snap.docs.map(d => ({ id: d.id, ...d.data() } as Interaction)));
+        }, (err) => handleFirestoreError(err, OperationType.LIST, 'interactions')));
+
+        const viewsQuery = query(collection(db, 'tab_views'), where('sponsor_id', '==', pId), orderBy('timestamp', 'desc'), limit(200));
+        unsubscribers.push(onSnapshot(viewsQuery, (snap) => {
+          setTabViews(snap.docs.map(d => ({ id: d.id, ...d.data() } as TabView)));
+        }, (err) => handleFirestoreError(err, OperationType.LIST, 'tab_views')));
+      }
 
       return () => { 
         unsubBroadcasts(); 
-        unsubVibes();
         unsubNodes(); 
-        unsubTaps(); 
-        unsubPartners(); 
+        unsubPartner(); 
+        unsubscribers.forEach(unsub => unsub());
       };
     }
-  }, [userProfile, isAdmin, isPartner]);
+  }, [userProfile, isAdmin, isPartner, activeTab]);
 
   const handleCreateNode = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -255,16 +295,23 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
     setIsSyncingLibrary(true);
     setHudMessage({ text: "SYNCING_LIBRARY_EVENTS...", type: 'info' });
     try {
-      const syncFunc = httpsCallable(functions, 'triggerCHPLIngest');
-      const result = await syncFunc();
-      const data = result.data as { success: boolean, count: number };
+      const response = await fetch('/api/admin/sync-library-events', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'SYNC_FAILED');
+      }
+      
+      const data = await response.json();
       setHudMessage({ text: `SYNC_COMPLETE: ${data.count} EVENTS_LOADED`, type: 'info' });
     } catch (err: any) {
-      console.error("Sync error:", err);
-      // HttpsError from firebase/functions has code, message, and details
-      const errorCode = err.code || 'internal';
-      const errorMessage = err.message || 'INTERNAL_ERROR';
-      setHudMessage({ text: `SYNC_FAILED: [${errorCode.toUpperCase()}] ${errorMessage}`, type: 'error' });
+      console.error("Library sync error:", err);
+      setHudMessage({ text: `SYNC_FAILED: ${err.message || 'INTERNAL_ERROR'}`, type: 'error' });
     } finally {
       setIsSyncingLibrary(false);
     }
@@ -590,6 +637,20 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
           >
             <Globe size={16} /> VIEW_LIVE_BOARD
           </a>
+          <a 
+            href="/creator/ignite" 
+            className="flex items-center gap-2 text-hud-magenta hover:bg-hud-magenta/10 px-4 py-2 border border-hud-magenta transition-all text-xs font-bold"
+          >
+            <Send size={16} /> CREATOR_IGNITE
+          </a>
+          {isAdmin && (
+            <a 
+              href="/admin/mural" 
+              className="flex items-center gap-2 text-[#FFD700] hover:bg-[#FFD700]/10 px-4 py-2 border border-[#FFD700] transition-all text-xs font-bold"
+            >
+              <Palette size={16} /> MURAL_ADMIN
+            </a>
+          )}
           <button onClick={onLogout} className="flex items-center gap-2 text-hud-magenta hover:bg-hud-magenta/10 px-4 py-2 border border-hud-magenta transition-all text-xs font-bold">
             <LogOut size={16} /> TERMINATE_SESSION
           </button>
@@ -1453,17 +1514,111 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
                   </div>
                 </div>
                 <div className="bg-white/5 border border-white/10 p-5">
-                  <div className="text-[9px] opacity-40 font-bold mb-2 tracking-widest">
-                    {isAdmin ? 'ACTIVE_PARTNERS' : 'VIBE_REPORTS'}
-                  </div>
-                  <div className="text-2xl font-black text-white">
-                    {isAdmin ? partners.length : vibeReports.length}
+                  <div className="text-[9px] opacity-40 font-bold mb-2 tracking-widest">TAP_VS_BROWSER</div>
+                  <div className="flex items-end gap-2">
+                    <div className="text-2xl font-black text-hud-magenta">
+                      {taps.filter(t => t.access_vector === 'nfc' || t.access_vector === 'qr').length}
+                    </div>
+                    <div className="text-[10px] opacity-40 mb-1">/</div>
+                    <div className="text-lg font-bold text-white/60 mb-0.5">
+                      {taps.filter(t => t.access_vector === 'direct').length}
+                    </div>
                   </div>
                 </div>
               </div>
 
               {isAdmin ? (
                 <div className="space-y-8">
+                  {/* Physical vs Digital Comparison */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="bg-white/5 border border-white/10 p-6 relative overflow-hidden">
+                      <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-hud-green to-hud-yellow" />
+                      <h3 className="text-[10px] font-bold text-white/40 mb-4 tracking-widest uppercase">PHYSICAL_ENGAGEMENT (NFC/QR)</h3>
+                      <div className="flex items-end gap-4">
+                        <div className="text-4xl font-black text-white">
+                          {taps.filter(t => t.access_vector === 'nfc' || t.access_vector === 'qr').length + 
+                           interactions.filter(i => i.access_vector === 'nfc' || i.access_vector === 'qr').length +
+                           vibeReports.filter(v => v.access_vector === 'nfc' || v.access_vector === 'qr').length}
+                        </div>
+                        <div className="text-xs font-mono text-hud-green mb-1">
+                          {((taps.filter(t => t.access_vector === 'nfc' || t.access_vector === 'qr').length + 
+                             interactions.filter(i => i.access_vector === 'nfc' || i.access_vector === 'qr').length +
+                             vibeReports.filter(v => v.access_vector === 'nfc' || v.access_vector === 'qr').length) / 
+                            (taps.length + interactions.length + vibeReports.length + tabViews.length || 1) * 100).toFixed(1)}% OF TOTAL
+                        </div>
+                      </div>
+                    </div>
+                    <div className="bg-white/5 border border-white/10 p-6 relative overflow-hidden">
+                      <div className="absolute top-0 left-0 w-full h-1 bg-hud-magenta" />
+                      <h3 className="text-[10px] font-bold text-white/40 mb-4 tracking-widest uppercase">DIGITAL_ENGAGEMENT (DIRECT)</h3>
+                      <div className="flex items-end gap-4">
+                        <div className="text-4xl font-black text-white">
+                          {taps.filter(t => t.access_vector === 'direct').length + 
+                           interactions.filter(i => i.access_vector === 'direct').length +
+                           vibeReports.filter(v => v.access_vector === 'direct').length +
+                           tabViews.filter(v => v.access_vector === 'direct').length}
+                        </div>
+                        <div className="text-xs font-mono text-hud-magenta mb-1">
+                          {((taps.filter(t => t.access_vector === 'direct').length + 
+                             interactions.filter(i => i.access_vector === 'direct').length +
+                             vibeReports.filter(v => v.access_vector === 'direct').length +
+                             tabViews.filter(v => v.access_vector === 'direct').length) / 
+                            (taps.length + interactions.length + vibeReports.length + tabViews.length || 1) * 100).toFixed(1)}% OF TOTAL
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Access Vector Breakdown */}
+                  <div className="bg-white/5 border border-white/10 p-6">
+                    <h3 className="text-sm font-bold text-hud-magenta mb-6 tracking-widest uppercase">GLOBAL_ACCESS_VECTOR_BREAKDOWN</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                      {['nfc', 'qr', 'direct'].map(vector => {
+                        const vectorTaps = taps.filter(t => t.access_vector === vector);
+                        const vectorViews = tabViews.filter(v => v.access_vector === vector);
+                        const vectorInteractions = interactions.filter(i => i.access_vector === vector);
+                        const vectorVibes = vibeReports.filter(v => v.access_vector === vector);
+                        
+                        const uniqueUsers = new Set([
+                          ...vectorTaps, 
+                          ...vectorViews, 
+                          ...vectorInteractions, 
+                          ...vectorVibes
+                        ].map(x => x.session_uuid)).size;
+                        
+                        const label = vector === 'nfc' ? 'NFC_TAP' : vector === 'qr' ? 'QR_SCAN' : 'DIRECT_BROWSER';
+                        const color = vector === 'nfc' ? 'text-hud-green' : vector === 'qr' ? 'text-hud-yellow' : 'text-hud-magenta';
+
+                        return (
+                          <div key={vector} className="border border-white/10 p-4 relative overflow-hidden group">
+                            <div className={`absolute top-0 right-0 w-1 h-full ${color.replace('text-', 'bg-')}`} />
+                            <div className={`text-[10px] font-bold ${color} mb-4 tracking-widest uppercase`}>{label}</div>
+                            <div className="space-y-4">
+                              <div className="flex justify-between items-end">
+                                <div>
+                                  <div className="text-[9px] opacity-40 font-bold uppercase">Total_Actions</div>
+                                  <div className="text-2xl font-black text-white">
+                                    {vectorTaps.length + vectorViews.length + vectorInteractions.length + vectorVibes.length}
+                                  </div>
+                                </div>
+                                <div className="text-right">
+                                  <div className="text-[9px] opacity-40 font-bold uppercase">Unique_Users</div>
+                                  <div className="text-lg font-bold text-white/80">{uniqueUsers}</div>
+                                </div>
+                              </div>
+                              <div className="pt-4 border-t border-white/5 grid grid-cols-2 gap-y-2 text-[9px] font-mono opacity-60">
+                                <span>TAPS: {vectorTaps.length}</span>
+                                <span>VIEWS: {vectorViews.length}</span>
+                                <span>INTERACT: {vectorInteractions.length}</span>
+                                <span>VIBES: {vectorVibes.length}</span>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
                   {/* Partner Performance Table */}
                   <div className="bg-white/5 border border-white/10 p-6">
                     <h3 className="text-sm font-bold text-hud-magenta mb-6 tracking-widest uppercase">PARTNER_NETWORK_PERFORMANCE</h3>
@@ -1585,6 +1740,111 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Physical vs Digital Engagement Comparison */}
+                  <div className="bg-white/5 border border-white/10 p-6 col-span-1 md:col-span-2">
+                    <h3 className="text-sm font-bold text-hud-yellow mb-6 tracking-widest uppercase">PHYSICAL_VS_DIGITAL_ENGAGEMENT</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                      {/* Physical (NFC/QR) */}
+                      <div className="border-l-2 border-hud-green/30 pl-6">
+                        <div className="text-[10px] font-bold text-hud-green mb-4 uppercase tracking-widest">PHYSICAL_VECTORS (NFC/QR)</div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <div className="text-[9px] opacity-40 font-mono">TOTAL_TAPS</div>
+                            <div className="text-2xl font-black text-white">{taps.filter(t => t.access_vector === 'nfc' || t.access_vector === 'qr').length}</div>
+                          </div>
+                          <div>
+                            <div className="text-[9px] opacity-40 font-mono">INTERACTIONS</div>
+                            <div className="text-2xl font-black text-white">{interactions.filter(i => i.access_vector === 'nfc' || i.access_vector === 'qr').length}</div>
+                          </div>
+                          <div>
+                            <div className="text-[9px] opacity-40 font-mono">VIBE_REPORTS</div>
+                            <div className="text-2xl font-black text-white">{vibeReports.filter(r => r.access_vector === 'nfc' || r.access_vector === 'qr').length}</div>
+                          </div>
+                          <div>
+                            <div className="text-[9px] opacity-40 font-mono">TAB_VIEWS</div>
+                            <div className="text-2xl font-black text-white">{tabViews.filter(v => v.access_vector === 'nfc' || v.access_vector === 'qr').length}</div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Digital (Direct) */}
+                      <div className="border-l-2 border-hud-magenta/30 pl-6">
+                        <div className="text-[10px] font-bold text-hud-magenta mb-4 uppercase tracking-widest">DIGITAL_VECTORS (DIRECT)</div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <div className="text-[9px] opacity-40 font-mono">TOTAL_TAPS</div>
+                            <div className="text-2xl font-black text-white">{taps.filter(t => t.access_vector === 'direct').length}</div>
+                          </div>
+                          <div>
+                            <div className="text-[9px] opacity-40 font-mono">INTERACTIONS</div>
+                            <div className="text-2xl font-black text-white">{interactions.filter(i => i.access_vector === 'direct').length}</div>
+                          </div>
+                          <div>
+                            <div className="text-[9px] opacity-40 font-mono">VIBE_REPORTS</div>
+                            <div className="text-2xl font-black text-white">{vibeReports.filter(r => r.access_vector === 'direct').length}</div>
+                          </div>
+                          <div>
+                            <div className="text-[9px] opacity-40 font-mono">TAB_VIEWS</div>
+                            <div className="text-2xl font-black text-white">{tabViews.filter(v => v.access_vector === 'direct').length}</div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-white/5 border border-white/10 p-6 col-span-1 md:col-span-2">
+                    <h3 className="text-sm font-bold text-hud-yellow mb-6 tracking-widest uppercase">GLOBAL_ACCESS_VECTOR_BREAKDOWN</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      {['nfc', 'qr', 'direct'].map(vector => {
+                        const vectorTaps = taps.filter(t => t.access_vector === vector);
+                        const vectorViews = tabViews.filter(v => v.access_vector === vector);
+                        const vectorInteractions = interactions.filter(i => i.access_vector === vector);
+                        const vectorVibes = vibeReports.filter(r => r.access_vector === vector);
+                        
+                        const totalActions = vectorTaps.length + vectorViews.length + vectorInteractions.length + vectorVibes.length;
+                        const uniqueUsers = new Set([
+                          ...vectorTaps.map(t => t.session_uuid),
+                          ...vectorViews.map(v => v.session_uuid),
+                          ...vectorInteractions.map(i => i.session_uuid),
+                          ...vectorVibes.map(r => r.session_uuid)
+                        ]).size;
+
+                        const label = vector === 'nfc' ? 'NFC_TAP' : vector === 'qr' ? 'QR_SCAN' : 'DIRECT_BROWSER';
+                        const color = vector === 'nfc' ? 'text-hud-green' : vector === 'qr' ? 'text-hud-yellow' : 'text-hud-magenta';
+
+                        return (
+                          <div key={vector} className="border border-white/10 p-4">
+                            <div className={`text-[10px] font-bold ${color} mb-2 uppercase tracking-widest`}>{label}</div>
+                            <div className="flex items-baseline gap-2">
+                              <div className="text-2xl font-black text-white">{totalActions}</div>
+                              <div className="text-[10px] opacity-40 font-mono uppercase">ACTIONS</div>
+                            </div>
+                            <div className="text-[9px] opacity-40 font-mono mt-1">UNIQUE_USERS: {uniqueUsers}</div>
+                            
+                            <div className="mt-4 space-y-1">
+                              <div className="flex justify-between text-[9px] font-mono">
+                                <span className="opacity-40 uppercase">TAPS:</span>
+                                <span className="text-white">{vectorTaps.length}</span>
+                              </div>
+                              <div className="flex justify-between text-[9px] font-mono">
+                                <span className="opacity-40 uppercase">VIEWS:</span>
+                                <span className="text-white">{vectorViews.length}</span>
+                              </div>
+                              <div className="flex justify-between text-[9px] font-mono">
+                                <span className="opacity-40 uppercase">INTERACTIONS:</span>
+                                <span className="text-white">{vectorInteractions.length}</span>
+                              </div>
+                              <div className="flex justify-between text-[9px] font-mono">
+                                <span className="opacity-40 uppercase">VIBES:</span>
+                                <span className="text-white">{vectorVibes.length}</span>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
                   <div className="bg-white/5 border border-white/10 p-6">
                     <h3 className="text-sm font-bold text-hud-magenta mb-4 tracking-widest uppercase">ACTIVE_SIGNAL_PERFORMANCE</h3>
                     <div className="space-y-4">

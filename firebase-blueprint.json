@@ -57,12 +57,13 @@
         "partner_id": { "type": "string", "description": "Optional partner link" },
         "node_id": { "type": "string", "description": "Node where it was ignited (for flash events)" },
         "title": { "type": "string" },
-        "type": { "type": "string", "enum": ["flash_deal", "event", "conference_panel", "civic_event"] },
+        "type": { "type": "string", "enum": ["flash_deal", "event", "conference_panel", "civic_event", "civic_free", "live_performance"] },
         "latitude": { "type": "number" },
         "longitude": { "type": "number" },
         "expires_at": { "type": "string", "format": "date-time" },
         "current_vibe": { "type": "string", "enum": ["chill", "buzzing", "packed"] },
-        "active": { "type": "boolean", "description": "Whether the broadcast is currently live" }
+        "active": { "type": "boolean", "description": "Whether the broadcast is currently live" },
+        "tip_url": { "type": "string", "description": "Optional digital tip jar URL" }
       },
       "required": ["id", "title", "type", "latitude", "longitude", "expires_at", "current_vibe"]
     },
@@ -76,7 +77,7 @@
         "session_uuid": { "type": "string" },
         "access_vector": { "type": "string", "enum": ["nfc", "direct", "qr"] },
         "timestamp": { "type": "string", "format": "date-time" },
-        "tab": { "type": "string", "enum": ["feed", "wallet", "map"] },
+        "tab": { "type": "string", "enum": ["home", "feed", "explore", "wallet", "profile", "map", "routes"] },
         "sponsor_id": { "type": "string" }
       },
       "required": ["id", "node_id", "session_uuid", "timestamp"]
@@ -87,11 +88,32 @@
       "type": "object",
       "properties": {
         "id": { "type": "string" },
-        "session_id": { "type": "string" },
-        "tab": { "type": "string", "enum": ["feed", "wallet", "map"] },
-        "timestamp": { "type": "string", "format": "date-time" }
+        "session_uuid": { "type": "string" },
+        "tab": { "type": "string", "enum": ["home", "feed", "explore", "wallet", "profile", "map", "routes"] },
+        "access_vector": { "type": "string", "enum": ["nfc", "direct", "qr"] },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "sponsor_id": { "type": "string" }
       },
-      "required": ["id", "session_id", "tab", "timestamp"]
+      "required": ["id", "session_uuid", "tab", "timestamp"]
+    },
+    "Poi": {
+      "title": "Point of Interest",
+      "description": "Public art, murals, or landmarks.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "artist": { "type": "string" },
+        "address": { "type": "string" },
+        "latitude": { "type": "number" },
+        "longitude": { "type": "number" },
+        "description": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "type": { "type": "string", "enum": ["civic_mural"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "active": { "type": "boolean" }
+      },
+      "required": ["id", "name", "artist", "address", "latitude", "longitude", "imageUrl", "type", "createdAt", "active"]
     },
     "VibeReport": {
       "title": "Crowdsourced Vibe Check",
@@ -102,9 +124,27 @@
         "broadcast_id": { "type": "string" },
         "session_uuid": { "type": "string" },
         "vibe": { "type": "string", "enum": ["chill", "buzzing", "packed"] },
-        "reported_at": { "type": "string", "format": "date-time" }
+        "reported_at": { "type": "string", "format": "date-time" },
+        "access_vector": { "type": "string", "enum": ["nfc", "direct", "qr"] },
+        "sponsor_id": { "type": "string" }
       },
       "required": ["id", "broadcast_id", "session_uuid", "vibe", "reported_at"]
+    },
+    "Interaction": {
+      "title": "User Interaction",
+      "description": "General user actions like shares or saves.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "type": { "type": "string", "enum": ["wallet_save", "share", "vibe_report", "login", "seed"] },
+        "session_uuid": { "type": "string" },
+        "access_vector": { "type": "string", "enum": ["nfc", "direct", "qr"] },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "node_id": { "type": "string" },
+        "sponsor_id": { "type": "string" },
+        "tab": { "type": "string" }
+      },
+      "required": ["id", "type", "session_uuid", "access_vector", "timestamp"]
     }
   },
   "firestore": {
@@ -135,6 +175,14 @@
     "/tab_views/{viewId}": {
       "schema": "TabView",
       "description": "Tab navigation logs."
+    },
+    "/pois/{poiId}": {
+      "schema": "Poi",
+      "description": "Public art and landmarks."
+    },
+    "/interactions/{interactionId}": {
+      "schema": "Interaction",
+      "description": "General user interaction logs."
     }
   }
 }

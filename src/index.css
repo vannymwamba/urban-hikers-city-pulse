@@ -1,51 +1,70 @@
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&family=Inter:wght@300;400;500;600;700&family=Bebas+Neue&display=swap');
-@import "./tokens.css";
+@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,900;1,900&family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
 @import "tailwindcss";
 
 @theme {
-  --font-mono: var(--font-system);
-  --font-sans: var(--font-system);
-  --font-bebas: "Bebas Neue", sans-serif;
+  --font-display: "Barlow Condensed", sans-serif;
+  --font-sans: "Space Grotesk", sans-serif;
+  --font-mono: "JetBrains Mono", monospace;
 
-  --color-hud-bg: var(--color-base);
-  --color-hud-yellow: var(--color-brand);
-  --color-hud-green: var(--color-verified);
-  --color-hud-teal: var(--color-live);
-  --color-hud-amber: var(--color-partner);
-  --color-hud-coral: var(--color-urgent);
-  --color-hud-magenta: var(--color-urgent);
-  --color-hud-dark: var(--color-base);
-  --color-feed-bg: var(--color-base);
+  --color-uh-yellow: #FFE01A;
+  --color-uh-black: #0A0A0A;
+  --color-uh-magenta: #FF2D6F;
 
-  --color-navy: #111111;
-  --color-navy-deep: #0A0A0A;
-  --color-navy-mid: #161616;
-  --color-yellow: var(--color-brand);
-  --color-green: var(--color-verified);
+  /* Legacy HUD colors for compatibility */
+  --color-hud-bg: #0A0A0A;
+  --color-hud-yellow: #FFE01A;
+  --color-hud-green: #00FF00;
+  --color-hud-magenta: #FF2D6F;
+  --color-hud-dark: #0A0A0A;
 }
 
 @layer base {
   body {
-    @apply bg-hud-dark text-white font-mono selection:bg-hud-yellow selection:text-hud-dark;
-    font-family: var(--font-system);
-    letter-spacing: -0.02em;
+    @apply bg-uh-black text-white font-sans selection:bg-uh-yellow selection:text-uh-black;
+    background-image: 
+      linear-gradient(rgba(255, 224, 26, 0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255, 224, 26, 0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    background-attachment: fixed;
   }
 }
 
 @layer components {
-  .hud-border {
-    @apply border border-hud-green/30;
+  .shimmer-sweep {
+    position: relative;
+    overflow: hidden;
   }
   
+  .shimmer-sweep::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgba(255, 255, 255, 0.2),
+      transparent
+    );
+    transition: 0.5s;
+  }
+  
+  .shimmer-sweep:hover::after {
+    left: 100%;
+  }
+
   .hud-glow-green {
     text-shadow: 0 0 8px rgba(0, 255, 0, 0.5);
   }
   
   .hud-glow-yellow {
-    text-shadow: 0 0 8px rgba(255, 215, 0, 0.5);
+    text-shadow: 0 0 8px rgba(255, 224, 26, 0.5);
   }
 
-  .departure-row {
-    @apply grid grid-cols-[1fr_auto_auto] gap-4 py-3 border-b border-hud-green/10 items-center hover:bg-hud-green/5 transition-colors cursor-pointer;
+  .vertical-text {
+    writing-mode: vertical-rl;
+    text-orientation: mixed;
   }
 }

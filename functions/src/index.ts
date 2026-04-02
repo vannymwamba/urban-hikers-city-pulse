@@ -437,3 +437,5 @@ export const triggerCHPLIngest = onCall({ enforceAppCheck: false }, async (req) 
     throw new HttpsError(code, message);
   }
 });
+
+export { tagEventToSector } from './tagEventToSector';

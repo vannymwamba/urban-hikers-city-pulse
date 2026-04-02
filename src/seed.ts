@@ -9,8 +9,8 @@ const seedData = async () => {
     // Seed Nodes
     const nodes = [
       { id: 'OTR-ALPHA-01', name: 'ALPHA_PLAZA_HUB', type: 'street', address: 'Main St & E 13th St, Cincinnati, OH', latitude: 39.1092, longitude: -84.5125, radius_limit: 5000 },
-      { id: 'sector-beta', name: 'BETA_CONCOURSE', type: 'conference_center', address: '525 Elm St, Cincinnati, OH', latitude: 39.1015, longitude: -84.5165, radius_limit: 2000 },
-      { id: 'sector-gamma', name: 'GAMMA_GARDENS', type: 'street', address: '1230 Elm St, Cincinnati, OH', latitude: 39.1115, longitude: -84.5185, radius_limit: 3000 }
+      { id: 'SECTOR-BETA', name: 'BETA_CONCOURSE', type: 'conference_center', address: '525 Elm St, Cincinnati, OH', latitude: 39.1015, longitude: -84.5165, radius_limit: 2000 },
+      { id: 'SECTOR-GAMMA', name: 'GAMMA_GARDENS', type: 'street', address: '1230 Elm St, Cincinnati, OH', latitude: 39.1115, longitude: -84.5185, radius_limit: 3000 }
     ];
 
     for (const node of nodes) {
@@ -167,10 +167,11 @@ const seedData = async () => {
         longitude: -84.5145,
         startsAt: new Date().toISOString(),
         starts_at: new Date().toISOString(),
-        expiresAt: addHours(new Date(), 1).toISOString(),
-        expires_at: addHours(new Date(), 1).toISOString(),
+        expiresAt: addHours(new Date(), 168).toISOString(),
+        expires_at: addHours(new Date(), 168).toISOString(),
         currentVibe: 'buzzing',
         current_vibe: 'buzzing',
+        active: true,
         description: 'Exclusive flash deal for Urban Hikers! Get 50% off any taco order at Kroger Fresh Market. Just show your NFC stamp at the counter. Valid for the next hour only!'
       },
       {
@@ -185,10 +186,11 @@ const seedData = async () => {
         longitude: -84.5165,
         startsAt: new Date().toISOString(),
         starts_at: new Date().toISOString(),
-        expiresAt: addHours(new Date(), 3).toISOString(),
-        expires_at: addHours(new Date(), 3).toISOString(),
+        expiresAt: addHours(new Date(), 168).toISOString(),
+        expires_at: addHours(new Date(), 168).toISOString(),
         currentVibe: 'packed',
         current_vibe: 'packed',
+        active: true,
         description: 'LAST_CALL: Get 50% off your BTW26 Conference Pass. Limited quantity available for local residents. Tap in now to secure your spot at the future of urban tech.'
       },
       {
@@ -203,10 +205,11 @@ const seedData = async () => {
         longitude: -84.5191,
         startsAt: new Date().toISOString(),
         starts_at: new Date().toISOString(),
-        expiresAt: addHours(new Date(), 2).toISOString(),
-        expires_at: addHours(new Date(), 2).toISOString(),
+        expiresAt: addHours(new Date(), 168).toISOString(),
+        expires_at: addHours(new Date(), 168).toISOString(),
         currentVibe: 'buzzing',
         current_vibe: 'buzzing',
+        active: true,
         description: 'Happy Hour is LIVE! $1 off all pints for Urban Hikers. Head to the taproom and show your signal. The perfect way to end your hike.'
       },
       {
@@ -221,10 +224,11 @@ const seedData = async () => {
         longitude: -84.5188,
         startsAt: new Date().toISOString(),
         starts_at: new Date().toISOString(),
-        expiresAt: addHours(new Date(), 2).toISOString(),
-        expires_at: addHours(new Date(), 2).toISOString(),
+        expiresAt: addHours(new Date(), 168).toISOString(),
+        expires_at: addHours(new Date(), 168).toISOString(),
         currentVibe: 'chill',
         current_vibe: 'chill',
+        active: true,
         description: 'Enjoy a relaxing evening with the Blue Note Quartet. Live jazz performance in the heart of the city. Open to all, no tickets required. Grab a seat early!'
       },
       {
@@ -239,10 +243,11 @@ const seedData = async () => {
         longitude: -84.5121,
         startsAt: new Date().toISOString(),
         starts_at: new Date().toISOString(),
-        expiresAt: addHours(new Date(), 4).toISOString(),
-        expires_at: addHours(new Date(), 4).toISOString(),
+        expiresAt: addHours(new Date(), 168).toISOString(),
+        expires_at: addHours(new Date(), 168).toISOString(),
         currentVibe: 'buzzing',
         current_vibe: 'buzzing',
+        active: true,
         description: 'Join us for the opening night of our latest exhibition. Meet the artists, enjoy refreshments, and experience contemporary art like never before. Free for Urban Hikers.'
       },
       {
@@ -255,10 +260,11 @@ const seedData = async () => {
         longitude: -84.5150,
         startsAt: new Date().toISOString(),
         starts_at: new Date().toISOString(),
-        expiresAt: addHours(new Date(), 4).toISOString(),
-        expires_at: addHours(new Date(), 4).toISOString(),
+        expiresAt: addHours(new Date(), 168).toISOString(),
+        expires_at: addHours(new Date(), 168).toISOString(),
         currentVibe: 'packed',
         current_vibe: 'packed',
+        active: true,
         description: 'Local artists showcase their latest murals and installations. Interactive art walk through the Vine Street corridor. Meet the artists and discover the stories behind the walls.'
       },
       {
@@ -273,10 +279,11 @@ const seedData = async () => {
         longitude: -84.5166,
         startsAt: new Date().toISOString(),
         starts_at: new Date().toISOString(),
-        expiresAt: addHours(new Date(), 1.5).toISOString(),
-        expires_at: addHours(new Date(), 1.5).toISOString(),
+        expiresAt: addHours(new Date(), 168).toISOString(),
+        expires_at: addHours(new Date(), 168).toISOString(),
         currentVibe: 'buzzing',
         current_vibe: 'buzzing',
+        active: true,
         description: 'The future of urban infrastructure and NFC technology. Join industry leaders for a deep dive into the BTW26 keynote session. Hall B, limited seating available.'
       },
       {
@@ -291,10 +298,11 @@ const seedData = async () => {
         longitude: -84.5125,
         startsAt: new Date().toISOString(),
         starts_at: new Date().toISOString(),
-        expiresAt: addHours(new Date(), 4).toISOString(),
-        expires_at: addHours(new Date(), 4).toISOString(),
+        expiresAt: addHours(new Date(), 168).toISOString(),
+        expires_at: addHours(new Date(), 168).toISOString(),
         currentVibe: 'chill',
         current_vibe: 'chill',
+        active: true,
         description: 'Join the Cincinnati Public Library for an outdoor storytime session. Perfect for families and young hikers. Discover new stories and enjoy the fresh air.'
       },
       {
@@ -309,10 +317,11 @@ const seedData = async () => {
         longitude: -84.5125,
         startsAt: new Date().toISOString(),
         starts_at: new Date().toISOString(),
-        expiresAt: addHours(new Date(), 6).toISOString(),
-        expires_at: addHours(new Date(), 6).toISOString(),
+        expiresAt: addHours(new Date(), 168).toISOString(),
+        expires_at: addHours(new Date(), 168).toISOString(),
         currentVibe: 'chill',
         current_vibe: 'chill',
+        active: true,
         description: 'Need help with your device or the Urban Hikers app? Our tech volunteers are here to help. Drop by the library hub for one-on-one assistance.'
       }
     ];
@@ -328,20 +337,44 @@ const seedData = async () => {
           broadcast_id: docRef.id,
           vibe: vibes[i],
           reported_at: new Date(Date.now() - (vibes.length - i) * 10 * 60 * 1000).toISOString(),
-          session_uuid: 'seed-session'
+          session_uuid: 'seed-session',
+          sponsor_id: broadcast.partner_id || broadcast.partnerId || 'sponsor-kroger',
+          access_vector: i % 2 === 0 ? 'nfc' : 'qr'
         });
       }
     }
 
     // Seed Taps
     const sampleTaps = [
-      { node_id: 'OTR-ALPHA-01', session_uuid: 's1', access_vector: 'nfc', timestamp: new Date().toISOString() },
-      { node_id: 'OTR-ALPHA-01', session_uuid: 's2', access_vector: 'qr', timestamp: new Date().toISOString() },
-      { node_id: 'sector-beta', session_uuid: 's3', access_vector: 'nfc', timestamp: new Date().toISOString() },
+      { node_id: 'OTR-ALPHA-01', session_uuid: 's1', access_vector: 'nfc', timestamp: new Date().toISOString(), sponsor_id: 'partner-kroger' },
+      { node_id: 'OTR-ALPHA-01', session_uuid: 's2', access_vector: 'qr', timestamp: new Date().toISOString(), sponsor_id: 'partner-kroger' },
+      { node_id: 'SECTOR-BETA', session_uuid: 's3', access_vector: 'nfc', timestamp: new Date().toISOString(), sponsor_id: 'partner-medpace' },
     ];
 
     for (const tap of sampleTaps) {
       await addDoc(collection(db, 'taps'), tap);
+    }
+
+    // Seed Interactions
+    const sampleInteractions = [
+      { type: 'share', session_uuid: 's1', access_vector: 'nfc', timestamp: new Date().toISOString(), sponsor_id: 'sponsor-kroger' },
+      { type: 'wallet_save', session_uuid: 's2', access_vector: 'qr', timestamp: new Date().toISOString(), sponsor_id: 'sponsor-kroger' },
+      { type: 'share', session_uuid: 's3', access_vector: 'nfc', timestamp: new Date().toISOString(), sponsor_id: 'sponsor-medpace' },
+    ];
+
+    for (const inter of sampleInteractions) {
+      await addDoc(collection(db, 'interactions'), inter);
+    }
+
+    // Seed Tab Views
+    const sampleViews = [
+      { tab: 'feed', session_uuid: 's1', access_vector: 'nfc', timestamp: new Date().toISOString(), sponsor_id: 'sponsor-kroger' },
+      { tab: 'wallet', session_uuid: 's2', access_vector: 'qr', timestamp: new Date().toISOString(), sponsor_id: 'sponsor-kroger' },
+      { tab: 'map', session_uuid: 's3', access_vector: 'nfc', timestamp: new Date().toISOString(), sponsor_id: 'sponsor-medpace' },
+    ];
+
+    for (const view of sampleViews) {
+      await addDoc(collection(db, 'tab_views'), view);
     }
 
     // Seed Routes
