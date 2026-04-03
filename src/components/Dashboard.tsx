@@ -620,38 +620,38 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
   };
 
   return (
-    <div className="min-h-screen bg-hud-bg text-white flex flex-col font-sans">
+    <div className="min-h-screen bg-white text-uh-black flex flex-col font-sans">
       {/* Sidebar / Header */}
-      <header className="border-b border-white/10 p-6 flex justify-between items-center bg-hud-dark">
+      <header className="border-b border-uh-gray-200 p-6 flex justify-between items-center bg-uh-black text-white">
         <div className="flex items-center gap-4">
-          <div className="bg-hud-yellow text-black p-2 font-black text-xl">U</div>
+          <div className="bg-uh-yellow text-uh-black p-2 font-black text-xl">U</div>
           <div>
-            <div className="text-[10px] text-hud-green font-bold tracking-[0.3em]">URBAN_HIKERS // CONTROL_CENTER</div>
+            <div className="text-[10px] text-uh-yellow font-bold tracking-[0.3em]">URBAN_HIKERS // CONTROL_CENTER</div>
             <div className="text-xs opacity-60 uppercase tracking-widest">{userProfile.role} ACCESS: {userProfile.email}</div>
           </div>
         </div>
         <div className="flex items-center gap-3">
           <a 
             href="/tap/OTR-ALPHA-01" 
-            className="flex items-center gap-2 text-hud-yellow hover:bg-hud-yellow/10 px-4 py-2 border border-hud-yellow/20 transition-all text-xs font-bold"
+            className="flex items-center gap-2 text-uh-yellow hover:bg-uh-yellow/10 px-4 py-2 border border-uh-yellow/20 transition-all text-xs font-bold"
           >
             <Globe size={16} /> VIEW_LIVE_BOARD
           </a>
           <a 
             href="/creator/ignite" 
-            className="flex items-center gap-2 text-hud-magenta hover:bg-hud-magenta/10 px-4 py-2 border border-hud-magenta transition-all text-xs font-bold"
+            className="flex items-center gap-2 text-white hover:bg-white/10 px-4 py-2 border border-white/20 transition-all text-xs font-bold"
           >
             <Send size={16} /> CREATOR_IGNITE
           </a>
           {isAdmin && (
             <a 
               href="/admin/mural" 
-              className="flex items-center gap-2 text-[#FFD700] hover:bg-[#FFD700]/10 px-4 py-2 border border-[#FFD700] transition-all text-xs font-bold"
+              className="flex items-center gap-2 text-uh-yellow hover:bg-uh-yellow/10 px-4 py-2 border border-uh-yellow/20 transition-all text-xs font-bold"
             >
               <Palette size={16} /> MURAL_ADMIN
             </a>
           )}
-          <button onClick={onLogout} className="flex items-center gap-2 text-hud-magenta hover:bg-hud-magenta/10 px-4 py-2 border border-hud-magenta transition-all text-xs font-bold">
+          <button onClick={onLogout} className="flex items-center gap-2 text-white hover:bg-white/10 px-4 py-2 border border-white/20 transition-all text-xs font-bold">
             <LogOut size={16} /> TERMINATE_SESSION
           </button>
         </div>
@@ -659,11 +659,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
 
       <div className="flex flex-1 overflow-hidden">
         {/* Navigation */}
-        <nav className="w-64 border-r border-white/10 p-4 flex flex-col gap-2 bg-hud-dark/50">
+        <nav className="w-64 border-r border-uh-gray-200 p-4 flex flex-col gap-2 bg-uh-gray-50">
           {(isAdmin || isPartner) && (
             <button 
               onClick={() => setActiveTab('hubs')}
-              className={`flex items-center gap-3 p-3 text-sm font-bold transition-all ${activeTab === 'hubs' ? 'bg-hud-green text-black' : 'hover:bg-white/5 text-hud-green/60'}`}
+              className={`flex items-center gap-3 p-3 text-sm font-bold transition-all rounded-lg ${activeTab === 'hubs' ? 'bg-uh-yellow text-uh-black shadow-sm' : 'hover:bg-uh-gray-100 text-uh-gray-600'}`}
             >
               <Globe size={18} /> SECTOR_HUBS
             </button>
@@ -671,21 +671,21 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
           {isAdmin && (
             <button 
               onClick={() => setActiveTab('partners')}
-              className={`flex items-center gap-3 p-3 text-sm font-bold transition-all ${activeTab === 'partners' ? 'bg-hud-green text-black' : 'hover:bg-white/5 text-hud-green/60'}`}
+              className={`flex items-center gap-3 p-3 text-sm font-bold transition-all rounded-lg ${activeTab === 'partners' ? 'bg-uh-yellow text-uh-black shadow-sm' : 'hover:bg-uh-gray-100 text-uh-gray-600'}`}
             >
               <ShieldCheck size={18} /> PARTNER_NETWORK
             </button>
           )}
           <button 
             onClick={() => setActiveTab('broadcasts')}
-            className={`flex items-center gap-3 p-3 text-sm font-bold transition-all ${activeTab === 'broadcasts' ? 'bg-hud-green text-black' : 'hover:bg-white/5 text-hud-green/60'}`}
+            className={`flex items-center gap-3 p-3 text-sm font-bold transition-all rounded-lg ${activeTab === 'broadcasts' ? 'bg-uh-yellow text-uh-black shadow-sm' : 'hover:bg-uh-gray-100 text-uh-gray-600'}`}
           >
             <Send size={18} /> LIVE_BROADCASTS
           </button>
           {(isPartner || isAdmin) && (
             <button 
               onClick={() => setActiveTab('analytics')}
-              className={`flex items-center gap-3 p-3 text-sm font-bold transition-all ${activeTab === 'analytics' ? 'bg-hud-green text-black' : 'hover:bg-white/5 text-hud-green/60'}`}
+              className={`flex items-center gap-3 p-3 text-sm font-bold transition-all rounded-lg ${activeTab === 'analytics' ? 'bg-uh-yellow text-uh-black shadow-sm' : 'hover:bg-uh-gray-100 text-uh-gray-600'}`}
             >
               <BarChart3 size={18} /> {isAdmin ? 'SYSTEM_ANALYTICS' : 'SIGNAL_ANALYTICS'}
             </button>
@@ -693,7 +693,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
           {isPartner && (
             <button 
               onClick={() => setActiveTab('profile')}
-              className={`flex items-center gap-3 p-3 text-sm font-bold transition-all ${activeTab === 'profile' ? 'bg-hud-green text-black' : 'hover:bg-white/5 text-hud-green/60'}`}
+              className={`flex items-center gap-3 p-3 text-sm font-bold transition-all rounded-lg ${activeTab === 'profile' ? 'bg-uh-yellow text-uh-black shadow-sm' : 'hover:bg-uh-gray-100 text-uh-gray-600'}`}
             >
               <ShieldCheck size={18} /> {isAdmin ? 'MY_PARTNER_PROFILE' : 'MY_PROFILE'}
             </button>
@@ -701,7 +701,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
         </nav>
 
         {/* Main Content */}
-        <main className="flex-1 overflow-y-auto p-8 bg-hud-bg relative">
+        <main className="flex-1 overflow-y-auto p-8 bg-white relative">
           {/* HUD Notifications */}
           <div className="fixed top-24 right-8 z-[100] flex flex-col gap-2">
             {hudMessage && (
@@ -709,10 +709,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
                 initial={{ opacity: 0, x: 20 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: 20 }}
-                className={`px-4 py-2 border font-bold text-[10px] tracking-widest shadow-lg ${
+                className={`px-6 py-3 rounded-xl font-bold text-xs tracking-widest shadow-2xl border ${
                   hudMessage.type === 'error' 
-                    ? 'bg-hud-magenta/20 border-hud-magenta text-hud-magenta' 
-                    : 'bg-hud-green/20 border-hud-green text-hud-green'
+                    ? 'bg-uh-black text-uh-magenta border-uh-magenta/20' 
+                    : 'bg-uh-black text-uh-yellow border-uh-yellow/20'
                 }`}
               >
                 {hudMessage.text}
@@ -720,13 +720,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
             )}
           </div>
 
-          {/* Scanline Effect */}
-          <div className="absolute inset-0 pointer-events-none bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%),linear-gradient(90deg,rgba(255,0,0,0.06),rgba(0,255,0,0.02),rgba(0,0,255,0.06))] z-50 bg-[length:100%_2px,3px_100%] opacity-20" />
-
+          {/* Content Tabs */}
           {activeTab === 'hubs' && (isAdmin || isPartner) && (
             <div className="max-w-4xl mx-auto">
-              <div className="flex justify-between items-end mb-8 border-b border-hud-green/20 pb-4">
-                <h2 className="text-2xl font-black tracking-tighter text-hud-green">SECTOR_HUB_MANAGEMENT</h2>
+              <div className="flex justify-between items-end mb-8 border-b border-uh-gray-200 pb-6">
+                <h2 className="text-3xl font-black tracking-tighter text-uh-black">SECTOR_HUB_MANAGEMENT</h2>
                 <div className="flex flex-col items-end">
                   <div className="flex items-center gap-4 mb-2">
                     {isAdmin && (
@@ -734,46 +732,41 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
                         <button 
                           onClick={handleSyncLibrary}
                           disabled={isSyncingLibrary}
-                          className="flex items-center gap-2 px-3 py-1 border border-hud-green/30 text-hud-green text-[9px] font-bold hover:bg-hud-green/10 transition-all disabled:opacity-50"
+                          className="flex items-center gap-2 px-4 py-2 border border-uh-gray-200 text-uh-gray-800 text-[10px] font-black tracking-widest hover:bg-uh-gray-100 transition-all disabled:opacity-50 rounded-lg"
                         >
                           <RefreshCw size={12} className={isSyncingLibrary ? 'animate-spin' : ''} />
-                          SYNC_LIBRARY_EVENTS
+                          SYNC_LIBRARY
                         </button>
                         <button 
                           onClick={handleSyncCivic}
                           disabled={isSyncingCivic}
-                          className="flex items-center gap-2 px-3 py-1 border border-hud-magenta/30 text-hud-magenta text-[9px] font-bold hover:bg-hud-magenta/10 transition-all disabled:opacity-50"
+                          className="flex items-center gap-2 px-4 py-2 border border-uh-gray-200 text-uh-gray-800 text-[10px] font-black tracking-widest hover:bg-uh-gray-100 transition-all disabled:opacity-50 rounded-lg"
                         >
                           <RefreshCw size={12} className={isSyncingCivic ? 'animate-spin' : ''} />
-                          SYNC_CIVIC_EVENTS
+                          SYNC_CIVIC
                         </button>
                         <button 
                           onClick={handleRestoreData}
                           disabled={isSeeding}
-                          className="flex items-center gap-2 px-3 py-1 border border-hud-yellow/30 text-hud-yellow text-[9px] font-bold hover:bg-hud-yellow/10 transition-all disabled:opacity-50"
+                          className="flex items-center gap-2 px-4 py-2 bg-uh-yellow text-uh-black text-[10px] font-black tracking-widest hover:bg-uh-yellow/80 transition-all disabled:opacity-50 rounded-lg shadow-sm"
                         >
                           <RefreshCw size={12} className={isSeeding ? 'animate-spin' : ''} />
-                          RESTORE_SYSTEM_DATA
+                          RESTORE_DATA
                         </button>
                       </div>
                     )}
-                    <div className="text-[10px] text-hud-green/40 font-bold uppercase">
+                    <div className="text-[10px] text-uh-gray-400 font-bold uppercase tracking-widest">
                       {isAdmin ? `ACTIVE_NODES: ${nodes.length}` : `HOSTING_HUBS: ${nodes.filter(n => broadcasts.some(b => b.node_id === n.id)).length}`}
                     </div>
                   </div>
-                  {isPartner && (
-                    <div className="text-[10px] text-hud-yellow font-bold uppercase mt-1">
-                      TOTAL_NETWORK_TAPS: {taps.filter(t => broadcasts.some(b => b.node_id === t.node_id)).length}
-                    </div>
-                  )}
                 </div>
               </div>
 
               {/* Create/Edit Node Form - Admin Only */}
               {isAdmin && (
-                <form onSubmit={handleCreateNode} className="bg-white/5 border border-white/10 p-6 mb-8 grid grid-cols-2 gap-4">
+                <form onSubmit={handleCreateNode} className="bg-uh-gray-50 border border-uh-gray-200 rounded-2xl p-8 mb-10 grid grid-cols-2 gap-6 shadow-sm">
                   <div className="col-span-2 flex justify-between items-center mb-2">
-                    <div className="text-[10px] text-hud-green font-bold tracking-widest uppercase">
+                    <div className="text-[11px] text-uh-black font-black tracking-[0.2em] uppercase">
                       {editingNodeId ? 'RECONFIGURE_EXISTING_HUB' : 'GENERATE_NEW_HUB'}
                     </div>
                     {editingNodeId && (
@@ -783,34 +776,40 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
                           setEditingNodeId(null);
                           setNewNode({ name: '', type: 'street', address: '', lat: 0, lng: 0, radius: 500 });
                         }}
-                        className="text-[9px] text-hud-magenta font-bold hover:underline"
+                        className="text-[10px] text-uh-magenta font-bold hover:underline"
                       >
                         CANCEL_EDIT
                       </button>
                     )}
                   </div>
-                  <input 
-                    placeholder="HUB_NAME (e.g. OTR North)"
-                    className="bg-black border border-white/20 p-3 text-sm focus:border-hud-green outline-none"
-                    value={newNode.name}
-                    onChange={e => setNewNode({...newNode, name: e.target.value})}
-                    required
-                  />
-                  <select 
-                    className="bg-black border border-white/20 p-3 text-sm focus:border-hud-green outline-none"
-                    value={newNode.type}
-                    onChange={e => setNewNode({...newNode, type: e.target.value as HubType})}
-                  >
-                    <option value="street">STREET_LEVEL</option>
-                    <option value="conference_center">CONFERENCE_HUB</option>
-                  </select>
+                  <div className="flex flex-col gap-2">
+                    <label className="text-[10px] font-black text-uh-gray-400 uppercase tracking-widest">Hub_Identity</label>
+                    <input 
+                      placeholder="HUB_NAME (e.g. OTR North)"
+                      className="bg-white border border-uh-gray-200 rounded-xl p-4 text-sm focus:border-uh-yellow focus:ring-2 focus:ring-uh-yellow/20 outline-none transition-all text-uh-black font-medium"
+                      value={newNode.name}
+                      onChange={e => setNewNode({...newNode, name: e.target.value})}
+                      required
+                    />
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <label className="text-[10px] font-black text-uh-gray-400 uppercase tracking-widest">Hub_Type</label>
+                    <select 
+                      className="bg-white border border-uh-gray-200 rounded-xl p-4 text-sm focus:border-uh-yellow focus:ring-2 focus:ring-uh-yellow/20 outline-none transition-all text-uh-black font-medium appearance-none"
+                      value={newNode.type}
+                      onChange={e => setNewNode({...newNode, type: e.target.value as HubType})}
+                    >
+                      <option value="street">STREET_LEVEL</option>
+                      <option value="conference_center">CONFERENCE_HUB</option>
+                    </select>
+                  </div>
 
-                  <div className="col-span-2 flex flex-col gap-1">
-                    <label className="text-[9px] opacity-40 font-bold">PHYSICAL_ADDRESS (FOR_GEOCODING)</label>
-                    <div className="flex gap-2">
+                  <div className="col-span-2 flex flex-col gap-2">
+                    <label className="text-[10px] font-black text-uh-gray-400 uppercase tracking-widest">Physical_Address (Tactical_Location)</label>
+                    <div className="flex gap-3">
                       <input 
                         placeholder="123 Main St, Cincinnati, OH"
-                        className="flex-1 bg-black border border-white/20 p-3 text-sm focus:border-hud-green outline-none"
+                        className="flex-1 bg-white border border-uh-gray-200 rounded-xl p-4 text-sm focus:border-uh-yellow focus:ring-2 focus:ring-uh-yellow/20 outline-none transition-all text-uh-black font-medium"
                         value={newNode.address}
                         onChange={e => setNewNode({...newNode, address: e.target.value})}
                       />
@@ -818,35 +817,46 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
                         type="button"
                         onClick={handleGeocodeNode}
                         disabled={isGeocoding}
-                        className="px-4 bg-hud-green text-black font-bold text-[10px] hover:bg-hud-green/80 disabled:opacity-50"
+                        className="px-6 bg-uh-black text-white font-black text-[10px] tracking-widest rounded-xl hover:bg-uh-gray-800 disabled:opacity-50 transition-all"
                       >
-                        {isGeocoding ? 'RESOLVING...' : 'RESOLVE_COORDS'}
+                        {isGeocoding ? 'RESOLVING...' : 'RESOLVE'}
                       </button>
                     </div>
                   </div>
 
-                  <input 
-                    type="number" step="any" placeholder="LATITUDE"
-                    className="bg-black border border-white/20 p-3 text-sm focus:border-hud-green outline-none"
-                    value={newNode.lat || ''}
-                    onChange={e => setNewNode({...newNode, lat: Number(e.target.value)})}
-                    required
-                  />
-                  <input 
-                    type="number" step="any" placeholder="LONGITUDE"
-                    className="bg-black border border-white/20 p-3 text-sm focus:border-hud-green outline-none"
-                    value={newNode.lng || ''}
-                    onChange={e => setNewNode({...newNode, lng: Number(e.target.value)})}
-                    required
-                  />
-                  <input 
-                    type="number" placeholder="RADIUS_LIMIT (METERS)"
-                    className="bg-black border border-white/20 p-3 text-sm focus:border-hud-green outline-none"
-                    value={newNode.radius || ''}
-                    onChange={e => setNewNode({...newNode, radius: Number(e.target.value)})}
-                    required
-                  />
-                  <button type="submit" className="bg-hud-green text-black font-black p-3 hover:bg-hud-green/80 transition-all flex items-center justify-center gap-2">
+                  <div className="grid grid-cols-3 col-span-2 gap-4">
+                    <div className="flex flex-col gap-2">
+                      <label className="text-[10px] font-black text-uh-gray-400 uppercase tracking-widest">Latitude</label>
+                      <input 
+                        type="number" step="any"
+                        className="bg-white border border-uh-gray-200 rounded-xl p-4 text-sm focus:border-uh-yellow outline-none text-uh-black font-mono"
+                        value={newNode.lat || ''}
+                        onChange={e => setNewNode({...newNode, lat: Number(e.target.value)})}
+                        required
+                      />
+                    </div>
+                    <div className="flex flex-col gap-2">
+                      <label className="text-[10px] font-black text-uh-gray-400 uppercase tracking-widest">Longitude</label>
+                      <input 
+                        type="number" step="any"
+                        className="bg-white border border-uh-gray-200 rounded-xl p-4 text-sm focus:border-uh-yellow outline-none text-uh-black font-mono"
+                        value={newNode.lng || ''}
+                        onChange={e => setNewNode({...newNode, lng: Number(e.target.value)})}
+                        required
+                      />
+                    </div>
+                    <div className="flex flex-col gap-2">
+                      <label className="text-[10px] font-black text-uh-gray-400 uppercase tracking-widest">Radius (M)</label>
+                      <input 
+                        type="number"
+                        className="bg-white border border-uh-gray-200 rounded-xl p-4 text-sm focus:border-uh-yellow outline-none text-uh-black font-mono"
+                        value={newNode.radius || ''}
+                        onChange={e => setNewNode({...newNode, radius: Number(e.target.value)})}
+                        required
+                      />
+                    </div>
+                  </div>
+                  <button type="submit" className="bg-uh-yellow text-uh-black font-black p-4 rounded-xl hover:bg-uh-yellow/80 transition-all flex items-center justify-center gap-3 col-span-2 shadow-lg shadow-uh-yellow/20 text-xs tracking-widest uppercase">
                     {editingNodeId ? <RefreshCw size={18} /> : <Plus size={18} />} 
                     {editingNodeId ? 'UPDATE_HUB_CONFIG' : 'IGNITE_HUB'}
                   </button>
@@ -854,12 +864,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
               )}
 
               {/* Nodes List */}
-              <div className="flex justify-between items-center px-4 mb-2 text-[9px] font-bold text-hud-green/40 uppercase tracking-[0.2em]">
+              <div className="flex justify-between items-center px-6 mb-4 text-[10px] font-black text-uh-gray-400 uppercase tracking-[0.2em]">
                 <div className="flex-1">HUB_IDENTITY</div>
-                <div className="flex gap-6 items-center">
+                <div className="flex gap-10 items-center">
                   <div className="w-16 text-right">TAPS</div>
                   <div className="w-32 text-right">COORDINATES</div>
-                  <div className="w-20"></div>
+                  <div className="w-24"></div>
                 </div>
               </div>
 
@@ -867,21 +877,21 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
                 {nodes
                   .filter(node => isAdmin || broadcasts.some(b => b.node_id === node.id))
                   .map(node => (
-                    <div key={node.id} className="bg-white/5 border border-white/10 p-4 flex justify-between items-center group hover:border-hud-green/40 transition-all">
+                    <div key={node.id} className="bg-white border border-uh-gray-200 rounded-2xl p-6 flex justify-between items-center group hover:border-uh-yellow transition-all shadow-sm">
                       <div className="flex-1">
-                        <div className="text-xs font-bold text-hud-green mb-1">{node.name}</div>
-                        <div className="text-[10px] opacity-40 font-mono">ID: {node.id} // TYPE: {node.type?.toUpperCase() || 'UNKNOWN'}</div>
+                        <div className="text-lg font-black text-uh-black mb-1">{node.name}</div>
+                        <div className="text-[10px] text-uh-gray-400 font-black tracking-widest uppercase">ID: {node.id} // TYPE: {node.type?.toUpperCase() || 'UNKNOWN'}</div>
                       </div>
-                      <div className="flex gap-6 items-center">
+                      <div className="flex gap-10 items-center">
                         <div className="w-16 text-right">
-                          <div className="text-[10px] font-mono font-bold text-hud-green">
+                          <div className="text-lg font-black text-uh-black font-mono">
                             {taps.filter(t => t.node_id === node.id).length}
                           </div>
                         </div>
                         <div className="w-32 text-right">
-                          <div className="text-[10px] font-mono">{node.latitude.toFixed(4)}, {node.longitude.toFixed(4)}</div>
+                          <div className="text-[11px] font-mono text-uh-gray-600 font-medium">{node.latitude.toFixed(4)}, {node.longitude.toFixed(4)}</div>
                         </div>
-                        <div className="w-20 flex gap-2 justify-end">
+                        <div className="w-24 flex gap-2 justify-end">
                           {isAdmin && (
                             <button 
                               onClick={() => {
@@ -896,10 +906,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
                                 });
                                 window.scrollTo({ top: 0, behavior: 'smooth' });
                               }}
-                              className="p-2 border border-white/10 hover:border-hud-green hover:text-hud-green transition-all"
+                              className="p-3 bg-uh-gray-50 text-uh-gray-600 rounded-xl border border-uh-gray-200 hover:border-uh-yellow hover:text-uh-black transition-all"
                               title="Edit Hub Configuration"
                             >
-                              <RefreshCw size={16} />
+                              <RefreshCw size={18} />
                             </button>
                           )}
                           <button 
@@ -908,21 +918,21 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
                               navigator.clipboard.writeText(url);
                               setHudMessage({ text: `URL_COPIED: ${node.id.toUpperCase()}`, type: 'info' });
                             }}
-                            className="p-2 border border-white/10 hover:border-hud-yellow hover:text-hud-yellow transition-all"
+                            className="p-3 bg-uh-gray-50 text-uh-gray-600 rounded-xl border border-uh-gray-200 hover:border-uh-yellow hover:text-uh-black transition-all"
                             title="Copy Unique Tap URL"
                           >
-                            <LinkIcon size={16} />
+                            <LinkIcon size={18} />
                           </button>
                         </div>
                       </div>
                     </div>
                   ))}
                 {nodes.length === 0 && (
-                  <div className="py-20 text-center border border-dashed border-white/10 bg-white/[0.02]">
-                    <div className="text-hud-green font-black tracking-[0.2em] mb-2">NO_ACTIVE_HUBS_DETECTED</div>
-                    <div className="text-[10px] opacity-40 uppercase max-w-xs mx-auto leading-relaxed">
+                  <div className="py-24 text-center border-2 border-dashed border-uh-gray-200 rounded-3xl bg-uh-gray-50">
+                    <div className="text-uh-black font-black tracking-[0.2em] mb-3 text-xl">NO_ACTIVE_HUBS_DETECTED</div>
+                    <div className="text-xs text-uh-gray-400 font-bold uppercase max-w-xs mx-auto leading-relaxed tracking-widest">
                       The sector network is currently offline or uninitialized. 
-                      {isAdmin && " Use the RESTORE_SYSTEM_DATA button above to re-seed the tactical grid."}
+                      {isAdmin && " Use the RESTORE_DATA button above to re-seed the tactical grid."}
                     </div>
                   </div>
                 )}
@@ -932,15 +942,15 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
 
           {activeTab === 'partners' && isAdmin && (
             <div className="max-w-4xl mx-auto">
-              <div className="flex justify-between items-end mb-8 border-b border-hud-yellow/20 pb-4">
-                <h2 className="text-2xl font-black tracking-tighter text-hud-yellow">PARTNER_NETWORK_ADMIN</h2>
-                <div className="text-[10px] text-hud-yellow/40 font-bold">ACTIVE_PARTNERS: {partners.length}</div>
+              <div className="flex justify-between items-end mb-8 border-b border-uh-gray-200 pb-6">
+                <h2 className="text-3xl font-black tracking-tighter text-uh-black">PARTNER_NETWORK_ADMIN</h2>
+                <div className="text-[10px] text-uh-gray-400 font-bold uppercase tracking-widest">ACTIVE_PARTNERS: {partners.length}</div>
               </div>
 
               {/* Create Partner Form */}
-              <form onSubmit={handleCreatePartner} className="bg-white/5 border border-white/10 p-6 mb-8 grid grid-cols-2 gap-4">
+              <form onSubmit={handleCreatePartner} className="bg-uh-gray-50 border border-uh-gray-200 rounded-2xl p-8 mb-10 grid grid-cols-2 gap-6 shadow-sm">
                 <div className="col-span-2 flex justify-between items-center mb-2">
-                  <div className="text-[10px] text-hud-yellow font-bold tracking-widest uppercase">
+                  <div className="text-[11px] text-uh-black font-black tracking-[0.2em] uppercase">
                     {editingPartnerId ? 'RECONFIGURE_EXISTING_PARTNER' : 'ONBOARD_NEW_PARTNER'}
                   </div>
                   {editingPartnerId && (
@@ -958,33 +968,33 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
                           role: 'partner_admin',
                           logoUrl: '',
                           logoUpdatedAt: null,
-                          brandColor: '#00FF00',
+                          brandColor: '#FFE01A',
                           dealText: '',
                           sponsorZones: []
                         });
                       }}
-                      className="text-[9px] text-hud-magenta font-bold hover:underline"
+                      className="text-[10px] text-uh-magenta font-bold hover:underline"
                     >
                       CANCEL_EDIT
                     </button>
                   )}
                 </div>
                 
-                <div className="flex flex-col gap-1">
-                  <label className="text-[9px] opacity-40 font-bold">PARTNER_NAME</label>
+                <div className="flex flex-col gap-2">
+                  <label className="text-[10px] font-black text-uh-gray-400 uppercase tracking-widest">Partner_Name</label>
                   <input 
                     placeholder="e.g. Skyline Coffee"
-                    className="bg-black border border-white/20 p-3 text-sm focus:border-hud-yellow outline-none"
+                    className="bg-white border border-uh-gray-200 rounded-xl p-4 text-sm focus:border-uh-yellow focus:ring-2 focus:ring-uh-yellow/20 outline-none transition-all text-uh-black font-medium"
                     value={newPartner.name}
                     onChange={e => setNewPartner({...newPartner, name: e.target.value})}
                     required
                   />
                 </div>
 
-                <div className="flex flex-col gap-1">
-                  <label className="text-[9px] opacity-40 font-bold">PARTNER_TIER</label>
+                <div className="flex flex-col gap-2">
+                  <label className="text-[10px] font-black text-uh-gray-400 uppercase tracking-widest">Partner_Tier</label>
                   <select 
-                    className="bg-black border border-white/20 p-3 text-sm focus:border-hud-yellow outline-none"
+                    className="bg-white border border-uh-gray-200 rounded-xl p-4 text-sm focus:border-uh-yellow focus:ring-2 focus:ring-uh-yellow/20 outline-none transition-all text-uh-black font-medium appearance-none"
                     value={newPartner.tier}
                     onChange={e => setNewPartner({...newPartner, tier: e.target.value as Partner['tier']})}
                   >
@@ -994,12 +1004,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
                   </select>
                 </div>
 
-                <div className="col-span-2 flex flex-col gap-1">
-                  <label className="text-[9px] opacity-40 font-bold">PHYSICAL_ADDRESS (FOR_GEOCODING)</label>
-                  <div className="flex gap-2">
+                <div className="col-span-2 flex flex-col gap-2">
+                  <label className="text-[10px] font-black text-uh-gray-400 uppercase tracking-widest">Physical_Address (Tactical_Location)</label>
+                  <div className="flex gap-3">
                     <input 
                       placeholder="123 Main St, Cincinnati, OH"
-                      className="flex-1 bg-black border border-white/20 p-3 text-sm focus:border-hud-yellow outline-none"
+                      className="flex-1 bg-white border border-uh-gray-200 rounded-xl p-4 text-sm focus:border-uh-yellow focus:ring-2 focus:ring-uh-yellow/20 outline-none transition-all text-uh-black font-medium"
                       value={newPartner.address}
                       onChange={e => setNewPartner({...newPartner, address: e.target.value})}
                     />
@@ -1007,52 +1017,54 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
                       type="button"
                       onClick={handleGeocode}
                       disabled={isGeocoding}
-                      className="px-4 bg-hud-yellow text-black font-bold text-[10px] hover:bg-hud-yellow/80 disabled:opacity-50"
+                      className="px-6 bg-uh-black text-white font-black text-[10px] tracking-widest rounded-xl hover:bg-uh-gray-800 disabled:opacity-50 transition-all"
                     >
-                      {isGeocoding ? 'RESOLVING...' : 'RESOLVE_COORDS'}
+                      {isGeocoding ? 'RESOLVING...' : 'RESOLVE'}
                     </button>
                   </div>
                 </div>
 
-                <div className="flex flex-col gap-1">
-                  <label className="text-[9px] opacity-40 font-bold">LATITUDE</label>
-                  <input 
-                    type="number" step="any"
-                    className="bg-black border border-white/20 p-3 text-sm focus:border-hud-yellow outline-none"
-                    value={newPartner.lat || ''}
-                    onChange={e => setNewPartner({...newPartner, lat: Number(e.target.value)})}
-                    required
-                  />
+                <div className="grid grid-cols-2 col-span-2 gap-4">
+                  <div className="flex flex-col gap-2">
+                    <label className="text-[10px] font-black text-uh-gray-400 uppercase tracking-widest">Latitude</label>
+                    <input 
+                      type="number" step="any"
+                      className="bg-white border border-uh-gray-200 rounded-xl p-4 text-sm focus:border-uh-yellow outline-none text-uh-black font-mono"
+                      value={newPartner.lat || ''}
+                      onChange={e => setNewPartner({...newPartner, lat: Number(e.target.value)})}
+                      required
+                    />
+                  </div>
+
+                  <div className="flex flex-col gap-2">
+                    <label className="text-[10px] font-black text-uh-gray-400 uppercase tracking-widest">Longitude</label>
+                    <input 
+                      type="number" step="any"
+                      className="bg-white border border-uh-gray-200 rounded-xl p-4 text-sm focus:border-uh-yellow outline-none text-uh-black font-mono"
+                      value={newPartner.lng || ''}
+                      onChange={e => setNewPartner({...newPartner, lng: Number(e.target.value)})}
+                      required
+                    />
+                  </div>
                 </div>
 
-                <div className="flex flex-col gap-1">
-                  <label className="text-[9px] opacity-40 font-bold">LONGITUDE</label>
-                  <input 
-                    type="number" step="any"
-                    className="bg-black border border-white/20 p-3 text-sm focus:border-hud-yellow outline-none"
-                    value={newPartner.lng || ''}
-                    onChange={e => setNewPartner({...newPartner, lng: Number(e.target.value)})}
-                    required
-                  />
-                </div>
-
-                <div className="flex flex-col gap-1">
-                  <label className="text-[9px] opacity-40 font-bold">ASSOCIATE_OWNER_EMAIL</label>
+                <div className="flex flex-col gap-2">
+                  <label className="text-[10px] font-black text-uh-gray-400 uppercase tracking-widest">Associate_Owner_Email</label>
                   <input 
                     type="email"
                     placeholder="partner@example.com"
-                    className="bg-black border border-white/20 p-3 text-sm focus:border-hud-yellow outline-none"
+                    className="bg-white border border-uh-gray-200 rounded-xl p-4 text-sm focus:border-uh-yellow outline-none text-uh-black font-medium"
                     value={newPartner.owner_email}
                     onChange={e => setNewPartner({...newPartner, owner_email: e.target.value})}
                     required
                   />
-                  <p className="text-[8px] opacity-40 mt-1">USER_WILL_GAIN_PARTNER_ACCESS_UPON_LOGIN</p>
+                  <p className="text-[9px] text-uh-gray-400 font-bold uppercase tracking-widest">USER_WILL_GAIN_PARTNER_ACCESS_UPON_LOGIN</p>
                 </div>
 
-                <div className="flex flex-col gap-1">
-                  <label className="text-[9px] opacity-40 font-bold">ASSIGNED_USER_ROLE</label>
+                <div className="flex flex-col gap-2">
+                  <label className="text-[10px] font-black text-uh-gray-400 uppercase tracking-widest">Assigned_User_Role</label>
                   <select 
-                    className="bg-black border border-white/20 p-3 text-sm focus:border-hud-yellow outline-none"
+                    className="bg-white border border-uh-gray-200 rounded-xl p-4 text-sm focus:border-uh-yellow outline-none text-uh-black font-medium appearance-none"
                     value={newPartner.role}
                     onChange={e => setNewPartner({...newPartner, role: e.target.value as UserRole})}
                   >
@@ -1063,44 +1075,44 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
                 </div>
 
                 {/* Sponsor Branding Section */}
-                <div className="col-span-2 border-t border-white/10 pt-4 mt-2">
-                  <div className="text-[10px] text-hud-yellow font-bold mb-4 tracking-widest uppercase">Sponsor_Branding_Config</div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="flex flex-col gap-1">
-                      <label className="text-[9px] opacity-40 font-bold uppercase">Logo_Upload</label>
+                <div className="col-span-2 border-t border-uh-gray-200 pt-8 mt-4">
+                  <div className="text-[11px] text-uh-black font-black mb-6 tracking-[0.2em] uppercase">Sponsor_Branding_Config</div>
+                  <div className="grid grid-cols-2 gap-6">
+                    <div className="flex flex-col gap-2">
+                      <label className="text-[10px] font-black text-uh-gray-400 uppercase tracking-widest">Logo_Upload</label>
                       <LogoUpload 
                         partnerId={generatePartnerId(newPartner.name) || 'temp'} 
                         currentLogoUrl={newPartner.logoUrl}
                         onLogoUploaded={(url) => setNewPartner({...newPartner, logoUrl: url, logoUpdatedAt: new Date().toISOString()})}
                       />
                     </div>
-                    <div className="flex flex-col gap-1">
-                      <label className="text-[9px] opacity-40 font-bold uppercase">Brand_Color</label>
-                      <div className="flex gap-2">
+                    <div className="flex flex-col gap-2">
+                      <label className="text-[10px] font-black text-uh-gray-400 uppercase tracking-widest">Brand_Color</label>
+                      <div className="flex gap-3">
                         <input 
                           type="color"
-                          className="w-12 h-11 bg-black border border-white/20 p-1 cursor-pointer"
+                          className="w-14 h-14 bg-white border border-uh-gray-200 p-1 cursor-pointer rounded-xl"
                           value={newPartner.brandColor}
                           onChange={e => setNewPartner({...newPartner, brandColor: e.target.value})}
                         />
                         <input 
-                          className="flex-1 bg-black border border-white/20 p-3 text-sm focus:border-hud-yellow outline-none font-mono"
+                          className="flex-1 bg-white border border-uh-gray-200 rounded-xl p-4 text-sm focus:border-uh-yellow outline-none font-mono text-uh-black"
                           value={newPartner.brandColor}
                           onChange={e => setNewPartner({...newPartner, brandColor: e.target.value})}
                         />
                       </div>
                     </div>
-                    <div className="col-span-2 flex flex-col gap-1">
-                      <label className="text-[9px] opacity-40 font-bold uppercase">Deal_Text (Zone_D)</label>
+                    <div className="col-span-2 flex flex-col gap-2">
+                      <label className="text-[10px] font-black text-uh-gray-400 uppercase tracking-widest">Deal_Text (Zone_D)</label>
                       <input 
                         placeholder="e.g. 20% off with NFC tap"
-                        className="bg-black border border-white/20 p-3 text-sm focus:border-hud-yellow outline-none"
+                        className="bg-white border border-uh-gray-200 rounded-xl p-4 text-sm focus:border-uh-yellow outline-none text-uh-black font-medium"
                         value={newPartner.dealText}
                         onChange={e => setNewPartner({...newPartner, dealText: e.target.value})}
                       />
                     </div>
-                    <div className="col-span-2 flex flex-col gap-1">
-                      <label className="text-[9px] opacity-40 font-bold uppercase">Active_Sponsor_Zones</label>
+                    <div className="col-span-2 flex flex-col gap-2">
+                      <label className="text-[10px] font-black text-uh-gray-400 uppercase tracking-widest">Active_Sponsor_Zones</label>
                       <div className="flex gap-4">
                         {['A', 'B', 'C', 'D'].map(zone => (
                           <label key={zone} className="flex items-center gap-2 cursor-pointer group">
@@ -1115,7 +1127,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
                                 setNewPartner({...newPartner, sponsorZones: zones});
                               }}
                             />
-                            <div className={`w-8 h-8 border flex items-center justify-center font-bold text-xs transition-all ${newPartner.sponsorZones.includes(zone) ? 'bg-hud-yellow text-black border-hud-yellow' : 'border-white/20 text-white/40 group-hover:border-hud-yellow/50'}`}>
+                            <div className={`w-12 h-12 rounded-xl border-2 flex items-center justify-center font-black text-sm transition-all ${newPartner.sponsorZones.includes(zone) ? 'bg-uh-yellow text-uh-black border-uh-yellow shadow-lg shadow-uh-yellow/20' : 'border-uh-gray-200 text-uh-gray-400 group-hover:border-uh-yellow/50'}`}>
                               {zone}
                             </div>
                           </label>
@@ -1125,7 +1137,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
                   </div>
                 </div>
 
-                <button type="submit" className="bg-hud-yellow text-black font-black p-3 hover:bg-hud-yellow/80 transition-all flex items-center justify-center gap-2 col-span-2 mt-2">
+                <button type="submit" className="bg-uh-yellow text-uh-black font-black p-4 rounded-xl hover:bg-uh-yellow/80 transition-all flex items-center justify-center gap-3 col-span-2 mt-4 shadow-lg shadow-uh-yellow/20 text-xs tracking-widest uppercase">
                   {editingPartnerId ? <RefreshCw size={18} /> : <ShieldCheck size={18} />} 
                   {editingPartnerId ? 'UPDATE_PARTNER_CONFIG' : 'AUTHORIZE_PARTNER'}
                 </button>
@@ -1134,30 +1146,30 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
               {/* Partners List */}
               <div className="grid gap-4">
                 {partners.map(partner => (
-                  <div key={partner.id} className="bg-white/5 border border-white/10 p-4 flex justify-between items-center group hover:border-hud-yellow/40 transition-all">
+                  <div key={partner.id} className="bg-white border border-uh-gray-200 rounded-2xl p-6 flex justify-between items-center group hover:border-uh-yellow transition-all shadow-sm">
                     <div>
-                      <div className="flex items-center gap-3 mb-2">
+                      <div className="flex items-center gap-4 mb-3">
                         {(partner.logoUrl || partner.logo_url) && (
-                          <img src={partner.logoUrl || partner.logo_url} alt="" className="w-8 h-8 border border-white/10 object-contain bg-black" referrerPolicy="no-referrer" />
+                          <img src={partner.logoUrl || partner.logo_url} alt="" className="w-10 h-10 rounded-lg border border-uh-gray-200 object-contain bg-uh-gray-50" referrerPolicy="no-referrer" />
                         )}
-                        <div className="text-xs font-bold text-hud-yellow">{partner.name}</div>
+                        <div className="text-lg font-black text-uh-black">{partner.name}</div>
                         {(partner.brandColor || partner.brand_color) && (
-                          <div className="w-3 h-3 rounded-full" style={{ backgroundColor: partner.brandColor || partner.brand_color }} />
+                          <div className="w-4 h-4 rounded-full border border-uh-gray-200 shadow-sm" style={{ backgroundColor: partner.brandColor || partner.brand_color }} />
                         )}
                       </div>
-                      <div className="text-[10px] opacity-40 font-mono">
+                      <div className="text-[10px] text-uh-gray-400 font-black tracking-widest uppercase">
                         TIER: {partner.tier?.toUpperCase() || 'STANDARD'} // 
                         OWNER: {partner.owner_email || partner.ownerEmail || 'UNASSIGNED'} //
                         ZONES: {(partner.sponsorZones || partner.sponsor_zones)?.join(', ') || 'NONE'}
                       </div>
                       {(partner.dealText || partner.deal_text) && (
-                        <div className="text-[9px] text-hud-yellow/60 mt-1 italic">DEAL: {partner.dealText || partner.deal_text}</div>
+                        <div className="text-[11px] text-uh-yellow font-bold mt-2 tracking-tight">DEAL: {partner.dealText || partner.deal_text}</div>
                       )}
                     </div>
-                    <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-8">
                       <div className="text-right">
-                        <div className="text-[10px] opacity-40">LOCATION</div>
-                        <div className="text-[10px] font-mono">{partner.latitude.toFixed(4)}, {partner.longitude.toFixed(4)}</div>
+                        <div className="text-[10px] text-uh-gray-400 font-black tracking-widest uppercase mb-1">LOCATION</div>
+                        <div className="text-[11px] font-mono text-uh-gray-600 font-medium">{partner.latitude.toFixed(4)}, {partner.longitude.toFixed(4)}</div>
                       </div>
                       <div className="flex gap-2">
                         <button 
@@ -1173,23 +1185,23 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
                               role: partner.role || 'partner_admin',
                               logoUrl: partner.logoUrl || partner.logo_url || '',
                               logoUpdatedAt: partner.logoUpdatedAt || partner.logo_updated_at || null,
-                              brandColor: partner.brandColor || partner.brand_color || '#00FF00',
+                              brandColor: partner.brandColor || partner.brand_color || '#FFE01A',
                               dealText: partner.dealText || partner.deal_text || '',
                               sponsorZones: partner.sponsorZones || partner.sponsor_zones || []
                             });
                             window.scrollTo({ top: 0, behavior: 'smooth' });
                           }}
-                          className="p-2 border border-white/10 hover:border-hud-yellow hover:text-hud-yellow transition-all"
+                          className="p-3 bg-uh-gray-50 text-uh-gray-600 rounded-xl border border-uh-gray-200 hover:border-uh-yellow hover:text-uh-black transition-all"
                           title="Edit Partner Configuration"
                         >
-                          <RefreshCw size={16} />
+                          <RefreshCw size={18} />
                         </button>
                         <button 
                           onClick={() => handleDeletePartner(partner.id, partner.name)}
-                          className="p-2 border border-white/10 hover:border-hud-magenta hover:text-hud-magenta transition-all"
+                          className="p-3 bg-uh-gray-50 text-uh-gray-600 rounded-xl border border-uh-gray-200 hover:border-uh-magenta hover:text-white hover:bg-uh-magenta transition-all"
                           title="Terminate Partnership"
                         >
-                          <Trash2 size={16} />
+                          <Trash2 size={18} />
                         </button>
                       </div>
                     </div>
@@ -1201,46 +1213,52 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
 
           {activeTab === 'broadcasts' && (
             <div className="max-w-4xl mx-auto">
-              <div className="flex justify-between items-end mb-8 border-b border-hud-magenta/20 pb-4">
-                <h2 className="text-2xl font-black tracking-tighter text-hud-magenta">BROADCAST_CONTROL</h2>
-                <div className="text-[10px] text-hud-magenta/40 font-bold">ACTIVE_FEEDS: {broadcasts.length}</div>
+              <div className="flex justify-between items-end mb-8 border-b border-uh-gray-200 pb-4">
+                <h2 className="text-2xl font-black tracking-tighter text-uh-black">BROADCAST_CONTROL</h2>
+                <div className="text-[10px] text-uh-gray-400 font-bold">ACTIVE_FEEDS: {broadcasts.length}</div>
               </div>
 
               {/* Create Broadcast Form */}
-              <form onSubmit={handleCreateBroadcast} className="bg-white/5 border border-white/10 p-6 mb-8 grid grid-cols-2 gap-4">
-                <div className="col-span-2 text-[10px] text-hud-magenta font-bold mb-2 tracking-widest">IGNITE_NEW_BROADCAST</div>
-                <input 
-                  placeholder="BROADCAST_TITLE"
-                  className="bg-black border border-white/20 p-3 text-sm focus:border-hud-magenta outline-none"
-                  value={newBroadcast.title}
-                  onChange={e => setNewBroadcast({...newBroadcast, title: e.target.value})}
-                  required
-                />
-                <select 
-                  className="bg-black border border-white/20 p-3 text-sm focus:border-hud-magenta outline-none"
-                  value={newBroadcast.type}
-                  onChange={e => setNewBroadcast({...newBroadcast, type: e.target.value as BroadcastType})}
-                >
-                  <option value="event">LIVE_EVENT</option>
-                  <option value="flash_deal">FLASH_DEAL</option>
-                  <option value="conference_panel">CONFERENCE_PANEL</option>
-                  <option value="civic_free">CIVIC_FREE</option>
-                </select>
+              <form onSubmit={handleCreateBroadcast} className="bg-uh-gray-50 border border-uh-gray-200 p-6 mb-8 rounded-2xl grid grid-cols-2 gap-4 shadow-sm">
+                <div className="col-span-2 text-[10px] text-uh-gray-500 font-bold mb-2 tracking-widest uppercase">Ignite_New_Broadcast</div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-[9px] text-uh-gray-400 font-bold uppercase tracking-widest ml-1">Broadcast_Title</label>
+                  <input 
+                    placeholder="e.g. Friday Night Live"
+                    className="bg-white border border-uh-gray-200 p-3 rounded-xl text-sm focus:border-uh-yellow focus:ring-2 focus:ring-uh-yellow/20 outline-none transition-all"
+                    value={newBroadcast.title}
+                    onChange={e => setNewBroadcast({...newBroadcast, title: e.target.value})}
+                    required
+                  />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-[9px] text-uh-gray-400 font-bold uppercase tracking-widest ml-1">Broadcast_Type</label>
+                  <select 
+                    className="bg-white border border-uh-gray-200 p-3 rounded-xl text-sm focus:border-uh-yellow focus:ring-2 focus:ring-uh-yellow/20 outline-none transition-all"
+                    value={newBroadcast.type}
+                    onChange={e => setNewBroadcast({...newBroadcast, type: e.target.value as BroadcastType})}
+                  >
+                    <option value="event">LIVE_EVENT</option>
+                    <option value="flash_deal">FLASH_DEAL</option>
+                    <option value="conference_panel">CONFERENCE_PANEL</option>
+                    <option value="civic_free">CIVIC_FREE</option>
+                  </select>
+                </div>
 
                 <div className="col-span-2 flex flex-col gap-1">
-                  <label className="text-[9px] opacity-40 font-bold uppercase tracking-widest">Signal_Location_Source</label>
-                  <div className="flex gap-2">
+                  <label className="text-[9px] text-uh-gray-400 font-bold uppercase tracking-widest ml-1">Signal_Location_Source</label>
+                  <div className="flex gap-2 p-1 bg-uh-gray-100 rounded-xl">
                     <button 
                       type="button"
                       onClick={() => setNewBroadcast({...newBroadcast, locationSource: 'node'})}
-                      className={`flex-1 p-3 text-[10px] font-bold border transition-all ${newBroadcast.locationSource === 'node' ? 'bg-hud-magenta text-black border-hud-magenta' : 'bg-black text-white/40 border-white/20'}`}
+                      className={`flex-1 py-2.5 text-[10px] font-bold rounded-lg transition-all ${newBroadcast.locationSource === 'node' ? 'bg-white text-uh-black shadow-sm' : 'text-uh-gray-500 hover:text-uh-black'}`}
                     >
                       SPECIFIC_HUB_LOCATION
                     </button>
                     <button 
                       type="button"
                       onClick={() => setNewBroadcast({...newBroadcast, locationSource: 'partner'})}
-                      className={`flex-1 p-3 text-[10px] font-bold border transition-all ${newBroadcast.locationSource === 'partner' ? 'bg-hud-magenta text-black border-hud-magenta' : 'bg-black text-white/40 border-white/20'}`}
+                      className={`flex-1 py-2.5 text-[10px] font-bold rounded-lg transition-all ${newBroadcast.locationSource === 'partner' ? 'bg-white text-uh-black shadow-sm' : 'text-uh-gray-500 hover:text-uh-black'}`}
                     >
                       PARTNER_DEFAULT_LOCATION
                     </button>
@@ -1248,33 +1266,40 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
                 </div>
 
                 {newBroadcast.locationSource === 'node' && (
-                  <select 
-                    className="col-span-2 bg-black border border-white/20 p-3 text-sm focus:border-hud-magenta outline-none"
-                    value={newBroadcast.nodeId}
-                    onChange={e => setNewBroadcast({...newBroadcast, nodeId: e.target.value})}
-                    required={newBroadcast.locationSource === 'node'}
-                  >
-                    <option value="">SELECT_TARGET_HUB</option>
-                    {nodes.map(n => <option key={n.id} value={n.id}>{n.name}</option>)}
-                  </select>
+                  <div className="col-span-2 flex flex-col gap-1">
+                    <label className="text-[9px] text-uh-gray-400 font-bold uppercase tracking-widest ml-1">Target_Hub</label>
+                    <select 
+                      className="bg-white border border-uh-gray-200 p-3 rounded-xl text-sm focus:border-uh-yellow focus:ring-2 focus:ring-uh-yellow/20 outline-none transition-all"
+                      value={newBroadcast.nodeId}
+                      onChange={e => setNewBroadcast({...newBroadcast, nodeId: e.target.value})}
+                      required={newBroadcast.locationSource === 'node'}
+                    >
+                      <option value="">SELECT_TARGET_HUB</option>
+                      {nodes.map(n => <option key={n.id} value={n.id}>{n.name}</option>)}
+                    </select>
+                  </div>
                 )}
 
                 {isAdmin && (
-                  <select 
-                    className="col-span-2 bg-black border border-white/20 p-3 text-sm focus:border-hud-magenta outline-none"
-                    value={newBroadcast.partnerId || ''}
-                    onChange={e => setNewBroadcast({...newBroadcast, partnerId: e.target.value})}
-                  >
-                    <option value="">BROADCAST_AS_SYSTEM</option>
-                    {partners.map(p => (
-                      <option key={p.id} value={p.id}>{p.name}</option>
-                    ))}
-                  </select>
+                  <div className="col-span-2 flex flex-col gap-1">
+                    <label className="text-[9px] text-uh-gray-400 font-bold uppercase tracking-widest ml-1">Broadcast_As</label>
+                    <select 
+                      className="bg-white border border-uh-gray-200 p-3 rounded-xl text-sm focus:border-uh-yellow focus:ring-2 focus:ring-uh-yellow/20 outline-none transition-all"
+                      value={newBroadcast.partnerId || ''}
+                      onChange={e => setNewBroadcast({...newBroadcast, partnerId: e.target.value})}
+                    >
+                      <option value="">BROADCAST_AS_SYSTEM</option>
+                      {partners.map(p => (
+                        <option key={p.id} value={p.id}>{p.name}</option>
+                      ))}
+                    </select>
+                  </div>
                 )}
+
                 <div className="flex flex-col gap-1">
-                  <label className="text-[9px] opacity-40 font-bold uppercase tracking-widest">Signal_Start (Delay)</label>
+                  <label className="text-[9px] text-uh-gray-400 font-bold uppercase tracking-widest ml-1">Signal_Start (Delay)</label>
                   <select 
-                    className="bg-black border border-white/20 p-3 text-sm focus:border-hud-magenta outline-none w-full"
+                    className="bg-white border border-uh-gray-200 p-3 rounded-xl text-sm focus:border-uh-yellow focus:ring-2 focus:ring-uh-yellow/20 outline-none transition-all"
                     value={newBroadcast.startTimeOffset}
                     onChange={e => setNewBroadcast({...newBroadcast, startTimeOffset: Number(e.target.value)})}
                     required
@@ -1292,9 +1317,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
                 </div>
 
                 <div className="flex flex-col gap-1">
-                  <label className="text-[9px] opacity-40 font-bold uppercase tracking-widest">Signal_Duration (Live_Time)</label>
+                  <label className="text-[9px] text-uh-gray-400 font-bold uppercase tracking-widest ml-1">Signal_Duration (Live_Time)</label>
                   <select 
-                    className="bg-black border border-white/20 p-3 text-sm focus:border-hud-magenta outline-none w-full"
+                    className="bg-white border border-uh-gray-200 p-3 rounded-xl text-sm focus:border-uh-yellow focus:ring-2 focus:ring-uh-yellow/20 outline-none transition-all"
                     value={newBroadcast.duration}
                     onChange={e => setNewBroadcast({...newBroadcast, duration: Number(e.target.value)})}
                     required
@@ -1313,9 +1338,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
                 <button 
                   type="submit" 
                   disabled={!canWrite}
-                  className={`bg-hud-magenta text-black font-black p-3 hover:bg-hud-magenta/80 transition-all flex items-center justify-center gap-2 col-span-2 ${!canWrite ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  className={`bg-uh-black text-white font-black p-4 rounded-xl hover:bg-uh-black/90 transition-all flex items-center justify-center gap-2 col-span-2 shadow-lg shadow-uh-black/10 ${!canWrite ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
-                  <Send size={18} /> {canWrite ? 'TRANSMIT_SIGNAL' : 'READ_ONLY_ACCESS'}
+                  <Send size={18} className="text-uh-yellow" /> {canWrite ? 'TRANSMIT_SIGNAL' : 'READ_ONLY_ACCESS'}
                 </button>
               </form>
 
@@ -1326,46 +1351,43 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
                   const node = nodes.find(n => n.id === b.node_id);
                   
                     return (
-                      <div key={b.id} className="bg-white/5 border border-white/10 p-4 flex justify-between items-center group hover:border-hud-magenta/40 transition-all">
+                      <div key={b.id} className="bg-white border border-uh-gray-200 p-5 rounded-2xl flex justify-between items-center group hover:border-uh-yellow hover:shadow-md transition-all">
                         <div className="flex items-center gap-4">
-                          <div className={`w-2 h-2 rounded-full ${
-                            b.current_vibe === 'packed' ? 'bg-hud-magenta shadow-[0_0_8px_rgba(226,75,74,0.5)]' :
-                            b.current_vibe === 'buzzing' ? 'bg-hud-yellow shadow-[0_0_8px_rgba(245,200,0,0.5)]' :
-                            'bg-hud-green shadow-[0_0_8px_rgba(76,217,138,0.5)]'
+                          <div className={`w-3 h-3 rounded-full ${
+                            b.current_vibe === 'packed' ? 'bg-uh-magenta shadow-[0_0_8px_rgba(226,75,74,0.3)]' :
+                            b.current_vibe === 'buzzing' ? 'bg-uh-yellow shadow-[0_0_8px_rgba(255,224,26,0.3)]' :
+                            'bg-uh-green shadow-[0_0_8px_rgba(76,217,138,0.3)]'
                           }`} />
                           <div>
                             <div className="flex items-center gap-2 mb-1">
-                              <div className="text-xs font-bold text-hud-magenta">{b.title}</div>
-                              {partner && <SponsorBadge partner={partner} zone="A" />}
+                              <div className="text-sm font-black text-uh-black tracking-tight">{b.title}</div>
+                              {partner && <SponsorBadge partner={partner} zone="A" compact />}
                             </div>
                             {b.address && (
-                              <div className="text-[10px] text-white/60 mb-1 flex items-center gap-1">
-                                <MapPin size={10} />
+                              <div className="text-[11px] text-uh-gray-500 mb-2 flex items-center gap-1">
+                                <MapPin size={12} className="text-uh-gray-400" />
                                 {b.address}
                               </div>
                             )}
-                            <div className="text-[10px] opacity-40 font-mono">
-                              TYPE: {b.type?.toUpperCase() || 'UNKNOWN'} // 
-                              HUB: {node?.name || b.node_id || 'UNKNOWN'} // 
-                              PARTNER: {partner?.name || (b.partner_id === 'admin' ? 'SYSTEM_ADMIN' : b.partner_id || 'UNKNOWN')} //
-                              VIBE: {b.current_vibe?.toUpperCase() || 'UNKNOWN'}
+                            <div className="flex gap-3 text-[10px] font-bold uppercase tracking-wider">
+                              <span className="text-uh-gray-400">Type: <span className="text-uh-black">{b.type?.replace('_', ' ') || 'UNKNOWN'}</span></span>
+                              <span className="text-uh-gray-400">Hub: <span className="text-uh-black">{node?.name || b.node_id || 'UNKNOWN'}</span></span>
+                              <span className="text-uh-gray-400">Vibe: <span className="text-uh-black">{b.current_vibe || 'UNKNOWN'}</span></span>
                             </div>
-                            {partner && <SponsorBadge partner={partner} zone="D" />}
                           </div>
                         </div>
-                        <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-6">
                           <div className="text-right">
-                            <div className="text-[10px] font-bold text-hud-magenta mb-1">{getRemainingTime(b)}</div>
-                            <div className="text-[9px] opacity-40 font-mono uppercase tracking-widest">EXPIRES_AT: {b.expires_at ? parseDate(b.expires_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'UNKNOWN'}</div>
+                            <div className="text-xs font-black text-uh-black mb-1">{getRemainingTime(b)}</div>
+                            <div className="text-[9px] text-uh-gray-400 font-bold uppercase tracking-widest">EXPIRES: {b.expires_at ? parseDate(b.expires_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'UNKNOWN'}</div>
                           </div>
                           {(isAdmin || (isPartner && userProfile.partner_id === b.partner_id && canWrite)) && (
                             <button 
                               onClick={() => handleRepublish(b)}
-                              className="px-3 py-2 hover:bg-hud-magenta/20 text-hud-magenta transition-all border border-hud-magenta/20 hover:border-hud-magenta flex items-center gap-2 text-[10px] font-bold"
+                              className="p-3 bg-uh-gray-50 text-uh-gray-600 rounded-xl border border-uh-gray-200 hover:border-uh-yellow hover:text-uh-black hover:bg-uh-yellow transition-all"
                               title="REPUBLISH_SIGNAL"
                             >
-                              <RefreshCw size={14} />
-                              REPUBLISH
+                              <RefreshCw size={18} />
                             </button>
                           )}
                         </div>
@@ -1377,27 +1399,27 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
           )}
           {activeTab === 'profile' && isPartner && (
             <div className="max-w-4xl mx-auto">
-              <div className="flex justify-between items-end mb-8 border-b border-hud-yellow/20 pb-4">
+              <div className="flex justify-between items-end mb-8 border-b border-uh-gray-200 pb-4">
                 <div>
-                  <h2 className="text-2xl font-black tracking-tighter text-hud-yellow">PARTNER_PROFILE_CONFIG</h2>
-                  <div className="text-[10px] text-hud-yellow/40 font-bold">PARTNER_ID: {userProfile.partner_id || userProfile.partnerId}</div>
+                  <h2 className="text-2xl font-black tracking-tighter text-uh-black">PARTNER_PROFILE_CONFIG</h2>
+                  <div className="text-[10px] text-uh-gray-400 font-bold">PARTNER_ID: {userProfile.partner_id || userProfile.partnerId}</div>
                 </div>
                 <button 
                   onClick={handleResetBranding}
-                  className="flex items-center gap-2 px-4 py-2 border border-hud-magenta/30 text-hud-magenta text-[10px] font-bold hover:bg-hud-magenta/10 transition-all"
+                  className="flex items-center gap-2 px-4 py-2 border border-uh-magenta/30 text-uh-magenta text-[10px] font-bold hover:bg-uh-magenta/10 rounded-lg transition-all"
                 >
                   <RotateCcw size={14} /> RESET_TO_DEFAULTS
                 </button>
               </div>
 
               {partners.find(p => p.id === (userProfile.partner_id || userProfile.partnerId)) ? (
-                <div className="bg-white/5 border border-white/10 p-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div className="bg-white border border-uh-gray-200 p-8 rounded-2xl shadow-sm">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
                     <div>
-                      <label className="text-[10px] text-hud-yellow font-bold mb-4 block tracking-widest uppercase">Brand_Identity</label>
-                      <div className="space-y-6">
+                      <label className="text-[10px] text-uh-black font-black mb-6 block tracking-widest uppercase">Brand_Identity</label>
+                      <div className="space-y-8">
                         <div className="flex flex-col gap-2">
-                          <label className="text-[9px] opacity-40 font-bold uppercase">Partner_Logo</label>
+                          <label className="text-[9px] text-uh-gray-400 font-bold uppercase tracking-widest ml-1">Partner_Logo</label>
                           <LogoUpload 
                             partnerId={(userProfile.partner_id || userProfile.partnerId)!} 
                             partnerEmail={partners.find(p => p.id === (userProfile.partner_id || userProfile.partnerId))?.owner_email || partners.find(p => p.id === (userProfile.partner_id || userProfile.partnerId))?.ownerEmail || ''}
@@ -1409,13 +1431,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
                         </div>
                         
                         <div className="flex flex-col gap-2">
-                          <label className="text-[9px] opacity-40 font-bold uppercase">Brand_Color</label>
-                          <div className="flex gap-3 items-center">
+                          <label className="text-[9px] text-uh-gray-400 font-bold uppercase tracking-widest ml-1">Brand_Color</label>
+                          <div className="flex gap-4 items-center bg-uh-gray-50 p-4 rounded-xl border border-uh-gray-100">
                             <input 
                               type="color"
                               disabled={!canWrite}
-                              className={`w-12 h-12 bg-transparent border-none cursor-pointer ${!canWrite ? 'opacity-50 cursor-not-allowed' : ''}`}
-                              value={partners.find(p => p.id === userProfile.partner_id)?.brand_color || '#C4832A'}
+                              className={`w-12 h-12 bg-transparent border-none cursor-pointer rounded-lg overflow-hidden ${!canWrite ? 'opacity-50 cursor-not-allowed' : ''}`}
+                              value={partners.find(p => p.id === userProfile.partner_id)?.brand_color || '#FFE01A'}
                               onChange={async (e) => {
                                 if (!canWrite) return;
                                 try {
@@ -1425,20 +1447,23 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
                                 }
                               }}
                             />
-                            <span className="text-xs font-mono opacity-60 uppercase">{partners.find(p => p.id === userProfile.partner_id)?.brand_color || '#C4832A'}</span>
+                            <div>
+                              <div className="text-xs font-black text-uh-black uppercase">{partners.find(p => p.id === userProfile.partner_id)?.brand_color || '#FFE01A'}</div>
+                              <div className="text-[9px] text-uh-gray-400 font-bold uppercase tracking-widest">Primary_Accent</div>
+                            </div>
                           </div>
                         </div>
                       </div>
                     </div>
 
                     <div>
-                      <label className="text-[10px] text-hud-yellow font-bold mb-4 block tracking-widest uppercase">Promotional_Content</label>
-                      <div className="space-y-6">
+                      <label className="text-[10px] text-uh-black font-black mb-6 block tracking-widest uppercase">Promotional_Content</label>
+                      <div className="space-y-8">
                         <div className="flex flex-col gap-2">
-                          <label className="text-[9px] opacity-40 font-bold uppercase">Deal_Text (Call-to-Action)</label>
+                          <label className="text-[9px] text-uh-gray-400 font-bold uppercase tracking-widest ml-1">Deal_Text (Call-to-Action)</label>
                           <textarea 
                             disabled={!canWrite}
-                            className={`bg-black border border-white/20 p-3 text-sm focus:border-hud-yellow outline-none min-h-[100px] ${!canWrite ? 'opacity-50 cursor-not-allowed' : ''}`}
+                            className={`bg-white border border-uh-gray-200 p-4 rounded-xl text-sm focus:border-uh-yellow focus:ring-2 focus:ring-uh-yellow/20 outline-none min-h-[120px] transition-all ${!canWrite ? 'opacity-50 cursor-not-allowed' : ''}`}
                             placeholder="e.g. Show this card for 10% off your first cold brew!"
                             value={partners.find(p => p.id === userProfile.partner_id)?.deal_text || ''}
                             onChange={async (e) => {
@@ -1452,13 +1477,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
                           />
                         </div>
 
-                        <div className="bg-hud-yellow/5 border border-hud-yellow/20 p-4 rounded-xl">
-                          <div className="text-[9px] text-hud-yellow font-bold mb-2 uppercase tracking-widest">Live_Preview</div>
-                          <div className="border border-white/10 rounded-lg overflow-hidden bg-white">
+                        <div className="bg-uh-yellow/5 border border-uh-yellow/20 p-5 rounded-2xl">
+                          <div className="text-[9px] text-uh-yellow font-black mb-3 uppercase tracking-widest">Live_Preview</div>
+                          <div className="border border-uh-gray-200 rounded-xl overflow-hidden bg-white shadow-sm">
                             <SponsorBadge partner={partners.find(p => p.id === userProfile.partner_id) || null} zone="A" compact />
-                            <div className="p-3">
-                              <div className="h-2 w-24 bg-black/10 rounded mb-2" />
-                              <div className="h-1.5 w-32 bg-black/5 rounded" />
+                            <div className="p-4">
+                              <div className="h-2 w-24 bg-uh-gray-100 rounded-full mb-2" />
+                              <div className="h-1.5 w-32 bg-uh-gray-50 rounded-full" />
                               <SponsorBadge partner={partners.find(p => p.id === userProfile.partner_id) || null} zone="D" />
                             </div>
                           </div>
@@ -1468,9 +1493,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
                   </div>
                 </div>
               ) : (
-                <div className="py-20 text-center border border-dashed border-white/10 bg-white/[0.02]">
-                  <div className="text-hud-magenta font-black tracking-[0.2em] mb-2">PARTNER_ENTITY_NOT_FOUND</div>
-                  <div className="text-[10px] opacity-40 uppercase max-w-xs mx-auto leading-relaxed">
+                <div className="py-20 text-center border-2 border-dashed border-uh-gray-200 rounded-3xl bg-uh-gray-50">
+                  <div className="text-uh-magenta font-black tracking-[0.2em] mb-4">PARTNER_ENTITY_NOT_FOUND</div>
+                  <div className="text-[11px] text-uh-gray-500 font-bold uppercase max-w-xs mx-auto leading-relaxed">
                     Your account is not correctly linked to a partner entity. Please contact a system administrator.
                   </div>
                 </div>
@@ -1480,47 +1505,47 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
 
           {activeTab === 'analytics' && (
             <div className="max-w-4xl mx-auto">
-              <div className="flex justify-between items-end mb-8 border-b border-hud-magenta/20 pb-4">
-                <h2 className="text-2xl font-black tracking-tighter text-hud-magenta">
+              <div className="flex justify-between items-end mb-8 border-b border-uh-gray-200 pb-4">
+                <h2 className="text-2xl font-black tracking-tighter text-uh-black">
                   {isAdmin ? 'SYSTEM_WIDE_ANALYTICS' : 'SIGNAL_ANALYTICS'}
                 </h2>
-                <div className="text-[10px] text-hud-magenta/40 font-bold uppercase tracking-widest">
+                <div className="text-[10px] text-uh-gray-400 font-bold uppercase tracking-widest">
                   {isAdmin ? 'GLOBAL_PULSE_MONITOR' : `PARTNER_ID: ${userProfile.partner_id}`}
                 </div>
               </div>
 
               {/* Top Level Stats */}
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-                <div className="bg-white/5 border border-white/10 p-5">
-                  <div className="text-[9px] opacity-40 font-bold mb-2 tracking-widest">TOTAL_NETWORK_TAPS</div>
-                  <div className="text-2xl font-black text-hud-green">
+                <div className="bg-white border border-uh-gray-200 p-6 rounded-2xl shadow-sm">
+                  <div className="text-[9px] text-uh-gray-400 font-bold mb-2 tracking-widest uppercase">Total_Network_Taps</div>
+                  <div className="text-3xl font-black text-uh-black">
                     {isAdmin 
                       ? taps.length 
                       : taps.filter(t => broadcasts.some(b => b.node_id === t.node_id)).length}
                   </div>
                 </div>
-                <div className="bg-white/5 border border-white/10 p-5">
-                  <div className="text-[9px] opacity-40 font-bold mb-2 tracking-widest">UNIQUE_SESSIONS</div>
-                  <div className="text-2xl font-black text-hud-yellow">
+                <div className="bg-white border border-uh-gray-200 p-6 rounded-2xl shadow-sm">
+                  <div className="text-[9px] text-uh-gray-400 font-bold mb-2 tracking-widest uppercase">Unique_Sessions</div>
+                  <div className="text-3xl font-black text-uh-black">
                     {isAdmin
                       ? new Set(taps.map(t => t.session_uuid)).size
                       : new Set(taps.filter(t => broadcasts.some(b => b.node_id === t.node_id)).map(t => t.session_uuid)).size}
                   </div>
                 </div>
-                <div className="bg-white/5 border border-white/10 p-5">
-                  <div className="text-[9px] opacity-40 font-bold mb-2 tracking-widest">ACTIVE_SIGNALS</div>
-                  <div className="text-2xl font-black text-hud-magenta">
+                <div className="bg-white border border-uh-gray-200 p-6 rounded-2xl shadow-sm">
+                  <div className="text-[9px] text-uh-gray-400 font-bold mb-2 tracking-widest uppercase">Active_Signals</div>
+                  <div className="text-3xl font-black text-uh-black">
                     {broadcasts.filter(b => new Date(b.expires_at) > new Date()).length}
                   </div>
                 </div>
-                <div className="bg-white/5 border border-white/10 p-5">
-                  <div className="text-[9px] opacity-40 font-bold mb-2 tracking-widest">TAP_VS_BROWSER</div>
-                  <div className="flex items-end gap-2">
-                    <div className="text-2xl font-black text-hud-magenta">
+                <div className="bg-white border border-uh-gray-200 p-6 rounded-2xl shadow-sm">
+                  <div className="text-[9px] text-uh-gray-400 font-bold mb-2 tracking-widest uppercase">Tap_Vs_Browser</div>
+                  <div className="flex items-baseline gap-2">
+                    <div className="text-3xl font-black text-uh-black">
                       {taps.filter(t => t.access_vector === 'nfc' || t.access_vector === 'qr').length}
                     </div>
-                    <div className="text-[10px] opacity-40 mb-1">/</div>
-                    <div className="text-lg font-bold text-white/60 mb-0.5">
+                    <div className="text-sm font-bold text-uh-gray-300">/</div>
+                    <div className="text-xl font-bold text-uh-gray-400">
                       {taps.filter(t => t.access_vector === 'direct').length}
                     </div>
                   </div>
@@ -1531,16 +1556,16 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
                 <div className="space-y-8">
                   {/* Physical vs Digital Comparison */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="bg-white/5 border border-white/10 p-6 relative overflow-hidden">
-                      <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-hud-green to-hud-yellow" />
-                      <h3 className="text-[10px] font-bold text-white/40 mb-4 tracking-widest uppercase">PHYSICAL_ENGAGEMENT (NFC/QR)</h3>
-                      <div className="flex items-end gap-4">
-                        <div className="text-4xl font-black text-white">
+                    <div className="bg-white border border-uh-gray-200 p-8 rounded-2xl relative overflow-hidden shadow-sm">
+                      <div className="absolute top-0 left-0 w-full h-1.5 bg-uh-yellow" />
+                      <h3 className="text-[10px] font-black text-uh-gray-400 mb-4 tracking-widest uppercase">PHYSICAL_ENGAGEMENT (NFC/QR)</h3>
+                      <div className="flex items-baseline gap-4">
+                        <div className="text-5xl font-black text-uh-black">
                           {taps.filter(t => t.access_vector === 'nfc' || t.access_vector === 'qr').length + 
                            interactions.filter(i => i.access_vector === 'nfc' || i.access_vector === 'qr').length +
                            vibeReports.filter(v => v.access_vector === 'nfc' || v.access_vector === 'qr').length}
                         </div>
-                        <div className="text-xs font-mono text-hud-green mb-1">
+                        <div className="text-xs font-bold text-uh-gray-500">
                           {((taps.filter(t => t.access_vector === 'nfc' || t.access_vector === 'qr').length + 
                              interactions.filter(i => i.access_vector === 'nfc' || i.access_vector === 'qr').length +
                              vibeReports.filter(v => v.access_vector === 'nfc' || v.access_vector === 'qr').length) / 
@@ -1548,17 +1573,17 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
                         </div>
                       </div>
                     </div>
-                    <div className="bg-white/5 border border-white/10 p-6 relative overflow-hidden">
-                      <div className="absolute top-0 left-0 w-full h-1 bg-hud-magenta" />
-                      <h3 className="text-[10px] font-bold text-white/40 mb-4 tracking-widest uppercase">DIGITAL_ENGAGEMENT (DIRECT)</h3>
-                      <div className="flex items-end gap-4">
-                        <div className="text-4xl font-black text-white">
+                    <div className="bg-white border border-uh-gray-200 p-8 rounded-2xl relative overflow-hidden shadow-sm">
+                      <div className="absolute top-0 left-0 w-full h-1.5 bg-uh-black" />
+                      <h3 className="text-[10px] font-black text-uh-gray-400 mb-4 tracking-widest uppercase">DIGITAL_ENGAGEMENT (DIRECT)</h3>
+                      <div className="flex items-baseline gap-4">
+                        <div className="text-5xl font-black text-uh-black">
                           {taps.filter(t => t.access_vector === 'direct').length + 
                            interactions.filter(i => i.access_vector === 'direct').length +
                            vibeReports.filter(v => v.access_vector === 'direct').length +
                            tabViews.filter(v => v.access_vector === 'direct').length}
                         </div>
-                        <div className="text-xs font-mono text-hud-magenta mb-1">
+                        <div className="text-xs font-bold text-uh-gray-500">
                           {((taps.filter(t => t.access_vector === 'direct').length + 
                              interactions.filter(i => i.access_vector === 'direct').length +
                              vibeReports.filter(v => v.access_vector === 'direct').length +
@@ -1570,9 +1595,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
                   </div>
 
                   {/* Access Vector Breakdown */}
-                  <div className="bg-white/5 border border-white/10 p-6">
-                    <h3 className="text-sm font-bold text-hud-magenta mb-6 tracking-widest uppercase">GLOBAL_ACCESS_VECTOR_BREAKDOWN</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <div className="bg-white border border-uh-gray-200 p-8 rounded-2xl shadow-sm">
+                    <h3 className="text-sm font-black text-uh-black mb-8 tracking-widest uppercase">GLOBAL_ACCESS_VECTOR_BREAKDOWN</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                       {['nfc', 'qr', 'direct'].map(vector => {
                         const vectorTaps = taps.filter(t => t.access_vector === vector);
                         const vectorViews = tabViews.filter(v => v.access_vector === vector);
@@ -1587,30 +1612,42 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
                         ].map(x => x.session_uuid)).size;
                         
                         const label = vector === 'nfc' ? 'NFC_TAP' : vector === 'qr' ? 'QR_SCAN' : 'DIRECT_BROWSER';
-                        const color = vector === 'nfc' ? 'text-hud-green' : vector === 'qr' ? 'text-hud-yellow' : 'text-hud-magenta';
+                        const colorClass = vector === 'nfc' ? 'bg-uh-green' : vector === 'qr' ? 'bg-uh-yellow' : 'bg-uh-black';
 
                         return (
-                          <div key={vector} className="border border-white/10 p-4 relative overflow-hidden group">
-                            <div className={`absolute top-0 right-0 w-1 h-full ${color.replace('text-', 'bg-')}`} />
-                            <div className={`text-[10px] font-bold ${color} mb-4 tracking-widest uppercase`}>{label}</div>
-                            <div className="space-y-4">
+                          <div key={vector} className="bg-uh-gray-50 border border-uh-gray-100 p-6 rounded-xl relative overflow-hidden group hover:border-uh-gray-200 transition-all">
+                            <div className={`absolute top-0 right-0 w-1.5 h-full ${colorClass}`} />
+                            <div className="text-[10px] font-black text-uh-gray-400 mb-6 tracking-widest uppercase">{label}</div>
+                            <div className="space-y-6">
                               <div className="flex justify-between items-end">
                                 <div>
-                                  <div className="text-[9px] opacity-40 font-bold uppercase">Total_Actions</div>
-                                  <div className="text-2xl font-black text-white">
+                                  <div className="text-[9px] text-uh-gray-400 font-bold uppercase tracking-widest">Total_Actions</div>
+                                  <div className="text-3xl font-black text-uh-black">
                                     {vectorTaps.length + vectorViews.length + vectorInteractions.length + vectorVibes.length}
                                   </div>
                                 </div>
                                 <div className="text-right">
-                                  <div className="text-[9px] opacity-40 font-bold uppercase">Unique_Users</div>
-                                  <div className="text-lg font-bold text-white/80">{uniqueUsers}</div>
+                                  <div className="text-[9px] text-uh-gray-400 font-bold uppercase tracking-widest">Unique_Users</div>
+                                  <div className="text-lg font-black text-uh-black/70">{uniqueUsers}</div>
                                 </div>
                               </div>
-                              <div className="pt-4 border-t border-white/5 grid grid-cols-2 gap-y-2 text-[9px] font-mono opacity-60">
-                                <span>TAPS: {vectorTaps.length}</span>
-                                <span>VIEWS: {vectorViews.length}</span>
-                                <span>INTERACT: {vectorInteractions.length}</span>
-                                <span>VIBES: {vectorVibes.length}</span>
+                              <div className="pt-4 border-t border-uh-gray-200 grid grid-cols-2 gap-y-3 text-[10px] font-bold text-uh-gray-500">
+                                <div className="flex items-center gap-2">
+                                  <div className="w-1 h-1 rounded-full bg-uh-gray-300" />
+                                  <span>TAPS: {vectorTaps.length}</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <div className="w-1 h-1 rounded-full bg-uh-gray-300" />
+                                  <span>VIEWS: {vectorViews.length}</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <div className="w-1 h-1 rounded-full bg-uh-gray-300" />
+                                  <span>INTERACT: {vectorInteractions.length}</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <div className="w-1 h-1 rounded-full bg-uh-gray-300" />
+                                  <span>VIBES: {vectorVibes.length}</span>
+                                </div>
                               </div>
                             </div>
                           </div>
@@ -1620,21 +1657,21 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
                   </div>
 
                   {/* Partner Performance Table */}
-                  <div className="bg-white/5 border border-white/10 p-6">
-                    <h3 className="text-sm font-bold text-hud-magenta mb-6 tracking-widest uppercase">PARTNER_NETWORK_PERFORMANCE</h3>
+                  <div className="bg-white border border-uh-gray-200 p-8 rounded-2xl shadow-sm">
+                    <h3 className="text-sm font-black text-uh-black mb-8 tracking-widest uppercase">PARTNER_NETWORK_PERFORMANCE</h3>
                     <div className="overflow-x-auto">
                       <table className="w-full text-left">
                         <thead>
-                          <tr className="text-[9px] font-bold text-white/30 uppercase tracking-widest border-b border-white/10">
-                            <th className="pb-3">PARTNER_IDENTITY</th>
-                            <th className="pb-3 text-right">NODES</th>
-                            <th className="pb-3 text-right">SIGNALS</th>
-                            <th className="pb-3 text-right">TOTAL_TAPS</th>
-                            <th className="pb-3 text-right">UNIQUE_TAPS</th>
-                            <th className="pb-3 text-right">ACTIVE_UNIQUE</th>
+                          <tr className="text-[10px] font-black text-uh-gray-400 uppercase tracking-widest border-b border-uh-gray-100">
+                            <th className="pb-4 font-black">PARTNER_IDENTITY</th>
+                            <th className="pb-4 text-right font-black">NODES</th>
+                            <th className="pb-4 text-right font-black">SIGNALS</th>
+                            <th className="pb-4 text-right font-black">TOTAL_TAPS</th>
+                            <th className="pb-4 text-right font-black">UNIQUE_TAPS</th>
+                            <th className="pb-4 text-right font-black">ACTIVE_UNIQUE</th>
                           </tr>
                         </thead>
-                        <tbody className="divide-y divide-white/5">
+                        <tbody className="divide-y divide-uh-gray-50">
                           {partners.map(p => {
                             const partnerBroadcasts = broadcasts.filter(b => b.partner_id === p.id);
                             const activePartnerBroadcasts = partnerBroadcasts.filter(b => parseDate(b.expires_at) > now);
@@ -1646,16 +1683,16 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
                             const activeUniqueTaps = new Set(activePartnerTaps.map(t => t.session_uuid)).size;
 
                             return (
-                              <tr key={p.id} className="group hover:bg-white/[0.02]">
-                                <td className="py-4">
-                                  <div className="text-xs font-bold text-hud-yellow">{p.name}</div>
-                                  <div className="text-[9px] opacity-30 font-mono mt-0.5">{p.id}</div>
+                              <tr key={p.id} className="group hover:bg-uh-gray-50 transition-all">
+                                <td className="py-5">
+                                  <div className="text-sm font-black text-uh-black">{p.name}</div>
+                                  <div className="text-[10px] text-uh-gray-400 font-bold mt-0.5">{p.id}</div>
                                 </td>
-                                <td className="py-4 text-right text-[11px] font-mono">{partnerNodes.size}</td>
-                                <td className="py-4 text-right text-[11px] font-mono">{partnerBroadcasts.length}</td>
-                                <td className="py-4 text-right text-[11px] font-mono text-hud-green">{partnerTaps.length}</td>
-                                <td className="py-4 text-right text-[11px] font-mono text-hud-yellow">{partnerUniqueTaps}</td>
-                                <td className="py-4 text-right text-[11px] font-mono text-hud-magenta">{activeUniqueTaps}</td>
+                                <td className="py-5 text-right text-xs font-bold text-uh-gray-600">{partnerNodes.size}</td>
+                                <td className="py-5 text-right text-xs font-bold text-uh-gray-600">{partnerBroadcasts.length}</td>
+                                <td className="py-5 text-right text-xs font-black text-uh-green">{partnerTaps.length}</td>
+                                <td className="py-5 text-right text-xs font-black text-uh-yellow">{partnerUniqueTaps}</td>
+                                <td className="py-5 text-right text-xs font-black text-uh-magenta">{activeUniqueTaps}</td>
                               </tr>
                             );
                           })}
@@ -1665,33 +1702,33 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
                   </div>
 
                   {/* Node Activity Heatmap-style list */}
-                  <div className="bg-white/5 border border-white/10 p-6">
-                    <h3 className="text-sm font-bold text-hud-green mb-6 tracking-widest uppercase">SECTOR_HUB_ACTIVITY_LOG</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="bg-white border border-uh-gray-200 p-8 rounded-2xl shadow-sm">
+                    <h3 className="text-sm font-black text-uh-black mb-8 tracking-widest uppercase">SECTOR_HUB_ACTIVITY_LOG</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       {nodes.map(node => {
                         const nodeTaps = taps.filter(t => t.node_id === node.id);
                         const nodeUniqueTaps = new Set(nodeTaps.map(t => t.session_uuid)).size;
                         const activeSignals = broadcasts.filter(b => b.node_id === node.id && new Date(b.expires_at) > new Date());
 
                         return (
-                          <div key={node.id} className="border border-white/10 p-4 hover:border-hud-green/40 transition-all">
-                            <div className="flex justify-between items-start mb-3">
+                          <div key={node.id} className="bg-uh-gray-50 border border-uh-gray-100 p-6 rounded-xl hover:border-uh-yellow hover:bg-white hover:shadow-md transition-all">
+                            <div className="flex justify-between items-start mb-6">
                               <div>
-                                <div className="text-xs font-bold text-hud-green">{node.name}</div>
-                                <div className="text-[9px] opacity-30 font-mono">{node.id}</div>
+                                <div className="text-sm font-black text-uh-black">{node.name}</div>
+                                <div className="text-[10px] text-uh-gray-400 font-bold">{node.id}</div>
                               </div>
-                              <div className={`px-2 py-0.5 rounded text-[8px] font-black ${activeSignals.length > 0 ? 'bg-hud-green text-black' : 'bg-white/10 text-white/40'}`}>
+                              <div className={`px-3 py-1 rounded-full text-[9px] font-black tracking-widest ${activeSignals.length > 0 ? 'bg-uh-yellow text-uh-black' : 'bg-uh-gray-200 text-uh-gray-500'}`}>
                                 {activeSignals.length > 0 ? 'LIVE_SIGNAL' : 'IDLE'}
                               </div>
                             </div>
-                            <div className="grid grid-cols-2 gap-4">
+                            <div className="grid grid-cols-2 gap-6">
                               <div>
-                                <div className="text-[9px] opacity-40 font-bold uppercase">Total_Taps</div>
-                                <div className="text-lg font-black text-white">{nodeTaps.length}</div>
+                                <div className="text-[9px] text-uh-gray-400 font-bold uppercase tracking-widest">Total_Taps</div>
+                                <div className="text-2xl font-black text-uh-black">{nodeTaps.length}</div>
                               </div>
                               <div>
-                                <div className="text-[9px] opacity-40 font-bold uppercase">Unique_Users</div>
-                                <div className="text-lg font-black text-white">{nodeUniqueTaps}</div>
+                                <div className="text-[9px] text-uh-gray-400 font-bold uppercase tracking-widest">Unique_Users</div>
+                                <div className="text-2xl font-black text-uh-black">{nodeUniqueTaps}</div>
                               </div>
                             </div>
                           </div>
@@ -1701,34 +1738,34 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
                   </div>
 
                   {/* Tab Navigation Analytics */}
-                  <div className="bg-white/5 border border-white/10 p-6">
-                    <h3 className="text-sm font-bold text-hud-yellow mb-6 tracking-widest uppercase">TAB_NAVIGATION_ANALYTICS</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="bg-white border border-uh-gray-200 p-8 rounded-2xl shadow-sm">
+                    <h3 className="text-sm font-black text-uh-black mb-8 tracking-widest uppercase">TAB_NAVIGATION_ANALYTICS</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                       {['feed', 'wallet', 'map'].map(tab => {
                         const views = tabViews.filter(v => v.tab === tab);
                         const uniqueSessions = new Set(views.map(v => v.session_uuid)).size;
                         const tapInTab = taps.filter(t => t.tab === tab).length;
 
                         return (
-                          <div key={tab} className="border border-white/10 p-4 hover:border-hud-yellow/40 transition-all">
-                            <div className="text-[10px] font-bold text-hud-yellow mb-3 uppercase tracking-widest">{tab}_VIEW_METRICS</div>
-                            <div className="space-y-4">
+                          <div key={tab} className="bg-uh-gray-50 border border-uh-gray-100 p-6 rounded-xl hover:border-uh-yellow hover:bg-white hover:shadow-md transition-all">
+                            <div className="text-[11px] font-black text-uh-black mb-6 uppercase tracking-widest border-b border-uh-gray-200 pb-2">{tab}_VIEW_METRICS</div>
+                            <div className="space-y-6">
                               <div>
-                                <div className="text-[9px] opacity-40 font-bold uppercase">Total_Views</div>
-                                <div className="text-xl font-black text-white">{views.length}</div>
+                                <div className="text-[9px] text-uh-gray-400 font-bold uppercase tracking-widest">Total_Views</div>
+                                <div className="text-3xl font-black text-uh-black">{views.length}</div>
                               </div>
-                              <div className="grid grid-cols-2 gap-2">
-                                <div>
-                                  <div className="text-[9px] opacity-40 font-bold uppercase">Unique_Sessions</div>
-                                  <div className="text-sm font-bold text-white/80">{uniqueSessions}</div>
+                              <div className="grid grid-cols-1 gap-4">
+                                <div className="flex justify-between items-center">
+                                  <span className="text-[10px] text-uh-gray-400 font-bold uppercase tracking-widest">Unique_Sessions</span>
+                                  <span className="text-sm font-black text-uh-black">{uniqueSessions}</span>
                                 </div>
-                                <div>
-                                  <div className="text-[9px] opacity-40 font-bold uppercase">Taps_In_Tab</div>
-                                  <div className="text-sm font-bold text-hud-green">{tapInTab}</div>
+                                <div className="flex justify-between items-center">
+                                  <span className="text-[10px] text-uh-gray-400 font-bold uppercase tracking-widest">Taps_In_Tab</span>
+                                  <span className="text-sm font-black text-uh-green">{tapInTab}</span>
                                 </div>
-                                <div>
-                                  <div className="text-[9px] opacity-40 font-bold uppercase">Sponsor_Taps</div>
-                                  <div className="text-sm font-bold text-hud-magenta">{taps.filter(t => t.tab === tab && t.sponsor_id).length}</div>
+                                <div className="flex justify-between items-center">
+                                  <span className="text-[10px] text-uh-gray-400 font-bold uppercase tracking-widest">Sponsor_Taps</span>
+                                  <span className="text-sm font-black text-uh-magenta">{taps.filter(t => t.tab === tab && t.sponsor_id).length}</span>
                                 </div>
                               </div>
                             </div>
@@ -1739,62 +1776,62 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
                   </div>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                   {/* Physical vs Digital Engagement Comparison */}
-                  <div className="bg-white/5 border border-white/10 p-6 col-span-1 md:col-span-2">
-                    <h3 className="text-sm font-bold text-hud-yellow mb-6 tracking-widest uppercase">PHYSICAL_VS_DIGITAL_ENGAGEMENT</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  <div className="bg-white border border-uh-gray-200 p-8 rounded-2xl col-span-1 md:col-span-2 shadow-sm">
+                    <h3 className="text-sm font-black text-uh-black mb-8 tracking-widest uppercase">PHYSICAL_VS_DIGITAL_ENGAGEMENT</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
                       {/* Physical (NFC/QR) */}
-                      <div className="border-l-2 border-hud-green/30 pl-6">
-                        <div className="text-[10px] font-bold text-hud-green mb-4 uppercase tracking-widest">PHYSICAL_VECTORS (NFC/QR)</div>
-                        <div className="grid grid-cols-2 gap-4">
+                      <div className="border-l-4 border-uh-yellow pl-8">
+                        <div className="text-[11px] font-black text-uh-black mb-6 uppercase tracking-widest">PHYSICAL_VECTORS (NFC/QR)</div>
+                        <div className="grid grid-cols-2 gap-8">
                           <div>
-                            <div className="text-[9px] opacity-40 font-mono">TOTAL_TAPS</div>
-                            <div className="text-2xl font-black text-white">{taps.filter(t => t.access_vector === 'nfc' || t.access_vector === 'qr').length}</div>
+                            <div className="text-[10px] text-uh-gray-400 font-bold uppercase tracking-widest mb-1">TOTAL_TAPS</div>
+                            <div className="text-3xl font-black text-uh-black">{taps.filter(t => t.access_vector === 'nfc' || t.access_vector === 'qr').length}</div>
                           </div>
                           <div>
-                            <div className="text-[9px] opacity-40 font-mono">INTERACTIONS</div>
-                            <div className="text-2xl font-black text-white">{interactions.filter(i => i.access_vector === 'nfc' || i.access_vector === 'qr').length}</div>
+                            <div className="text-[10px] text-uh-gray-400 font-bold uppercase tracking-widest mb-1">INTERACTIONS</div>
+                            <div className="text-3xl font-black text-uh-black">{interactions.filter(i => i.access_vector === 'nfc' || i.access_vector === 'qr').length}</div>
                           </div>
                           <div>
-                            <div className="text-[9px] opacity-40 font-mono">VIBE_REPORTS</div>
-                            <div className="text-2xl font-black text-white">{vibeReports.filter(r => r.access_vector === 'nfc' || r.access_vector === 'qr').length}</div>
+                            <div className="text-[10px] text-uh-gray-400 font-bold uppercase tracking-widest mb-1">VIBE_REPORTS</div>
+                            <div className="text-3xl font-black text-uh-black">{vibeReports.filter(r => r.access_vector === 'nfc' || r.access_vector === 'qr').length}</div>
                           </div>
                           <div>
-                            <div className="text-[9px] opacity-40 font-mono">TAB_VIEWS</div>
-                            <div className="text-2xl font-black text-white">{tabViews.filter(v => v.access_vector === 'nfc' || v.access_vector === 'qr').length}</div>
+                            <div className="text-[10px] text-uh-gray-400 font-bold uppercase tracking-widest mb-1">TAB_VIEWS</div>
+                            <div className="text-3xl font-black text-uh-black">{tabViews.filter(v => v.access_vector === 'nfc' || v.access_vector === 'qr').length}</div>
                           </div>
                         </div>
                       </div>
 
                       {/* Digital (Direct) */}
-                      <div className="border-l-2 border-hud-magenta/30 pl-6">
-                        <div className="text-[10px] font-bold text-hud-magenta mb-4 uppercase tracking-widest">DIGITAL_VECTORS (DIRECT)</div>
-                        <div className="grid grid-cols-2 gap-4">
+                      <div className="border-l-4 border-uh-black pl-8">
+                        <div className="text-[11px] font-black text-uh-black mb-6 uppercase tracking-widest">DIGITAL_VECTORS (DIRECT)</div>
+                        <div className="grid grid-cols-2 gap-8">
                           <div>
-                            <div className="text-[9px] opacity-40 font-mono">TOTAL_TAPS</div>
-                            <div className="text-2xl font-black text-white">{taps.filter(t => t.access_vector === 'direct').length}</div>
+                            <div className="text-[10px] text-uh-gray-400 font-bold uppercase tracking-widest mb-1">TOTAL_TAPS</div>
+                            <div className="text-3xl font-black text-uh-black">{taps.filter(t => t.access_vector === 'direct').length}</div>
                           </div>
                           <div>
-                            <div className="text-[9px] opacity-40 font-mono">INTERACTIONS</div>
-                            <div className="text-2xl font-black text-white">{interactions.filter(i => i.access_vector === 'direct').length}</div>
+                            <div className="text-[10px] text-uh-gray-400 font-bold uppercase tracking-widest mb-1">INTERACTIONS</div>
+                            <div className="text-3xl font-black text-uh-black">{interactions.filter(i => i.access_vector === 'direct').length}</div>
                           </div>
                           <div>
-                            <div className="text-[9px] opacity-40 font-mono">VIBE_REPORTS</div>
-                            <div className="text-2xl font-black text-white">{vibeReports.filter(r => r.access_vector === 'direct').length}</div>
+                            <div className="text-[10px] text-uh-gray-400 font-bold uppercase tracking-widest mb-1">VIBE_REPORTS</div>
+                            <div className="text-3xl font-black text-uh-black">{vibeReports.filter(r => r.access_vector === 'direct').length}</div>
                           </div>
                           <div>
-                            <div className="text-[9px] opacity-40 font-mono">TAB_VIEWS</div>
-                            <div className="text-2xl font-black text-white">{tabViews.filter(v => v.access_vector === 'direct').length}</div>
+                            <div className="text-[10px] text-uh-gray-400 font-bold uppercase tracking-widest mb-1">TAB_VIEWS</div>
+                            <div className="text-3xl font-black text-uh-black">{tabViews.filter(v => v.access_vector === 'direct').length}</div>
                           </div>
                         </div>
                       </div>
                     </div>
                   </div>
 
-                  <div className="bg-white/5 border border-white/10 p-6 col-span-1 md:col-span-2">
-                    <h3 className="text-sm font-bold text-hud-yellow mb-6 tracking-widest uppercase">GLOBAL_ACCESS_VECTOR_BREAKDOWN</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="bg-white border border-uh-gray-200 p-8 rounded-2xl col-span-1 md:col-span-2 shadow-sm">
+                    <h3 className="text-sm font-black text-uh-black mb-8 tracking-widest uppercase">GLOBAL_ACCESS_VECTOR_BREAKDOWN</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                       {['nfc', 'qr', 'direct'].map(vector => {
                         const vectorTaps = taps.filter(t => t.access_vector === vector);
                         const vectorViews = tabViews.filter(v => v.access_vector === vector);
@@ -1810,33 +1847,34 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
                         ]).size;
 
                         const label = vector === 'nfc' ? 'NFC_TAP' : vector === 'qr' ? 'QR_SCAN' : 'DIRECT_BROWSER';
-                        const color = vector === 'nfc' ? 'text-hud-green' : vector === 'qr' ? 'text-hud-yellow' : 'text-hud-magenta';
+                        const colorClass = vector === 'nfc' ? 'bg-uh-green' : vector === 'qr' ? 'bg-uh-yellow' : 'bg-uh-black';
 
                         return (
-                          <div key={vector} className="border border-white/10 p-4">
-                            <div className={`text-[10px] font-bold ${color} mb-2 uppercase tracking-widest`}>{label}</div>
-                            <div className="flex items-baseline gap-2">
-                              <div className="text-2xl font-black text-white">{totalActions}</div>
-                              <div className="text-[10px] opacity-40 font-mono uppercase">ACTIONS</div>
+                          <div key={vector} className="bg-uh-gray-50 border border-uh-gray-100 p-6 rounded-xl relative overflow-hidden group hover:border-uh-gray-200 transition-all">
+                            <div className={`absolute top-0 right-0 w-1.5 h-full ${colorClass}`} />
+                            <div className="text-[11px] font-black text-uh-black mb-4 uppercase tracking-widest">{label}</div>
+                            <div className="flex items-baseline gap-2 mb-1">
+                              <div className="text-4xl font-black text-uh-black">{totalActions}</div>
+                              <div className="text-[10px] text-uh-gray-400 font-bold uppercase">ACTIONS</div>
                             </div>
-                            <div className="text-[9px] opacity-40 font-mono mt-1">UNIQUE_USERS: {uniqueUsers}</div>
+                            <div className="text-[10px] text-uh-gray-500 font-bold uppercase tracking-widest mb-6">UNIQUE_USERS: {uniqueUsers}</div>
                             
-                            <div className="mt-4 space-y-1">
-                              <div className="flex justify-between text-[9px] font-mono">
-                                <span className="opacity-40 uppercase">TAPS:</span>
-                                <span className="text-white">{vectorTaps.length}</span>
+                            <div className="space-y-3 pt-6 border-t border-uh-gray-200">
+                              <div className="flex justify-between text-[10px] font-bold uppercase tracking-widest">
+                                <span className="text-uh-gray-400">TAPS</span>
+                                <span className="text-uh-black">{vectorTaps.length}</span>
                               </div>
-                              <div className="flex justify-between text-[9px] font-mono">
-                                <span className="opacity-40 uppercase">VIEWS:</span>
-                                <span className="text-white">{vectorViews.length}</span>
+                              <div className="flex justify-between text-[10px] font-bold uppercase tracking-widest">
+                                <span className="text-uh-gray-400">VIEWS</span>
+                                <span className="text-uh-black">{vectorViews.length}</span>
                               </div>
-                              <div className="flex justify-between text-[9px] font-mono">
-                                <span className="opacity-40 uppercase">INTERACTIONS:</span>
-                                <span className="text-white">{vectorInteractions.length}</span>
+                              <div className="flex justify-between text-[10px] font-bold uppercase tracking-widest">
+                                <span className="text-uh-gray-400">INTERACTIONS</span>
+                                <span className="text-uh-black">{vectorInteractions.length}</span>
                               </div>
-                              <div className="flex justify-between text-[9px] font-mono">
-                                <span className="opacity-40 uppercase">VIBES:</span>
-                                <span className="text-white">{vectorVibes.length}</span>
+                              <div className="flex justify-between text-[10px] font-bold uppercase tracking-widest">
+                                <span className="text-uh-gray-400">VIBES</span>
+                                <span className="text-uh-black">{vectorVibes.length}</span>
                               </div>
                             </div>
                           </div>
@@ -1845,9 +1883,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
                     </div>
                   </div>
 
-                  <div className="bg-white/5 border border-white/10 p-6">
-                    <h3 className="text-sm font-bold text-hud-magenta mb-4 tracking-widest uppercase">ACTIVE_SIGNAL_PERFORMANCE</h3>
-                    <div className="space-y-4">
+                  <div className="bg-white border border-uh-gray-200 p-8 rounded-2xl shadow-sm">
+                    <h3 className="text-sm font-black text-uh-black mb-6 tracking-widest uppercase">ACTIVE_SIGNAL_PERFORMANCE</h3>
+                    <div className="space-y-6">
                       {broadcasts.map(b => {
                         const reports = vibeReports.filter(r => r.broadcast_id === b.id);
                         const packedCount = reports.filter(r => r.vibe === 'packed').length;
@@ -1855,51 +1893,51 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
                         const chillCount = reports.filter(r => r.vibe === 'chill').length;
                         
                         return (
-                          <div key={b.id} className="border-l-2 border-hud-magenta/20 pl-4 py-2">
-                            <div className="flex justify-between items-center mb-2">
-                              <span className="text-xs font-bold">{b.title}</span>
-                              <span className="text-[10px] opacity-40 font-mono uppercase">{b.current_vibe}</span>
+                          <div key={b.id} className="border-l-4 border-uh-magenta/20 pl-6 py-2">
+                            <div className="flex justify-between items-center mb-3">
+                              <span className="text-sm font-black text-uh-black">{b.title}</span>
+                              <span className="text-[10px] text-uh-gray-400 font-bold uppercase tracking-widest">{b.current_vibe}</span>
                             </div>
-                            <div className="flex gap-1 h-1 bg-white/5 rounded-full overflow-hidden">
-                              <div className="bg-hud-magenta transition-all duration-500" style={{ width: `${(packedCount / (reports.length || 1)) * 100}%` }} />
-                              <div className="bg-hud-yellow transition-all duration-500" style={{ width: `${(buzzingCount / (reports.length || 1)) * 100}%` }} />
-                              <div className="bg-hud-green transition-all duration-500" style={{ width: `${(chillCount / (reports.length || 1)) * 100}%` }} />
+                            <div className="flex gap-1 h-2 bg-uh-gray-100 rounded-full overflow-hidden">
+                              <div className="bg-uh-magenta transition-all duration-500" style={{ width: `${(packedCount / (reports.length || 1)) * 100}%` }} />
+                              <div className="bg-uh-yellow transition-all duration-500" style={{ width: `${(buzzingCount / (reports.length || 1)) * 100}%` }} />
+                              <div className="bg-uh-green transition-all duration-500" style={{ width: `${(chillCount / (reports.length || 1)) * 100}%` }} />
                             </div>
-                            <div className="flex justify-between mt-1">
-                              <span className="text-[9px] opacity-40 font-mono">REPORTS: {reports.length}</span>
-                              <span className="text-[9px] opacity-40 font-mono">STATUS: {getRemainingTime(b)}</span>
+                            <div className="flex justify-between mt-3">
+                              <span className="text-[10px] text-uh-gray-400 font-bold uppercase tracking-widest">REPORTS: {reports.length}</span>
+                              <span className="text-[10px] text-uh-gray-400 font-bold uppercase tracking-widest">STATUS: {getRemainingTime(b)}</span>
                             </div>
                           </div>
                         );
                       })}
                       {broadcasts.length === 0 && (
-                        <div className="text-center py-8 opacity-40 text-xs italic">NO_ACTIVE_SIGNALS_DETECTED</div>
+                        <div className="text-center py-12 text-uh-gray-400 text-xs font-bold uppercase tracking-widest italic">NO_ACTIVE_SIGNALS_DETECTED</div>
                       )}
                     </div>
                   </div>
 
-                  <div className="bg-white/5 border border-white/10 p-6">
-                    <h3 className="text-sm font-bold text-hud-green mb-4 tracking-widest uppercase">MY_ACTIVE_HUBS</h3>
-                    <div className="space-y-4">
+                  <div className="bg-white border border-uh-gray-200 p-8 rounded-2xl shadow-sm">
+                    <h3 className="text-sm font-black text-uh-black mb-6 tracking-widest uppercase">MY_ACTIVE_HUBS</h3>
+                    <div className="space-y-6">
                       {nodes.filter(n => broadcasts.some(b => b.node_id === n.id)).map(node => {
                         const nodeTaps = taps.filter(t => t.node_id === node.id).length;
                         const activeBroadcasts = broadcasts.filter(b => b.node_id === node.id);
                         
                         return (
-                          <div key={node.id} className="border-l-2 border-hud-green/20 pl-4 py-2">
-                            <div className="flex justify-between items-center mb-1">
-                              <span className="text-xs font-bold text-hud-green">{node.name}</span>
-                              <span className="text-[10px] opacity-40 font-mono uppercase">{node.type}</span>
+                          <div key={node.id} className="border-l-4 border-uh-green/20 pl-6 py-2">
+                            <div className="flex justify-between items-center mb-2">
+                              <span className="text-sm font-black text-uh-green">{node.name}</span>
+                              <span className="text-[10px] text-uh-gray-400 font-bold uppercase tracking-widest">{node.type}</span>
                             </div>
                             <div className="flex justify-between items-center">
-                              <span className="text-[9px] opacity-40 font-mono">TOTAL_TAPS: {nodeTaps}</span>
-                              <span className="text-[9px] opacity-40 font-mono">SIGNALS: {activeBroadcasts.length}</span>
+                              <span className="text-[10px] text-uh-gray-500 font-bold uppercase tracking-widest">TOTAL_TAPS: {nodeTaps}</span>
+                              <span className="text-[10px] text-uh-gray-500 font-bold uppercase tracking-widest">SIGNALS: {activeBroadcasts.length}</span>
                             </div>
                           </div>
                         );
                       })}
                       {broadcasts.length === 0 && (
-                        <div className="text-center py-8 opacity-40 text-xs italic">NO_HUB_ACTIVITY_DETECTED</div>
+                        <div className="text-center py-12 text-uh-gray-400 text-xs font-bold uppercase tracking-widest italic">NO_HUB_ACTIVITY_DETECTED</div>
                       )}
                     </div>
                   </div>

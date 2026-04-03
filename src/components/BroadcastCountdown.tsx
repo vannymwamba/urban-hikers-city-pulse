@@ -4,9 +4,15 @@ import { motion } from 'motion/react';
 
 interface BroadcastCountdownProps {
   broadcast: Broadcast;
+  hideLabel?: boolean;
+  hideProgress?: boolean;
 }
 
-export const BroadcastCountdown: React.FC<BroadcastCountdownProps> = ({ broadcast }) => {
+export const BroadcastCountdown: React.FC<BroadcastCountdownProps> = ({ 
+  broadcast, 
+  hideLabel = false,
+  hideProgress = false 
+}) => {
   const [now, setNow] = useState(new Date());
 
   useEffect(() => {
@@ -21,19 +27,24 @@ export const BroadcastCountdown: React.FC<BroadcastCountdownProps> = ({ broadcas
   const isUpcoming = now < start;
 
   if (broadcast.type === 'civic_mural') {
+    if (hideLabel && hideProgress) return null;
     return (
-      <div className="bg-hud-dark/40 p-3 border border-white/5 mt-2 mb-1 rounded-sm">
-        <div className="flex justify-between items-center">
-          <div className="text-[9px] font-bold tracking-wider font-sans text-hud-teal uppercase">
-            Permanent Installation
+      <div className={`${hideLabel ? '' : 'bg-uh-gray-50 p-4 rounded-2xl border border-uh-gray-100 mt-2'}`}>
+        {!hideLabel && (
+          <div className="flex justify-between items-center">
+            <div className="text-[10px] font-black tracking-widest font-mono text-uh-gray-400 uppercase">
+              PERMANENT INSTALLATION
+            </div>
+            <div className="text-[10px] font-black text-uh-black font-mono uppercase tracking-widest">
+              ALWAYS ON
+            </div>
           </div>
-          <div className="text-[10px] font-bold text-hud-yellow font-sans uppercase">
-            Always On
+        )}
+        {!hideProgress && (
+          <div className="h-1 bg-uh-yellow/20 overflow-hidden relative rounded-full mt-3">
+            <div className="h-full w-full bg-uh-yellow rounded-full opacity-50" />
           </div>
-        </div>
-        <div className="h-1.5 bg-hud-teal/20 overflow-hidden relative rounded-full mt-2">
-          <div className="h-full w-full bg-hud-teal rounded-full opacity-50" />
-        </div>
+        )}
       </div>
     );
   }
@@ -41,8 +52,9 @@ export const BroadcastCountdown: React.FC<BroadcastCountdownProps> = ({ broadcas
   if (now >= end || isNaN(start.getTime()) || isNaN(end.getTime())) return null;
 
   let label = "STARTS_IN";
-  let colorClass = "text-white/40"; 
-  let barColorClass = "bg-white/10";
+  let colorClass = "text-uh-gray-400"; 
+  let barColorClass = "bg-uh-gray-100";
+  let progressColorClass = "bg-uh-black";
   let timeRemaining = 0;
   let progress = 0;
 
@@ -52,27 +64,19 @@ export const BroadcastCountdown: React.FC<BroadcastCountdownProps> = ({ broadcas
     progress = (timeRemaining / totalDuration) * 100;
 
     if (timeRemaining < 1000 * 60 * 15) { // < 15 mins
-      label = "URGENT_EXPIRE";
-      colorClass = "text-hud-coral";
-      barColorClass = "bg-hud-coral";
-    } else if (currentVibe === 'packed') {
-      label = "LIVE_STATUS_PACKED";
-      colorClass = "text-hud-magenta";
-      barColorClass = "bg-hud-magenta";
-    } else if (currentVibe === 'buzzing') {
-      label = "LIVE_STATUS_BUZZING";
-      colorClass = "text-hud-amber";
-      barColorClass = "bg-hud-amber";
+      label = "EXPIRES SOON";
+      colorClass = "text-uh-magenta";
+      progressColorClass = "bg-uh-magenta";
     } else {
-      label = "LIVE_STATUS_CHILL";
-      colorClass = "text-hud-teal";
-      barColorClass = "bg-hud-teal";
+      label = "LIVE NOW";
+      colorClass = "text-uh-black";
+      progressColorClass = "bg-uh-black";
     }
   } else if (isUpcoming) {
     const diffToStart = start.getTime() - now.getTime();
-    label = "T_MINUS_START";
-    colorClass = "text-white/40";
-    barColorClass = "bg-white/10";
+    label = "STARTS IN";
+    colorClass = "text-uh-gray-400";
+    progressColorClass = "bg-uh-gray-200";
     timeRemaining = diffToStart;
     progress = Math.max(0, Math.min(100, (1 - (diffToStart / (24 * 60 * 60 * 1000))) * 100));
   }
@@ -83,46 +87,64 @@ export const BroadcastCountdown: React.FC<BroadcastCountdownProps> = ({ broadcas
 
   const isUrgent = isLive && timeRemaining < 1000 * 60 * 5; // < 5 mins
 
-  return (
-    <div className="bg-hud-dark/40 p-3 border border-white/5 mt-2 mb-1 rounded-sm">
-      <div className="flex justify-between items-center mb-2">
-        <div className={`text-[9px] font-bold tracking-wider font-sans ${isUrgent ? 'text-hud-magenta animate-pulse' : 'text-white/40'}`}>
-          {isUrgent ? 'Urgent: Expiring soon' : (isLive ? 'Time remaining' : 'Starts in')}
-        </div>
-        {!isUrgent && (
-          <div className="text-[10px] font-bold text-hud-yellow font-sans">
-            {isLive 
-              ? `${hrs > 0 ? `${hrs}h ` : ''}${mins} min`
-              : `${hrs > 0 ? `${hrs}h ` : ''}${mins} min`
-            }
-          </div>
-        )}
-      </div>
+  if (hideLabel && hideProgress) {
+    return (
+      <span className="tabular-nums">
+        {hrs > 0 ? `${hrs}:` : ''}{mins.toString().padStart(2, '0')}:{secs.toString().padStart(2, '0')}
+      </span>
+    );
+  }
 
-      {isUrgent ? (
-        <div className="flex items-baseline gap-1 mb-3">
+  return (
+    <div className={`${hideLabel ? '' : 'bg-uh-gray-50 p-4 rounded-2xl border border-uh-gray-100 mt-2'}`}>
+      {!hideLabel && (
+        <div className="flex justify-between items-center mb-3">
+          <div className={`text-[10px] font-black tracking-widest font-mono uppercase ${isUrgent ? 'text-uh-magenta animate-pulse' : colorClass}`}>
+            {isUrgent ? 'URGENT: EXPIRE' : label}
+          </div>
+          {!isUrgent && (
+            <div className="text-[11px] font-black text-uh-black font-mono uppercase tracking-widest">
+              {isLive 
+                ? `${hrs > 0 ? `${hrs}H ` : ''}${mins} MIN`
+                : `${hrs > 0 ? `${hrs}H ` : ''}${mins} MIN`
+              }
+            </div>
+          )}
+        </div>
+      )}
+
+      {isUrgent && !hideLabel ? (
+        <div className="flex items-baseline gap-1">
           <div className="flex items-baseline gap-1">
-            <span className="text-[28px] font-black tabular-nums leading-none font-mono text-hud-magenta">
+            <span className="text-[24px] font-black tabular-nums leading-none font-mono text-uh-magenta">
               {mins.toString().padStart(2, '0')}
             </span>
-            <span className="text-[8px] font-black opacity-20 uppercase tracking-widest font-mono text-hud-magenta">M</span>
+            <span className="text-[8px] font-black opacity-40 uppercase tracking-widest font-mono text-uh-magenta">M</span>
           </div>
-          <span className="text-[20px] font-black opacity-10 font-mono text-hud-magenta">:</span>
+          <span className="text-[18px] font-black opacity-20 font-mono text-uh-magenta">:</span>
           <div className="flex items-baseline gap-1">
-            <span className="text-[28px] font-black tabular-nums leading-none font-mono text-hud-magenta">
+            <span className="text-[24px] font-black tabular-nums leading-none font-mono text-uh-magenta">
               {secs.toString().padStart(2, '0')}
             </span>
-            <span className="text-[8px] font-black opacity-20 uppercase tracking-widest font-mono text-hud-magenta">S</span>
+            <span className="text-[8px] font-black opacity-40 uppercase tracking-widest font-mono text-uh-magenta">S</span>
           </div>
         </div>
       ) : (
-        <div className="h-1.5 bg-white/5 overflow-hidden relative rounded-full mb-1">
-          <motion.div 
-            initial={false}
-            animate={{ width: `${progress}%` }}
-            transition={{ duration: 1, ease: "linear" }}
-            className={`h-full ${isLive ? 'bg-hud-yellow' : 'bg-white/20'} rounded-full`}
-          />
+        !hideProgress && (
+          <div className="h-1 bg-uh-gray-200 overflow-hidden relative rounded-full">
+            <motion.div 
+              initial={false}
+              animate={{ width: `${progress}%` }}
+              transition={{ duration: 1, ease: "linear" }}
+              className={`h-full ${progressColorClass} rounded-full`}
+            />
+          </div>
+        )
+      )}
+      
+      {hideLabel && (
+        <div className="text-[11px] font-black font-mono uppercase tracking-widest tabular-nums">
+          {hrs > 0 ? `${hrs}:` : ''}{mins.toString().padStart(2, '0')}:{secs.toString().padStart(2, '0')}
         </div>
       )}
     </div>

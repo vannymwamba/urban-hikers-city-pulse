@@ -1,18 +1,12 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
-import { MapPin, Share2, ArrowRight } from 'lucide-react';
+import { MapPin, Share2, ArrowRight, Clock } from 'lucide-react';
 import { Broadcast, Partner, Node, Sponsor } from '../types';
 import { getDistance } from '../utils/geo';
-import { MiniVibeTrend } from './MiniVibeTrend';
-import { BroadcastCountdown } from './BroadcastCountdown';
-import { SponsorBadge } from './SponsorBadge';
 import { 
-  getIcon, 
-  getIconBg, 
   getEventStatus, 
   getBadgeLabel, 
-  getBadgeStyle, 
-  getDotColor 
+  getBadgeStyle 
 } from '../utils/broadcastHelpers';
 
 interface BroadcastCardProps {
@@ -21,10 +15,9 @@ interface BroadcastCardProps {
   currentNode: Node | null;
   onSelect: (broadcast: Broadcast) => void;
   onShareEvent: (broadcast: Broadcast) => void;
-  handleDirections: (broadcast: Broadcast) => void;
-  onBook?: (broadcast: Broadcast) => void;
   partner: Partner | null;
   sponsor?: Sponsor | null;
+  variant?: 'hero' | 'peek';
 }
 
 export const BroadcastCard: React.FC<BroadcastCardProps> = ({
@@ -33,155 +26,163 @@ export const BroadcastCard: React.FC<BroadcastCardProps> = ({
   currentNode,
   onSelect,
   onShareEvent,
-  handleDirections,
-  onBook,
   partner,
-  sponsor
+  variant = 'peek'
 }) => {
+  const [progress, setProgress] = useState(100);
+  const isFlashDeal = item.type === 'flash_deal';
+  const isMural = item.type === 'civic_mural';
+  
   const distance = currentNode ? getDistance(
     currentNode.latitude,
     currentNode.longitude,
-    item.latitude,
-    item.longitude
+    item.latitude || 0,
+    item.longitude || 0
   ) : 0;
   const walkTime = Math.ceil(distance / 80);
   const status = getEventStatus(item);
-  
-  const isLivePerformance = item.type === 'live_performance';
-  const logoUrl = partner?.logoUrl || partner?.logo_url;
-  const brandColor = partner?.brandColor || partner?.brand_color || '#FFE01A';
-  const sponsorZones = partner?.sponsorZones || partner?.sponsor_zones || [];
-  const hasSponsorship = partner && (logoUrl || brandColor);
 
-  // Zone E: Card Border
-  const showBorder = hasSponsorship && sponsorZones.includes('E');
-  // Zone B: Icon Background
-  const showIconBg = hasSponsorship && sponsorZones.includes('B');
-  // Zone C: Partner Name Color
-  const showPartnerColor = hasSponsorship && sponsorZones.includes('C');
+  useEffect(() => {
+    if (!isFlashDeal) return;
+    
+    const start = new Date(item.startsAt || item.starts_at || 0).getTime();
+    const end = new Date(item.expiresAt || item.expires_at || 0).getTime();
+    
+    if (isNaN(start) || isNaN(end)) return;
+
+    const updateProgress = () => {
+      const now = Date.now();
+      const total = end - start;
+      const remaining = end - now;
+      const p = Math.max(0, Math.min(100, (remaining / total) * 100));
+      setProgress(p);
+    };
+
+    updateProgress();
+    const timer = setInterval(updateProgress, 1000);
+    return () => clearInterval(timer);
+  }, [item, isFlashDeal]);
+
+  const cardHeight = variant === 'hero' ? 'h-[260px]' : 'h-[200px]';
+  const cardWidth = variant === 'hero' ? 'w-full' : 'w-[85vw] max-w-[340px]';
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 10 }}
+      initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: idx * 0.05 }}
-      className={`bg-navy-mid mb-2 shadow-lg transition-all cursor-pointer group overflow-hidden relative border ${isLivePerformance ? 'border-[#FF00FF]/40 shadow-[0_0_15px_rgba(255,0,255,0.1)]' : 'border-white/5'} ${!status.isLive ? 'opacity-60' : ''}`}
-      style={{
-        borderRadius: '2px',
-        borderLeft: isLivePerformance ? '4px solid #FF00FF' : (status.isLive ? '4px solid var(--color-live)' : '1px solid rgba(255,255,255,0.05)')
-      }}
+      onClick={() => onSelect(item)}
+      className={`relative ${cardWidth} ${cardHeight} rounded-[20px] overflow-hidden group cursor-pointer shadow-xl flex-shrink-0 snap-start`}
     >
-      {/* Zone A: Sponsor Bar */}
-      <SponsorBadge partner={partner} zone="A" />
-
-      <div className="p-3" onClick={() => onSelect(item)}>
-        <div className="flex justify-between items-start mb-2">
-          <div className="flex items-center gap-3">
-            <div 
-              className={`w-10 h-10 flex items-center justify-center shrink-0 border border-white/10 ${!showIconBg ? getIconBg(item) : ''}`}
-              style={showIconBg ? { backgroundColor: brandColor } : {}}
-            >
-              {getIcon(item)}
+      {/* Photo Background */}
+      <img 
+        src={item.imageUrl || `https://picsum.photos/seed/${item.id}/800/500`} 
+        alt={item.title}
+        className="absolute inset-0 w-full h-full object-cover opacity-45 transition-transform duration-700 group-hover:scale-105"
+        referrerPolicy="no-referrer"
+      />
+      
+      {/* Dark Gradient Overlay (bottom-weighted) */}
+      <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/40 to-transparent" />
+      
+      {/* Top Corners: Status + Type/Timer */}
+      <div className="absolute top-4 left-4 right-4 flex justify-between items-start">
+        <div className="flex flex-col gap-2">
+          {isFlashDeal ? (
+            <div className="bg-[#FF3B30] text-white text-[10px] font-black px-3 py-1 rounded-[20px] uppercase tracking-widest font-mono shadow-lg flex items-center gap-2 animate-pulse">
+              <div className="w-1.5 h-1.5 rounded-full bg-white" />
+              LIVE NOW
             </div>
-            <div className="flex flex-col">
-              <div className={`text-[14px] font-bold leading-none mb-1 tracking-tight font-sans ${isLivePerformance ? 'text-[#FF00FF]' : 'text-white'}`}>{item.title}</div>
-              <div className="flex items-center gap-2">
-                <span className="text-[9px] font-medium text-white/50 font-sans">
-                  {item.type === 'civic_mural' ? (item.venue || 'Unknown Artist') : (item.partner_id === 'admin' ? 'System Admin' : (partner?.name || item.partner_id || 'Local Partner'))}
-                </span>
-                <span className="text-[9px] text-white/30 font-black font-mono">
-                  // {status.time}
-                </span>
-              </div>
-            </div>
-          </div>
-          <div className="flex flex-col items-end gap-1">
-            <span className={`text-[9px] font-black px-2 py-0.5 rounded-sm uppercase tracking-widest font-mono ${getBadgeStyle(item)}`}>
+          ) : (
+            <div className={`text-[10px] font-black px-3 py-1 rounded-[20px] uppercase tracking-widest font-mono shadow-lg ${getBadgeStyle(item)}`}>
               {getBadgeLabel(item)}
-            </span>
-            {status.isLive && <MiniVibeTrend broadcastId={item.id} />}
-          </div>
+            </div>
+          )}
         </div>
 
-        <div className="mt-3">
-          <BroadcastCountdown broadcast={item} />
+        <div className="flex flex-col items-end gap-2">
+          {isFlashDeal && (
+            <div className="bg-uh-yellow text-uh-black text-[9px] font-black px-2.5 py-1 rounded-[20px] uppercase tracking-tight font-mono shadow-lg">
+              NFC_CLAIM_READY
+            </div>
+          )}
+          {!isMural && (
+            <div className="bg-black/40 backdrop-blur-md text-white text-[10px] font-black px-3 py-1 rounded-[20px] uppercase tracking-widest font-mono border border-white/10 flex items-center gap-1.5">
+              <Clock size={12} className="text-uh-yellow" />
+              <span className="font-variant-numeric-tabular-nums">
+                {status.countdownText || '00:00:00'}
+              </span>
+            </div>
+          )}
         </div>
-        
-        {/* NFC Claim Strip */}
-        {item.type === 'flash_deal' && (
-          <div className="mt-3 p-3 border border-hud-yellow/40 bg-hud-yellow/5 rounded-sm flex items-center justify-between group/nfc hover:bg-hud-yellow/10 transition-colors">
-            <div className="flex flex-col">
-              <span className="text-[11px] font-bold text-hud-yellow font-sans">Tap NFC to claim · $2 off</span>
-              <span className="text-[9px] text-white/40 font-sans">Show stamp at register · select items</span>
-            </div>
-            <div className="px-3 py-1 bg-hud-yellow text-hud-dark text-[10px] font-black uppercase tracking-widest rounded-full font-mono">
-              Claim
-            </div>
-          </div>
-        )}
-        
-        {/* Zone D: Deal Text */}
-        <SponsorBadge partner={partner} zone="D" />
       </div>
 
-      <div className="flex items-center justify-between px-3 py-2 bg-black/40 border-t border-white/5">
-        <div className="flex items-center gap-4">
-          {item.address && (
-            <div className="flex items-center gap-1 text-[9px] text-white/40 font-medium font-sans">
-              <MapPin size={10} className="text-hud-teal" />
-              {item.address.split(',')[0]}
+      {/* Content */}
+      <div className="absolute bottom-0 left-0 right-0 p-5">
+        <div className="flex flex-col gap-1.5">
+          <div className="flex flex-col">
+            <span className="text-uh-yellow text-[10px] font-black font-mono uppercase tracking-widest mb-0.5">
+              {partner?.name || item.partner_id || 'LOCAL_PARTNER'}
+            </span>
+            <h3 className={`text-white ${variant === 'hero' ? 'text-2xl' : 'text-xl'} font-black tracking-tighter uppercase leading-none truncate`}>
+              {item.title}
+            </h3>
+          </div>
+
+          {isFlashDeal && (
+            <div className="flex flex-col gap-2 mt-1">
+              <div className="w-full h-1 bg-white/10 rounded-full overflow-hidden">
+                <motion.div 
+                  initial={false}
+                  animate={{ width: `${progress}%` }}
+                  transition={{ duration: 1, ease: "linear" }}
+                  className="h-full bg-uh-yellow shadow-[0_0_8px_#FFE01A]"
+                />
+              </div>
+              <div className="flex justify-between items-center">
+                <div className="flex items-center gap-3">
+                   <div className="flex items-center gap-1 bg-white/10 backdrop-blur-md px-2 py-0.5 rounded-[20px] border border-white/10">
+                    <MapPin size={10} className="text-uh-yellow" />
+                    <span className="text-[9px] font-black text-white uppercase tracking-tighter font-mono">{walkTime} MIN</span>
+                  </div>
+                </div>
+                <button className="bg-uh-yellow text-uh-black px-5 py-2 rounded-[24px] text-[11px] font-black uppercase tracking-widest shadow-lg shadow-uh-yellow/20 hover:scale-105 transition-transform">
+                  Claim ${item.discount_value || '5'} Off
+                </button>
+              </div>
             </div>
           )}
-          <div className="flex items-center gap-1 bg-white/5 px-1.5 py-0.5 rounded-sm border border-white/5">
-            <span className="text-[8px] font-bold text-white/40 uppercase tracking-tighter font-mono">{walkTime} min walk</span>
-          </div>
-        </div>
-        
-        <div className="flex items-center gap-3">
-          {item.tip_url && (
-            <button 
-              onClick={(e) => {
-                e.stopPropagation();
-                window.open(item.tip_url!, '_blank');
-              }}
-              className="flex items-center gap-1 bg-green-500 text-black px-3 py-1.5 rounded-sm text-[10px] font-black uppercase tracking-widest hover:bg-green-400 transition-all shadow-[0_0_15px_rgba(34,197,94,0.4)] animate-pulse"
-            >
-              💸 Tip
-            </button>
+
+          {!isFlashDeal && (
+            <div className="flex justify-between items-end mt-1">
+              <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1 bg-white/10 backdrop-blur-md px-2 py-0.5 rounded-[20px] border border-white/10">
+                  <MapPin size={10} className="text-uh-yellow" />
+                  <span className="text-[9px] font-black text-white uppercase tracking-tighter font-mono">{walkTime} MIN</span>
+                </div>
+                {isMural && (
+                  <div className="bg-white/10 backdrop-blur-md px-2 py-0.5 rounded-[20px] border border-white/10">
+                    <span className="text-[9px] font-black text-white uppercase tracking-tighter font-mono">MURAL</span>
+                  </div>
+                )}
+              </div>
+              
+              <div className="flex items-center gap-2">
+                <button 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onShareEvent(item);
+                  }}
+                  className="p-2 text-white/60 hover:text-white transition-colors bg-white/10 rounded-full backdrop-blur-md"
+                >
+                  <Share2 size={14} />
+                </button>
+                <div className="w-8 h-8 rounded-full bg-uh-yellow flex items-center justify-center shadow-lg shadow-uh-yellow/20 group-hover:scale-110 transition-transform">
+                  <ArrowRight size={18} className="text-uh-black" />
+                </div>
+              </div>
+            </div>
           )}
-          
-          {onBook && (
-            <button 
-              onClick={(e) => {
-                e.stopPropagation();
-                onBook(item);
-              }}
-              className="text-[9px] font-black text-white/30 hover:text-white uppercase tracking-[0.2em] px-2 py-1 transition-colors font-mono"
-            >
-              BOOK
-            </button>
-          )}
-          
-          <button 
-            onClick={(e) => {
-              e.stopPropagation();
-              onShareEvent(item);
-            }}
-            className="p-2 text-white/20 hover:text-hud-yellow transition-colors"
-            title="Share Signal"
-          >
-            <Share2 size={14} />
-          </button>
-          
-          <button 
-            onClick={(e) => {
-              e.stopPropagation();
-              handleDirections(item);
-            }}
-            className="flex items-center gap-2 bg-hud-yellow text-hud-dark px-6 py-2 rounded-sm text-[12px] font-black uppercase tracking-[0.15em] hover:bg-white transition-all font-mono shadow-[0_0_20px_rgba(255,224,26,0.3)] active:scale-95"
-          >
-            Go <ArrowRight size={14} />
-          </button>
         </div>
       </div>
     </motion.div>

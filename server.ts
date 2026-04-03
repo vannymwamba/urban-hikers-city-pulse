@@ -252,9 +252,12 @@ async function startServer() {
 
   // Creator Flash Node Ignite Endpoint
   app.post("/api/creator/ignite", async (req, res) => {
-    const { nodeId, creatorName, performanceType, durationHours, tipUrl } = req.body;
+    const { nodeId, creatorName, performanceType, durationHours, tipUrl, address, latitude, longitude } = req.body;
 
-    if (!nodeId || !creatorName || !performanceType || !durationHours) {
+    // Validation: Must have a name, type, duration AND some form of location
+    const hasLocation = nodeId || (latitude && longitude) || address;
+    
+    if (!creatorName || !performanceType || !durationHours || !hasLocation) {
       return res.status(400).json({ error: "Missing required fields" });
     }
 
@@ -263,14 +266,41 @@ async function startServer() {
     }
 
     try {
-      // 1. Fetch Node Coordinates
-      const nodeDoc = await db.collection("nodes").doc(nodeId).get();
-      if (!nodeDoc.exists) {
-        return res.status(404).json({ error: "Node not found" });
+      let finalLat = latitude;
+      let finalLng = longitude;
+      let finalAddress = address;
+
+      // 1. Resolve Coordinates
+      if (nodeId) {
+        const nodeDoc = await db.collection("nodes").doc(nodeId).get();
+        if (nodeDoc.exists) {
+          const nodeData = nodeDoc.data();
+          finalLat = nodeData.latitude;
+          finalLng = nodeData.longitude;
+          finalAddress = nodeData.name;
+        }
+      } else if (address && (!finalLat || !finalLng)) {
+        // Geocode address if coordinates not provided
+        const googleMapsKey = process.env.GOOGLE_MAPS_API_KEY;
+        if (googleMapsKey) {
+          const mapsClient = new Client({});
+          const geoResponse = await mapsClient.geocode({
+            params: {
+              address: address,
+              key: googleMapsKey,
+            },
+          });
+          if (geoResponse.data.results.length > 0) {
+            const loc = geoResponse.data.results[0].geometry.location;
+            finalLat = loc.lat;
+            finalLng = loc.lng;
+          }
+        }
       }
 
-      const nodeData = nodeDoc.data();
-      const { latitude, longitude } = nodeData;
+      if (!finalLat || !finalLng) {
+        return res.status(400).json({ error: "LOCATION_RESOLUTION_FAILED: Could not determine coordinates." });
+      }
 
       // 2. Calculate Expiration
       const expiresAt = new Date(Date.now() + durationHours * 3600000).toISOString();
@@ -278,11 +308,12 @@ async function startServer() {
       // 3. Create Broadcast
       const broadcastData = {
         title: creatorName,
-        type: "live_performance",
-        performance_type: performanceType, // Extra metadata
-        latitude,
-        longitude,
-        node_id: nodeId,
+        type: performanceType === "Food Truck" ? "food_truck" : "live_performance",
+        performance_type: performanceType,
+        latitude: finalLat,
+        longitude: finalLng,
+        address: finalAddress || "MOBILE_LOCATION",
+        node_id: nodeId || null,
         starts_at: new Date().toISOString(),
         expires_at: expiresAt,
         current_vibe: "chill",
@@ -293,7 +324,7 @@ async function startServer() {
 
       const docRef = await db.collection("broadcasts").add(broadcastData);
       
-      console.log(`Creator Ignite: ${creatorName} at ${nodeId} for ${durationHours}h`);
+      console.log(`Creator Ignite: ${creatorName} (${performanceType}) at ${finalLat},${finalLng} for ${durationHours}h`);
       res.json({ success: true, id: docRef.id });
     } catch (error) {
       console.error("Creator Ignite Error:", error);

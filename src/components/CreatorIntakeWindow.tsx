@@ -4,7 +4,7 @@ import { db } from '../firebase';
 import { doc, getDoc, collection, getDocs } from 'firebase/firestore';
 import { Node } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
-import { Music, Palette, Store, Clock, DollarSign, Zap, ChevronLeft, Loader2, CheckCircle2, AlertCircle, MapPin, Search, Globe } from 'lucide-react';
+import { Music, Palette, Store, Clock, DollarSign, Zap, ChevronLeft, Loader2, CheckCircle2, AlertCircle, MapPin, Search, Globe, Truck, Navigation } from 'lucide-react';
 
 interface CreatorIntakeWindowProps {
   nodeId?: string;
@@ -28,6 +28,10 @@ export const CreatorIntakeWindow: React.FC<CreatorIntakeWindowProps> = ({ nodeId
   const [performanceType, setPerformanceType] = useState('Live Music');
   const [duration, setDuration] = useState(1);
   const [tipUrl, setTipUrl] = useState('');
+  const [address, setAddress] = useState('');
+  const [customLat, setCustomLat] = useState<number | null>(null);
+  const [customLng, setCustomLng] = useState<number | null>(null);
+  const [resolvingLocation, setResolvingLocation] = useState(false);
 
   useEffect(() => {
     const fetchAllNodes = async () => {
@@ -85,11 +89,14 @@ export const CreatorIntakeWindow: React.FC<CreatorIntakeWindowProps> = ({ nodeId
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          nodeId,
+          nodeId: node?.id,
           creatorName,
           performanceType,
           durationHours: duration,
-          tipUrl
+          tipUrl,
+          address: performanceType === 'Food Truck' ? address : undefined,
+          latitude: performanceType === 'Food Truck' ? customLat : undefined,
+          longitude: performanceType === 'Food Truck' ? customLng : undefined
         })
       });
 
@@ -116,8 +123,33 @@ export const CreatorIntakeWindow: React.FC<CreatorIntakeWindowProps> = ({ nodeId
     setNode(selectedNode);
     setIsExploring(false);
     setError(null);
-    // Update URL without full reload if possible, or just keep internal state
+    // Update URL without full reload
     window.history.pushState({}, '', `/creator/ignite/${selectedNode.id}`);
+  };
+
+  const resolveCurrentLocation = () => {
+    setResolvingLocation(true);
+    if (!navigator.geolocation) {
+      setError('GEOLOCATION_NOT_SUPPORTED: Your browser does not support location services.');
+      setResolvingLocation(false);
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setCustomLat(position.coords.latitude);
+        setCustomLng(position.coords.longitude);
+        setAddress('CURRENT_GPS_LOCATION');
+        setResolvingLocation(false);
+        setError(null);
+      },
+      (err) => {
+        console.error('Geolocation error:', err);
+        setError('LOCATION_ACCESS_DENIED: Please enable GPS to ignite a mobile node.');
+        setResolvingLocation(false);
+      },
+      { enableHighAccuracy: true }
+    );
   };
 
   if (loading) {
@@ -271,28 +303,70 @@ export const CreatorIntakeWindow: React.FC<CreatorIntakeWindowProps> = ({ nodeId
             <label className="block text-[10px] tracking-[0.2em] font-bold uppercase mb-4 opacity-70">
               Performance_Type
             </label>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-4 gap-2">
               {[
                 { id: 'Live Music', icon: Music },
                 { id: 'Street Art', icon: Palette },
-                { id: 'Pop-up', icon: Store }
+                { id: 'Pop-up', icon: Store },
+                { id: 'Food Truck', icon: Truck }
               ].map((type) => (
                 <button
                   key={type.id}
                   type="button"
                   onClick={() => setPerformanceType(type.id)}
-                  className={`flex flex-col items-center justify-center p-4 border transition-all ${
+                  className={`flex flex-col items-center justify-center p-3 border transition-all ${
                     performanceType === type.id 
                       ? 'bg-hud-magenta text-hud-bg border-hud-magenta' 
                       : 'border-hud-magenta/20 hover:border-hud-magenta/50'
                   }`}
                 >
-                  <type.icon size={20} className="mb-2" />
-                  <span className="text-[9px] font-bold uppercase tracking-tighter">{type.id}</span>
+                  <type.icon size={18} className="mb-1.5" />
+                  <span className="text-[8px] font-bold uppercase tracking-tighter text-center">{type.id}</span>
                 </button>
               ))}
             </div>
           </section>
+
+          {/* Location Resolution for Food Trucks */}
+          <AnimatePresence>
+            {performanceType === 'Food Truck' && (
+              <motion.section
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                className="overflow-hidden"
+              >
+                <label className="block text-[10px] tracking-[0.2em] font-bold uppercase mb-3 opacity-70">
+                  Mobile_Location_Resolution
+                </label>
+                <div className="space-y-4">
+                  <div className="flex gap-2">
+                    <input 
+                      type="text"
+                      placeholder="ENTER_STREET_ADDRESS"
+                      value={address === 'CURRENT_GPS_LOCATION' ? '' : address}
+                      onChange={(e) => setAddress(e.target.value)}
+                      className="flex-1 bg-transparent border-b border-hud-magenta/30 focus:border-hud-magenta outline-none py-2 text-xs font-mono placeholder:opacity-20 transition-all"
+                    />
+                    <button
+                      type="button"
+                      onClick={resolveCurrentLocation}
+                      disabled={resolvingLocation}
+                      className="px-4 py-2 bg-hud-magenta/10 border border-hud-magenta/30 hover:bg-hud-magenta/20 transition-all flex items-center gap-2 text-[10px] font-bold uppercase"
+                    >
+                      {resolvingLocation ? <Loader2 size={12} className="animate-spin" /> : <Navigation size={12} />}
+                      GPS
+                    </button>
+                  </div>
+                  {customLat && customLng && (
+                    <div className="text-[9px] font-mono text-green-500/80 uppercase tracking-widest">
+                      Resolved: {customLat.toFixed(4)}, {customLng.toFixed(4)}
+                    </div>
+                  )}
+                </div>
+              </motion.section>
+            )}
+          </AnimatePresence>
 
           {/* Duration */}
           <section>

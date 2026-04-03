@@ -9,21 +9,27 @@
   --color-uh-yellow: #FFE01A;
   --color-uh-black: #0A0A0A;
   --color-uh-magenta: #FF2D6F;
+  --color-uh-gray-50: #F9F9F9;
+  --color-uh-gray-100: #F0F0F0;
+  --color-uh-gray-200: #E4E4E4;
+  --color-uh-gray-400: #A3A3A3;
+  --color-uh-gray-600: #525252;
+  --color-uh-gray-800: #262626;
 
   /* Legacy HUD colors for compatibility */
-  --color-hud-bg: #0A0A0A;
+  --color-hud-bg: #FFFFFF;
   --color-hud-yellow: #FFE01A;
-  --color-hud-green: #00FF00;
+  --color-hud-green: #00B341;
   --color-hud-magenta: #FF2D6F;
   --color-hud-dark: #0A0A0A;
 }
 
 @layer base {
   body {
-    @apply bg-uh-black text-white font-sans selection:bg-uh-yellow selection:text-uh-black;
+    @apply bg-uh-gray-50 text-uh-black font-sans selection:bg-uh-yellow selection:text-uh-black;
     background-image: 
-      linear-gradient(rgba(255, 224, 26, 0.03) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(255, 224, 26, 0.03) 1px, transparent 1px);
+      linear-gradient(rgba(0, 0, 0, 0.02) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0, 0, 0, 0.02) 1px, transparent 1px);
     background-size: 40px 40px;
     background-attachment: fixed;
   }

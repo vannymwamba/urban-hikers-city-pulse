@@ -1,6 +1,6 @@
 export type Vibe = 'chill' | 'buzzing' | 'packed';
 export type HubType = 'street' | 'conference_center';
-export type BroadcastType = 'flash_deal' | 'event' | 'conference_panel' | 'civic_free' | 'civic_event' | 'live_performance' | 'civic_mural';
+export type BroadcastType = 'flash_deal' | 'event' | 'conference_panel' | 'civic_free' | 'civic_event' | 'live_performance' | 'civic_mural' | 'food_truck';
 export type UserRole = 'admin' | 'partner' | 'user' | 'partner_admin' | 'partner_viewer' | 'partner_content_editor' | 'super_admin' | 'hiker';
 
 export interface UserProfile {
@@ -53,6 +53,7 @@ export interface Broadcast {
   ingestedAt?: any;
   active?: boolean;
   tip_url?: string | null;
+  discount_value?: string;
 }
 
 export interface Partner {

@@ -20,7 +20,7 @@ import { handleFirestoreError, OperationType } from './utils/firebaseErrors';
 
 import { v4 as uuidv4 } from 'uuid';
 import { motion, AnimatePresence } from 'motion/react';
-import { Loader2, AlertTriangle, Share2, MapPin, Wallet } from 'lucide-react';
+import { Loader2, AlertTriangle, Share2, MapPin, Wallet, X } from 'lucide-react';
 
 // Session UUID for anonymous tracking
 const SESSION_ID = (() => {
@@ -1102,13 +1102,13 @@ export default function App() {
               initial={{ opacity: 0, y: -20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0 }}
-              className={`absolute top-24 left-1/2 -translate-x-1/2 z-[2100] px-4 py-2 border font-bold text-[10px] tracking-widest shadow-lg ${
+              className={`absolute top-32 left-1/2 -translate-x-1/2 z-[2100] px-6 py-3 rounded-full font-black text-[10px] tracking-widest shadow-2xl border ${
                 hudMessage.type === 'error' 
-                  ? 'bg-hud-magenta/20 border-hud-magenta text-hud-magenta' 
-                  : 'bg-hud-green/20 border-hud-green text-hud-green'
+                  ? 'bg-uh-magenta text-white border-uh-magenta' 
+                  : 'bg-uh-black text-uh-yellow border-uh-black'
               }`}
             >
-              {hudMessage.text}
+              {hudMessage.text.toUpperCase()}
             </motion.div>
           )}
         </AnimatePresence>
@@ -1128,73 +1128,80 @@ export default function App() {
               initial={{ y: '100%' }}
               animate={{ y: 0 }}
               exit={{ y: '100%' }}
-              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-              className="absolute inset-x-0 bottom-0 z-[2000]"
+              transition={{ type: 'spring', damping: 30, stiffness: 300 }}
+              className="absolute inset-x-0 bottom-0 z-[2000] px-4 pb-4"
             >
-              <div className="p-6 bg-hud-bg border-t border-hud-green/40 shadow-[0_-10px_30px_rgba(0,255,0,0.1)] max-h-[85vh] overflow-y-auto">
-                <div className="flex justify-between items-start mb-6">
-                  <div className="min-w-0 flex-1">
-                    <div className="text-[10px] text-hud-green/60 mb-1">SELECTED_EVENT</div>
-                    <h3 className="text-lg font-bold hud-glow-green truncate">{selectedBroadcast.title}</h3>
-                  </div>
-                  <div className="flex gap-2">
-                    <button 
-                      onClick={() => handleShare(
-                        selectedBroadcast.title,
-                        `Check out this event at ${currentNode?.name}!`,
-                        `${BASE_URL}/tap/${nodeId}`
-                      )}
-                      className="flex items-center justify-center w-10 h-10 bg-hud-green/10 text-hud-green rounded-xl hover:bg-hud-green/20 transition-colors"
-                      title="Share Signal"
-                    >
-                      <Share2 size={18} />
-                    </button>
-                    {selectedBroadcastNode && (
-                      <button 
-                        onClick={() => toggleSaveHub(selectedBroadcastNode)}
-                        className={`flex items-center justify-center w-10 h-10 rounded-xl transition-colors ${
-                          isSelectedBroadcastNodeSaved 
-                            ? 'bg-hud-magenta/20 text-hud-magenta border border-hud-magenta/40' 
-                            : 'bg-hud-green/10 text-hud-green hover:bg-hud-green/20'
-                        }`}
-                        title={isSelectedBroadcastNodeSaved ? "Remove from Wallet" : "Save to Wallet"}
-                      >
-                        <Wallet size={18} />
-                      </button>
-                    )}
-                    <button 
-                      onClick={() => setSelectedBroadcast(null)}
-                      className="text-hud-green/40 hover:text-hud-green p-2 shrink-0 font-bold text-[10px] border border-hud-green/20 rounded-xl px-3"
-                    >
-                      [CLOSE]
-                    </button>
-                  </div>
+              <div className="bg-white rounded-[40px] shadow-[0_-20px_60px_rgba(0,0,0,0.15)] max-h-[85vh] overflow-y-auto border border-uh-gray-100">
+                {/* Drag Handle */}
+                <div className="flex justify-center pt-4 pb-2">
+                  <div className="w-12 h-1.5 bg-uh-gray-200 rounded-full" />
                 </div>
 
-                <div className="mb-6">
-                  <div className="text-[10px] font-black tracking-[0.2em] text-hud-green/40 uppercase mb-2">SIGNAL_INTEL</div>
-                  <div className="bg-white/5 rounded-2xl p-4 border border-white/5">
-                    <p className="text-[13px] text-white/80 leading-relaxed font-sans">
-                      {selectedBroadcast.description || "NO_ADDITIONAL_INTEL_AVAILABLE_FOR_THIS_SIGNAL."}
-                    </p>
-                    {selectedBroadcast.address && (
-                      <div className="mt-4 pt-4 border-t border-white/5 flex items-center gap-2 text-[11px] text-white/40">
-                        <MapPin size={12} className="text-hud-yellow" />
-                        <span>{selectedBroadcast.address}</span>
-                      </div>
-                    )}
+                <div className="p-8">
+                  <div className="flex justify-between items-start mb-8">
+                    <div className="min-w-0 flex-1">
+                      <div className="text-[10px] font-black tracking-widest text-uh-gray-400 mb-2 uppercase font-mono">SELECTED_EVENT</div>
+                      <h3 className="text-2xl font-black text-uh-black uppercase tracking-tight leading-tight">{selectedBroadcast.title}</h3>
+                    </div>
+                    <div className="flex gap-3">
+                      <button 
+                        onClick={() => handleShare(
+                          selectedBroadcast.title,
+                          `Check out this event at ${currentNode?.name}!`,
+                          `${BASE_URL}/tap/${nodeId}`
+                        )}
+                        className="flex items-center justify-center w-12 h-12 bg-uh-gray-50 text-uh-black rounded-full hover:bg-uh-gray-100 transition-colors border border-uh-gray-100"
+                        title="Share Signal"
+                      >
+                        <Share2 size={20} />
+                      </button>
+                      {selectedBroadcastNode && (
+                        <button 
+                          onClick={() => toggleSaveHub(selectedBroadcastNode)}
+                          className={`flex items-center justify-center w-12 h-12 rounded-full transition-all border ${
+                            isSelectedBroadcastNodeSaved 
+                              ? 'bg-uh-magenta text-white border-uh-magenta shadow-lg shadow-uh-magenta/20' 
+                              : 'bg-uh-gray-50 text-uh-black border-uh-gray-100 hover:bg-uh-gray-100'
+                          }`}
+                          title={isSelectedBroadcastNodeSaved ? "Remove from Wallet" : "Save to Wallet"}
+                        >
+                          <Wallet size={20} />
+                        </button>
+                      )}
+                      <button 
+                        onClick={() => setSelectedBroadcast(null)}
+                        className="w-12 h-12 flex items-center justify-center bg-uh-black text-uh-yellow rounded-full shadow-lg"
+                      >
+                        <X size={20} />
+                      </button>
+                    </div>
                   </div>
-                </div>
-                
-                <div className="grid grid-cols-1 gap-6">
-                  <div>
-                    <div className="text-[10px] font-black tracking-[0.2em] text-hud-green/40 uppercase mb-3">VIBE_CHECK</div>
-                    <VibeCheck onReport={handleVibeReport} isReporting={isReporting} />
+
+                  <div className="mb-10">
+                    <div className="text-[10px] font-black tracking-widest text-uh-gray-400 uppercase mb-4 font-mono">SIGNAL_INTEL</div>
+                    <div className="bg-uh-gray-50 rounded-[32px] p-6 border border-uh-gray-100">
+                      <p className="text-[15px] text-uh-gray-800 leading-relaxed font-sans font-medium">
+                        {selectedBroadcast.description || "NO_ADDITIONAL_INTEL_AVAILABLE_FOR_THIS_SIGNAL."}
+                      </p>
+                      {selectedBroadcast.address && (
+                        <div className="mt-6 pt-6 border-t border-uh-gray-200 flex items-center gap-3 text-[12px] text-uh-gray-600 font-bold">
+                          <MapPin size={16} className="text-uh-yellow" />
+                          <span>{selectedBroadcast.address}</span>
+                        </div>
+                      )}
+                    </div>
                   </div>
                   
-                  <div>
-                    <div className="text-[10px] font-black tracking-[0.2em] text-hud-green/40 uppercase mb-3">VIBE_TREND_ANALYSIS</div>
-                    <VibeTrend broadcastId={selectedBroadcast.id} />
+                  <div className="grid grid-cols-1 gap-10">
+                    <div>
+                      <div className="text-[10px] font-black tracking-widest text-uh-gray-400 uppercase mb-4 font-mono">VIBE_CHECK</div>
+                      <VibeCheck onReport={handleVibeReport} isReporting={isReporting} />
+                    </div>
+                    
+                    <div>
+                      <div className="text-[10px] font-black tracking-widest text-uh-gray-400 uppercase mb-4 font-mono">VIBE_TREND_ANALYSIS</div>
+                      <VibeTrend broadcastId={selectedBroadcast.id} />
+                    </div>
                   </div>
                 </div>
               </div>

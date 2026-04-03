@@ -1,9 +1,10 @@
 import React from 'react';
 import { Broadcast, Vibe } from '../types';
-import { Zap, Mic, Music, Palette, Ticket, Calendar, Book } from 'lucide-react';
+import { Zap, Mic, Music, Palette, Ticket, Calendar, Book, Truck } from 'lucide-react';
 
 export const getIcon = (item: Broadcast) => {
   if (item.type === 'live_performance') return <Music size={18} className="text-[#FF00FF]" />;
+  if (item.type === 'food_truck') return <Truck size={18} className="text-[#FFD700]" />;
   if (item.type === 'flash_deal') return <Zap size={18} className="text-[#BA7517]" />;
   if (item.type === 'conference_panel') return <Mic size={18} className="text-[#1A2B4A]" />;
   if (item.type === 'civic_free') return <Book size={18} className="text-[#185FA5]" />;
@@ -16,6 +17,7 @@ export const getIcon = (item: Broadcast) => {
 
 export const getIconBg = (item: Broadcast) => {
   if (item.type === 'live_performance') return 'bg-[#FF00FF]/10';
+  if (item.type === 'food_truck') return 'bg-[#FFD700]/10';
   if (item.type === 'flash_deal') return 'bg-[#FFF3CC]';
   if (item.type === 'conference_panel') return 'bg-[#E6F1FB]';
   if (item.type === 'civic_free') return 'bg-[#E6F1FB]';
@@ -28,28 +30,30 @@ export const getIconBg = (item: Broadcast) => {
 
 export const getEventStatus = (item: Broadcast) => {
   if (item.type === 'civic_mural') {
-    return { isLive: true, label: 'PERMANENT', time: 'ALWAYS_ON' };
+    return { isLive: true, label: 'PERMANENT', time: 'ALWAYS_ON', countdownText: 'PERMANENT' };
   }
   const now = new Date();
   const start = new Date(item.startsAt || item.starts_at || 0);
   const end = new Date(item.expiresAt || item.expires_at || 0);
 
   if (isNaN(start.getTime()) || isNaN(end.getTime())) {
-    return { isLive: false, label: 'DORMANT', time: 'TIME_UNKNOWN' };
+    return { isLive: false, label: 'DORMANT', time: 'TIME_UNKNOWN', countdownText: '00:00:00' };
   }
 
   if (now < start) {
     return { 
       isLive: false, 
       label: 'UPCOMING', 
-      time: `STARTS AT ${start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })}` 
+      time: `STARTS AT ${start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })}`,
+      countdownText: '00:00:00'
     };
   }
   
   return { 
     isLive: true, 
     label: 'LIVE', 
-    time: `ENDS AT ${end.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })}` 
+    time: `ENDS AT ${end.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })}`,
+    countdownText: '00:00:00'
   };
 };
 
@@ -92,6 +96,7 @@ export const getBadgeStyle = (item: Broadcast) => {
   
   if (vibe === 'packed') return 'bg-[#E24B4A]/10 text-[#E24B4A]'; // LIVE
   if (item.type === 'live_performance') return 'bg-[#FF00FF]/10 text-[#FF00FF]'; // MAGENTA
+  if (item.type === 'food_truck') return 'bg-[#FFD700]/10 text-[#BA7517]'; // YELLOW/BROWN
   if (vibe === 'buzzing') return 'bg-[#EF9F27]/10 text-[#EF9F27]'; // BUZZING
   return 'bg-[#639922]/10 text-[#639922]'; // CHILL
 };
@@ -102,6 +107,7 @@ export const getDotColor = (item: Broadcast) => {
   
   let colorClasses = '';
   if (item.type === 'live_performance') colorClasses = 'bg-[#FF00FF] shadow-[0_0_8px_#FF00FF]';
+  else if (item.type === 'food_truck') colorClasses = 'bg-[#FFD700] shadow-[0_0_8px_#FFD700]';
   else if (label === 'LIVE') colorClasses = 'bg-[#E24B4A] shadow-[0_0_8px_#E24B4A]';
   else if (label === 'BUZZING') colorClasses = 'bg-[#EF9F27]';
   else if (label === 'CHILL') colorClasses = 'bg-[#639922]';
