@@ -26,7 +26,7 @@ export const CreatorIntakeWindow: React.FC<CreatorIntakeWindowProps> = ({ nodeId
 
   // Form State
   const [creatorName, setCreatorName] = useState('');
-  const [performanceType, setPerformanceType] = useState<BroadcastType>(BroadcastType.LIVE_EVENT);
+  const [performanceType, setPerformanceType] = useState('live_event');
   const [duration, setDuration] = useState(1);
   const [tipUrl, setTipUrl] = useState('');
   const [address, setAddress] = useState('');
@@ -45,11 +45,6 @@ export const CreatorIntakeWindow: React.FC<CreatorIntakeWindowProps> = ({ nodeId
     departureTime: '',
     meetingPoint: '',
     guideName: ''
-  });
-  const [flashDealDetails, setFlashDealDetails] = useState({
-    discountValue: '',
-    claimLimit: '',
-    terms: ''
   });
   const [hubLiveCounts, setHubLiveCounts] = useState<Record<string, number>>({});
   const [viewMode, setViewMode] = useState<'list' | 'map'>('list');
@@ -143,19 +138,17 @@ export const CreatorIntakeWindow: React.FC<CreatorIntakeWindowProps> = ({ nodeId
         performanceType,
         durationHours: duration,
         tipUrl,
-        address: (performanceType === BroadcastType.FOOD_TRUCK || performanceType === BroadcastType.POP_UP) ? address : undefined,
-        latitude: (performanceType === BroadcastType.FOOD_TRUCK || performanceType === BroadcastType.POP_UP) ? customLat : undefined,
-        longitude: (performanceType === BroadcastType.FOOD_TRUCK || performanceType === BroadcastType.POP_UP) ? customLng : undefined,
+        address: performanceType === 'food_truck' ? address : undefined,
+        latitude: performanceType === 'food_truck' ? customLat : undefined,
+        longitude: performanceType === 'food_truck' ? customLng : undefined,
         scope,
         cover_url: imageUrl,
-        payment_type: performanceType === BroadcastType.WALKING_EVENT ? 'stripe' : (tipUrl ? 'tip_jar' : 'free'),
-        price: performanceType === BroadcastType.WALKING_EVENT ? parseFloat(walkDetails.price) : 0,
-        walk_details: performanceType === BroadcastType.WALKING_EVENT ? walkDetails : undefined,
-        discount_value: performanceType === BroadcastType.FLASH_DEAL ? flashDealDetails.discountValue : undefined,
-        claim_limit: performanceType === BroadcastType.FLASH_DEAL ? parseInt(flashDealDetails.claimLimit) : undefined
+        payment_type: performanceType === 'walking_event' ? 'stripe' : (tipUrl ? 'tip_jar' : 'free'),
+        price: performanceType === 'walking_event' ? parseFloat(walkDetails.price) : 0,
+        walk_details: performanceType === 'walking_event' ? walkDetails : undefined
       };
 
-      if (scope === 'all_nodes' || performanceType === BroadcastType.WALKING_EVENT) {
+      if (scope === 'all_nodes' || performanceType === 'walking_event') {
         // Trigger Stripe Checkout
         const stripeResponse = await fetch('/api/create-checkout-session', {
           method: 'POST',
@@ -166,20 +159,8 @@ export const CreatorIntakeWindow: React.FC<CreatorIntakeWindowProps> = ({ nodeId
             payload
           })
         });
-
-        if (!stripeResponse.ok) {
-          const errText = await stripeResponse.text();
-          console.error('Stripe session error:', errText);
-          setError(`STRIPE_ERROR: ${stripeResponse.status} — Is your API server running?`);
-          return;
-        }
-
         const { url } = await stripeResponse.json();
-        if (!url) {
-          setError('STRIPE_ERROR: No checkout URL returned.');
-          return;
-        }
-        window.location.href = url;
+        if (url) window.location.href = url;
         return;
       }
 
@@ -549,7 +530,7 @@ export const CreatorIntakeWindow: React.FC<CreatorIntakeWindowProps> = ({ nodeId
                   }`}
                 >
                   <type.icon size={24} className="mb-2" />
-                  <span className="text-[10px] font-black uppercase tracking-widest text-center leading-tight">{type.label}</span>
+                  <span className="text-[10px] font-black uppercase tracking-widest text-center">{type.label}</span>
                 </button>
               ))}
             </div>
@@ -557,7 +538,7 @@ export const CreatorIntakeWindow: React.FC<CreatorIntakeWindowProps> = ({ nodeId
 
           {/* Walk Details */}
           <AnimatePresence>
-            {performanceType === BroadcastType.WALKING_EVENT && (
+            {performanceType === 'walking_event' && (
               <motion.section
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: 'auto' }}
@@ -580,7 +561,7 @@ export const CreatorIntakeWindow: React.FC<CreatorIntakeWindowProps> = ({ nodeId
                   <div>
                     <input 
                       type="number"
-                      placeholder="PRICE ($)"
+                      placeholder="PRICE_PER_PERSON ($)"
                       value={walkDetails.price}
                       onChange={(e) => setWalkDetails({...walkDetails, price: e.target.value})}
                       className="w-full bg-transparent border-b border-hud-magenta/30 focus:border-hud-magenta outline-none py-2 text-xs font-mono placeholder:opacity-20"
@@ -589,7 +570,7 @@ export const CreatorIntakeWindow: React.FC<CreatorIntakeWindowProps> = ({ nodeId
                   <div>
                     <input 
                       type="number"
-                      placeholder="CAPACITY"
+                      placeholder="MAX_CAPACITY"
                       value={walkDetails.capacity}
                       onChange={(e) => setWalkDetails({...walkDetails, capacity: e.target.value})}
                       className="w-full bg-transparent border-b border-hud-magenta/30 focus:border-hud-magenta outline-none py-2 text-xs font-mono placeholder:opacity-20"
@@ -598,7 +579,7 @@ export const CreatorIntakeWindow: React.FC<CreatorIntakeWindowProps> = ({ nodeId
                   <div>
                     <input 
                       type="time"
-                      placeholder="TIME"
+                      placeholder="DEPARTURE_TIME"
                       value={walkDetails.departureTime}
                       onChange={(e) => setWalkDetails({...walkDetails, departureTime: e.target.value})}
                       className="w-full bg-transparent border-b border-hud-magenta/30 focus:border-hud-magenta outline-none py-2 text-xs font-mono placeholder:opacity-20"
@@ -607,7 +588,7 @@ export const CreatorIntakeWindow: React.FC<CreatorIntakeWindowProps> = ({ nodeId
                   <div>
                     <input 
                       type="text"
-                      placeholder="GUIDE"
+                      placeholder="GUIDE_NAME"
                       value={walkDetails.guideName}
                       onChange={(e) => setWalkDetails({...walkDetails, guideName: e.target.value})}
                       className="w-full bg-transparent border-b border-hud-magenta/30 focus:border-hud-magenta outline-none py-2 text-xs font-mono placeholder:opacity-20"
@@ -627,45 +608,9 @@ export const CreatorIntakeWindow: React.FC<CreatorIntakeWindowProps> = ({ nodeId
             )}
           </AnimatePresence>
 
-          {/* Flash Deal Details */}
+          {/* Location Resolution for Food Trucks */}
           <AnimatePresence>
-            {performanceType === BroadcastType.FLASH_DEAL && (
-              <motion.section
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
-                exit={{ opacity: 0, height: 0 }}
-                className="space-y-6 border-l-2 border-hud-magenta/20 pl-4 py-2"
-              >
-                <label className="block text-[10px] tracking-[0.2em] font-bold uppercase opacity-70">
-                  Deal_Details
-                </label>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <input 
-                      type="text"
-                      placeholder="DISCOUNT (e.g. $5 OFF)"
-                      value={flashDealDetails.discountValue}
-                      onChange={(e) => setFlashDealDetails({...flashDealDetails, discountValue: e.target.value})}
-                      className="w-full bg-transparent border-b border-hud-magenta/30 focus:border-hud-magenta outline-none py-2 text-xs font-mono placeholder:opacity-20"
-                    />
-                  </div>
-                  <div>
-                    <input 
-                      type="number"
-                      placeholder="CLAIM_LIMIT"
-                      value={flashDealDetails.claimLimit}
-                      onChange={(e) => setFlashDealDetails({...flashDealDetails, claimLimit: e.target.value})}
-                      className="w-full bg-transparent border-b border-hud-magenta/30 focus:border-hud-magenta outline-none py-2 text-xs font-mono placeholder:opacity-20"
-                    />
-                  </div>
-                </div>
-              </motion.section>
-            )}
-          </AnimatePresence>
-
-          {/* Location Resolution for Mobile Nodes */}
-          <AnimatePresence>
-            {(performanceType === BroadcastType.FOOD_TRUCK || performanceType === BroadcastType.POP_UP) && (
+            {performanceType === 'food_truck' && (
               <motion.section
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: 'auto' }}
@@ -717,7 +662,7 @@ export const CreatorIntakeWindow: React.FC<CreatorIntakeWindowProps> = ({ nodeId
                   onClick={() => setDuration(h)}
                   className={`flex-1 py-3 border-2 rounded-[20px] text-xs font-bold transition-all ${
                     duration === h 
-                      ? 'bg-uh-magenta text-white border-uh-magenta' 
+                      ? 'bg-hud-magenta text-hud-bg border-hud-magenta' 
                       : 'border-hud-magenta/10 hover:border-hud-magenta/30'
                   }`}
                 >
@@ -748,10 +693,10 @@ export const CreatorIntakeWindow: React.FC<CreatorIntakeWindowProps> = ({ nodeId
               <button
                 type="button"
                 onClick={() => setScope('all_nodes')}
-                className={`flex-1 py-4 rounded-[18px] transition-all flex flex-col items-center ${scope === 'all_nodes' ? 'bg-uh-magenta/10 text-uh-magenta shadow-lg' : 'text-hud-magenta/40'}`}
+                className={`flex-1 py-4 rounded-[18px] transition-all flex flex-col items-center ${scope === 'all_nodes' ? 'bg-hud-magenta text-white shadow-lg' : 'text-hud-magenta/40'}`}
               >
                 <div className="text-[10px] font-black uppercase tracking-widest">All Nodes</div>
-                <div className="text-[12px] font-black">$0</div>
+                <div className="text-[12px] font-black">${currentPrice}</div>
                 <div className="text-[8px] opacity-50 uppercase">All 8 active hubs</div>
               </button>
             </div>

@@ -46,13 +46,9 @@ export const getEventStatus = (item: Broadcast) => {
   }
   
   if (now >= start && now < end) {
-    let label = 'LIVE_NOW';
-    if (item.type === BroadcastType.WALKING_EVENT) label = 'BOOKING_OPEN';
-    if (item.type === BroadcastType.FLASH_DEAL) label = 'FLASH_DEAL';
-    
     return { 
       isLive: true, 
-      label, 
+      label: item.type === 'walking_event' ? 'BOOKING_OPEN' : 'LIVE_NOW', 
       time: end.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }),
       countdownText: '00:00:00'
     };
@@ -81,17 +77,9 @@ export const getStatusTag = (item: Broadcast) => {
     UPCOMING: { bg: 'bg-[#7C3AED]', text: 'text-white' },
     ALWAYS_ON: { bg: 'bg-[#FFE01A]', text: 'text-[#1A1A1A]' },
     BOOKING_OPEN: { bg: 'bg-[#10B981]', text: 'text-white' },
-    FLASH_DEAL: { bg: 'bg-[#FFE01A]', text: 'text-[#1A1A1A]' },
     DORMANT: { bg: 'bg-gray-500', text: 'text-white' },
     EXPIRED: { bg: 'bg-gray-700', text: 'text-white' },
   };
-
-  // Type-specific overrides for LIVE_NOW
-  if (status.label === 'LIVE_NOW') {
-    if (item.type === BroadcastType.FOOD_TRUCK) styles.LIVE_NOW = { bg: 'bg-[#F97316]', text: 'text-white' };
-    if (item.type === BroadcastType.POP_UP) styles.LIVE_NOW = { bg: 'bg-[#0EA5E9]', text: 'text-white' };
-  }
-
   return { label: status.label, ...styles[status.label] };
 };
 

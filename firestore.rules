@@ -1,166 +1,88 @@
 // ===============================================================
-// Assumed Data Model
-// ===============================================================
-//
-// Collection: nodes
-// Fields:
-//   - id: string (required)
-//   - name: string (required)
-//   - type: string (required, enum: street, conference_center)
-//   - latitude: number (required)
-//   - longitude: number (required)
-//   - radius_limit: number (required)
-//   - tap_count: number (optional)
-//
-// Collection: broadcasts
-// Fields:
-//   - id: string (required)
-//   - title: string (required)
-//   - type: string (required, enum: flash_deal, event, conference_panel, civic_event, live_performance)
-//   - latitude: number (required)
-//   - longitude: number (required)
-//   - expires_at: timestamp (required)
-//   - current_vibe: string (required, enum: chill, buzzing, packed)
-//   - partner_id: string (optional)
-//   - node_id: string (optional)
-//   - active: boolean (optional)
-//   - tip_url: string (optional)
-//
-// Collection: taps
-// Fields:
-//   - id: string (required)
-//   - node_id: string (required)
-//   - session_id: string (required)
-//   - tapped_at: timestamp (required)
-//   - sponsor_id: string (optional)
-//
-// Collection: vibe_reports
-// Fields:
-//   - id: string (required)
-//   - broadcast_id: string (required)
-//   - session_uuid: string (required)
-//   - vibe: string (required, enum: chill, buzzing, packed)
-//   - reported_at: timestamp (required)
-//
-// Collection: partners
-// Fields:
-//   - name: string (required, size < 100)
-//   - tier: string (required, enum: standard, premium, anchor)
-//   - latitude: number (required)
-//   - longitude: number (required)
-//   - owner_email: string (required, email format)
-//   - logo_url: string (optional)
-//   - logo_updated_at: timestamp (optional)
-//
-// Collection: users
-// Fields:
-//   - uid: string (required)
-//   - email: string (required)
-//   - role: string (required, enum: admin, super_admin, partner, user, hiker, partner_admin, partner_viewer, partner_content_editor)
-//   - partner_id: string (optional)
-//
-// Collection: tab_views
-// Fields:
-//   - id: string (required)
-//   - session_uuid: string (required)
-//   - tab: string (required, enum: home, feed, explore, wallet, profile, map, routes)
-//   - timestamp: string (required, ISO 8601)
-//
-// Collection: pois
-// Fields:
-//   - name: string (required)
-//   - artist: string (required)
-//   - address: string (required)
-//   - latitude: number (required)
-//   - longitude: number (required)
-//   - description: string (optional)
-//   - imageUrl: string (required)
-//   - type: string (required, enum: civic_mural)
-//   - createdAt: string (required)
-//   - active: boolean (required)
-//
+// Urban Hikers / Flux Protocol OS — Firestore Security Rules
+// Last updated: 2026-04-06
+// PATCH: users/create loosened for first-time Google login
 // ===============================================================
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    
-    // Helper Functions
+
+    // ─── Helper Functions ───────────────────────────────────────
+
     function isAuthenticated() {
       return request.auth != null;
     }
 
+    function isDefaultAdmin() {
+      return isAuthenticated() &&
+             request.auth.token.email == "vannymwamba@gmail.com";
+    }
+
     function isAdmin() {
       return isAuthenticated() && (
-        isDefaultAdmin() || 
-        request.auth.token.role == 'admin' ||
-        request.auth.token.role == 'super_admin' ||
-        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
-         (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
-          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'super_admin'))
+        isDefaultAdmin() ||
+        request.auth.token.role in ['admin', 'super_admin'] ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin', 'super_admin'])
       );
     }
 
-    function isDefaultAdmin() {
-      return isAuthenticated() && 
-             (request.auth.token.email == "vannymwamba@gmail.com");
-    }
-
-    function isValidEmail(email) {
-      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
-    }
-
-    function isValidUrl(url) {
-      return url is string && (url.matches("^https://.*") || url.matches("^http://.*"));
-    }
-
-    function isValidVibe(vibe) {
-      return vibe in ['chill', 'buzzing', 'packed'];
-    }
-
-    function isValidBroadcastType(type) {
-      return type in ['flash_deal', 'event', 'conference_panel', 'civic_event', 'civic_free'];
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
     }
 
     function isPartner() {
       return isAuthenticated() && (
-             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['partner', 'partner_admin', 'partner_viewer', 'partner_content_editor'] ||
-             isAdmin()
+        isAdmin() ||
+        getUserData().role in ['partner', 'partner_admin', 'partner_viewer', 'partner_content_editor']
       );
     }
 
     function canPartnerWrite() {
       return isAuthenticated() && (
-             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['partner', 'partner_admin', 'partner_content_editor'] ||
-             isAdmin()
+        isAdmin() ||
+        getUserData().role in ['partner', 'partner_admin', 'partner_content_editor']
       );
     }
 
     function getPartnerId() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.partnerId != null ? 
-             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.partnerId : 
-             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.partner_id;
+      let data = getUserData();
+      return data.get('partnerId', data.get('partner_id', null));
+    }
+
+    function isValidEmail(email) {
+      return email is string &&
+             email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    function isValidUrl(url) {
+      return url is string &&
+             (url.matches("^https://.*") || url.matches("^http://.*"));
+    }
+
+    function isValidBroadcastType(type) {
+      return type in [
+        'flash_deal', 'event', 'conference_panel', 'civic_event', 'civic_free',
+        'live_performance', 'guided_walk', 'live_event', 'food_truck',
+        'walking_event', 'mural', 'street_art', 'pop_up', 'live_board', 'civic_mural',
+        'WALKING_EVENT', 'FOOD_TRUCK', 'POP_UP', 'STREET_ART',
+        'FLASH_DEAL', 'LIVE_EVENT'
+      ];
     }
 
     function isValidBroadcast(data) {
-      return data.title is string && data.title.size() < 100 &&
-             data.type in ['flash_deal', 'event', 'conference_panel', 'civic_event', 'civic_free', 'live_performance', 'guided_walk', 'live_event', 'food_truck', 'walking_event', 'mural', 'street_art', 'pop_up'] &&
-             (data.latitude is number || data.latitude is string) &&
-             (data.longitude is number || data.longitude is string) &&
-             ( ('expiresAt' in data && (data.expiresAt is string || data.expiresAt is timestamp)) || 
-               ('expires_at' in data && (data.expires_at is string || data.expires_at is timestamp)) ) &&
-             ( ('startsAt' in data && (data.startsAt is string || data.startsAt is timestamp)) || 
-               ('starts_at' in data && (data.starts_at is string || data.starts_at is timestamp)) ||
-               !('startsAt' in data || 'starts_at' in data) ) &&
-             ( ('currentVibe' in data && data.currentVibe in ['chill', 'buzzing', 'packed']) || 
-               ('current_vibe' in data && data.current_vibe in ['chill', 'buzzing', 'packed']) ) &&
-             ( ('partnerId' in data && data.partnerId is string) || 
-               ('partner_id' in data && data.partner_id is string) || 
-               (!('partnerId' in data) && !('partner_id' in data)) ) &&
-             ( ('nodeId' in data && data.nodeId is string) || 
-               ('node_id' in data && data.node_id is string) || 
-               (!('nodeId' in data) && !('node_id' in data)) ) &&
-             ( !('tip_url' in data) || data.tip_url == null || (data.tip_url is string && isValidUrl(data.tip_url)) ) &&
-             ( ('active' in data && data.active is bool) || !('active' in data) );
+      return data.title is string && data.title.size() > 0 && data.title.size() < 200 &&
+             isValidBroadcastType(data.type) &&
+             (data.get('latitude', null) == null || data.latitude is number || data.latitude is string) &&
+             (data.get('longitude', null) == null || data.longitude is number || data.longitude is string) &&
+             (!('current_vibe' in data) || data.current_vibe in ['chill', 'buzzing', 'packed']) &&
+             (!('currentVibe' in data) || data.currentVibe in ['chill', 'buzzing', 'packed']) &&
+             (!('partner_id' in data) || data.partner_id == null || data.partner_id is string) &&
+             (!('partnerId' in data) || data.partnerId == null || data.partnerId is string) &&
+             (!('node_id' in data) || data.node_id == null || data.node_id is string) &&
+             (!('nodeId' in data) || data.nodeId == null || data.nodeId is string) &&
+             (!('tip_url' in data) || data.tip_url == null || data.tip_url is string) &&
+             (!('active' in data) || data.active is bool);
     }
 
     function isValidPartner(data) {
@@ -168,27 +90,28 @@ service cloud.firestore {
              data.tier.lower() in ['standard', 'premium', 'anchor'] &&
              (data.latitude is number || data.latitude is string) &&
              (data.longitude is number || data.longitude is string) &&
-             ( 
-               ('owner_email' in data && isValidEmail(data.owner_email)) || 
+             (
+               ('owner_email' in data && isValidEmail(data.owner_email)) ||
                ('ownerEmail' in data && isValidEmail(data.ownerEmail)) ||
                ('associate_owner_email' in data && isValidEmail(data.associate_owner_email))
              ) &&
-             ( !('logoUrl' in data) || data.logoUrl == null || (data.logoUrl is string && isValidUrl(data.logoUrl)) ) &&
-             ( !('logo_url' in data) || data.logo_url == null || (data.logo_url is string && isValidUrl(data.logo_url)) ) &&
-             ( !('brandColor' in data) || data.brandColor == null || (data.brandColor is string && data.brandColor.matches("^#[0-9a-fA-F]{6}$")) ) &&
-             ( !('brand_color' in data) || data.brand_color == null || (data.brand_color is string && data.brand_color.matches("^#[0-9a-fA-F]{6}$")) ) &&
-             ( !('dealText' in data) || data.dealText == null || (data.dealText is string && data.dealText.size() < 500) ) &&
-             ( !('deal_text' in data) || data.deal_text == null || (data.deal_text is string && data.deal_text.size() < 500) ) &&
-             ( !('sponsorZones' in data) || data.sponsorZones == null || (data.sponsorZones is list && data.sponsorZones.size() <= 6) ) &&
-             ( !('sponsor_zones' in data) || data.sponsor_zones == null || (data.sponsor_zones is list && data.sponsor_zones.size() <= 6) ) &&
-             ( !('logoUpdatedAt' in data) || data.logoUpdatedAt == null || data.logoUpdatedAt is string || data.logoUpdatedAt is timestamp ) &&
-             ( !('logo_updated_at' in data) || data.logo_updated_at == null || data.logo_updated_at is string || data.logo_updated_at is timestamp );
+             (!('logoUrl' in data) || data.logoUrl == null || isValidUrl(data.logoUrl)) &&
+             (!('logo_url' in data) || data.logo_url == null || isValidUrl(data.logo_url)) &&
+             (!('brandColor' in data) || data.brandColor == null || data.brandColor.matches("^#[0-9a-fA-F]{6}$")) &&
+             (!('brand_color' in data) || data.brand_color == null || data.brand_color.matches("^#[0-9a-fA-F]{6}$")) &&
+             (!('dealText' in data) || data.dealText == null || (data.dealText is string && data.dealText.size() < 500)) &&
+             (!('deal_text' in data) || data.deal_text == null || (data.deal_text is string && data.deal_text.size() < 500)) &&
+             (!('sponsorZones' in data) || data.sponsorZones == null || data.sponsorZones.size() <= 6) &&
+             (!('sponsor_zones' in data) || data.sponsor_zones == null || data.sponsor_zones.size() <= 6);
     }
 
     function isValidUser(data) {
       return data.uid is string &&
              isValidEmail(data.email) &&
-             data.role in ['admin', 'super_admin', 'partner', 'user', 'hiker', 'partner_admin', 'partner_viewer', 'partner_content_editor'] &&
+             data.role in [
+               'admin', 'super_admin', 'partner', 'user', 'hiker',
+               'partner_admin', 'partner_viewer', 'partner_content_editor'
+             ] &&
              (!('partner_id' in data) || data.partner_id == null || data.partner_id is string) &&
              (!('partnerId' in data) || data.partnerId == null || data.partnerId is string);
     }
@@ -198,9 +121,9 @@ service cloud.firestore {
              data.node_id is string &&
              data.session_uuid is string &&
              data.timestamp is string &&
-             (data.access_vector in ['nfc', 'direct', 'qr'] || !('access_vector' in data)) &&
-             (data.tab in ['home', 'feed', 'explore', 'wallet', 'profile', 'map', 'routes'] || !('tab' in data)) &&
-             (data.sponsor_id is string || data.sponsor_id == null || !('sponsor_id' in data));
+             (!('access_vector' in data) || data.access_vector in ['nfc', 'direct', 'qr']) &&
+             (!('tab' in data) || data.tab in ['home', 'feed', 'explore', 'wallet', 'profile', 'map', 'routes']) &&
+             (!('sponsor_id' in data) || data.sponsor_id == null || data.sponsor_id is string);
     }
 
     function isValidVibeReport(data) {
@@ -209,8 +132,8 @@ service cloud.firestore {
              data.session_uuid is string &&
              data.vibe in ['chill', 'buzzing', 'packed'] &&
              data.reported_at is string &&
-             (data.access_vector in ['nfc', 'direct', 'qr'] || !('access_vector' in data)) &&
-             (data.sponsor_id is string || data.sponsor_id == null || !('sponsor_id' in data));
+             (!('access_vector' in data) || data.access_vector in ['nfc', 'direct', 'qr']) &&
+             (!('sponsor_id' in data) || data.sponsor_id == null || data.sponsor_id is string);
     }
 
     function isValidTabView(data) {
@@ -218,8 +141,19 @@ service cloud.firestore {
              data.session_uuid is string &&
              data.tab in ['home', 'feed', 'explore', 'wallet', 'profile', 'map', 'routes'] &&
              data.timestamp is string &&
-             (data.access_vector in ['nfc', 'direct', 'qr'] || !('access_vector' in data)) &&
-             (data.sponsor_id is string || data.sponsor_id == null || !('sponsor_id' in data));
+             (!('access_vector' in data) || data.access_vector in ['nfc', 'direct', 'qr']) &&
+             (!('sponsor_id' in data) || data.sponsor_id == null || data.sponsor_id is string);
+    }
+
+    function isValidInteraction(data) {
+      return data.keys().hasAll(['type', 'session_uuid', 'access_vector', 'timestamp']) &&
+             data.type in ['wallet_save', 'share', 'vibe_report', 'login', 'seed'] &&
+             data.session_uuid is string &&
+             data.access_vector in ['nfc', 'direct', 'qr'] &&
+             data.timestamp is string &&
+             (!('node_id' in data) || data.node_id is string) &&
+             (!('sponsor_id' in data) || data.sponsor_id == null || data.sponsor_id is string) &&
+             (!('tab' in data) || data.tab in ['home', 'feed', 'explore', 'wallet', 'profile', 'map', 'routes']);
     }
 
     function isValidPoi(data) {
@@ -235,28 +169,17 @@ service cloud.firestore {
              data.active is bool;
     }
 
-    function isValidInteraction(data) {
-      return data.keys().hasAll(['type', 'session_uuid', 'access_vector', 'timestamp']) &&
-             data.type in ['wallet_save', 'share', 'vibe_report', 'login', 'seed'] &&
-             data.session_uuid is string &&
-             data.access_vector in ['nfc', 'direct', 'qr'] &&
-             data.timestamp is string &&
-             (data.node_id is string || !('node_id' in data)) &&
-             (data.sponsor_id is string || data.sponsor_id == null || !('sponsor_id' in data)) &&
-             (data.tab in ['home', 'feed', 'explore', 'wallet', 'profile', 'map', 'routes'] || !('tab' in data));
-    }
-
     function isValidGuide(data) {
       return data.name is string && data.name.size() > 0 &&
              data.title is string &&
              data.bio is string &&
-             (data.photoUrl == null || !('photoUrl' in data) || (data.photoUrl is string && isValidUrl(data.photoUrl)));
+             (!('photoUrl' in data) || data.photoUrl == null || isValidUrl(data.photoUrl));
     }
 
     function isValidSponsor(data) {
       return data.name is string && data.name.size() > 0 &&
-             (data.logoUrl == null || !('logoUrl' in data) || (data.logoUrl is string && isValidUrl(data.logoUrl))) &&
-             (data.brandColor == null || !('brandColor' in data) || (data.brandColor is string && data.brandColor.matches("^#[0-9a-fA-F]{6}$")));
+             (!('logoUrl' in data) || data.logoUrl == null || isValidUrl(data.logoUrl)) &&
+             (!('brandColor' in data) || data.brandColor == null || data.brandColor.matches("^#[0-9a-fA-F]{6}$"));
     }
 
     function isValidRoute(data) {
@@ -264,43 +187,79 @@ service cloud.firestore {
              data.description is string &&
              data.durationMins is number &&
              data.price is number &&
-             (data.type in ['sponsored', 'premium', 'free']) &&
+             data.type in ['sponsored', 'premium', 'free'] &&
              data.startNodeId is string &&
              data.stops is list;
     }
 
-    // Rules
-    
+    // ─── Collection Rules ────────────────────────────────────────
+
     match /nodes/{nodeId} {
       allow read: if true;
-      allow write: if request.auth != null && request.auth.token.admin == true;
+      allow write: if isAdmin();
     }
 
     match /broadcasts/{broadcastId} {
       allow read: if true;
-      allow create: if (isAdmin() || (canPartnerWrite() && (request.resource.data.partnerId == getPartnerId() || request.resource.data.partner_id == getPartnerId()))) && 
-                    isValidBroadcast(request.resource.data);
-      allow update: if isAdmin() || (
-                    request.resource.data.diff(resource.data).affectedKeys().hasOnly(['currentVibe', 'current_vibe']) &&
-                    (request.resource.data.currentVibe in ['chill', 'buzzing', 'packed'] || request.resource.data.current_vibe in ['chill', 'buzzing', 'packed']));
-      allow delete: if isAdmin();
+      allow create: if isAuthenticated() && isValidBroadcast(request.resource.data);
+      allow update: if isAdmin() ||
+                    (request.resource.data.diff(resource.data).affectedKeys()
+                      .hasOnly(['current_vibe', 'currentVibe']) &&
+                     (
+                       !('current_vibe' in request.resource.data) ||
+                       request.resource.data.current_vibe in ['chill', 'buzzing', 'packed']
+                     )
+                    ) ||
+                    (isAuthenticated() &&
+                     request.resource.data.diff(resource.data).affectedKeys()
+                       .hasOnly(['spots_remaining']));
+      allow delete: if isAdmin() ||
+                    (canPartnerWrite() &&
+                     resource.data.get('partnerId', resource.data.get('partner_id', null)) == getPartnerId());
     }
 
     match /taps/{tapId} {
       allow create: if isValidTap(request.resource.data);
-      allow read: if isAdmin() || (isPartner() && resource.data.sponsor_id == getPartnerId());
+      allow read: if isAdmin() ||
+                  (isPartner() && resource.data.sponsor_id == getPartnerId());
       allow delete: if isAdmin();
     }
 
     match /vibe_reports/{reportId} {
       allow create: if isValidVibeReport(request.resource.data);
-      allow read: if isAdmin() || (isPartner() && resource.data.sponsor_id == getPartnerId()) || true; // Keep true for client-side aggregation if needed, but scoped is better
+      allow read: if true;
       allow delete: if isAdmin();
     }
 
     match /tab_views/{viewId} {
       allow create: if isValidTabView(request.resource.data);
-      allow read: if isAdmin() || (isPartner() && resource.data.sponsor_id == getPartnerId());
+      allow read: if isAdmin() ||
+                  (isPartner() && resource.data.sponsor_id == getPartnerId());
+      allow delete: if isAdmin();
+    }
+
+    match /interactions/{interactionId} {
+      allow create: if isValidInteraction(request.resource.data);
+      allow read: if isAdmin() ||
+                  (isPartner() && resource.data.sponsor_id == getPartnerId());
+      allow delete: if isAdmin();
+    }
+
+    match /partners/{partnerId} {
+      allow read: if true;
+      allow create: if isAdmin() && isValidPartner(request.resource.data);
+      allow update: if (isAdmin() && isValidPartner(request.resource.data)) ||
+                    (canPartnerWrite() &&
+                     getPartnerId() == partnerId &&
+                     isValidPartner(request.resource.data) &&
+                     request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+                       'logoUrl', 'logo_url',
+                       'brandColor', 'brand_color',
+                       'dealText', 'deal_text',
+                       'logoUpdatedAt', 'logo_updated_at',
+                       'sponsorZones', 'sponsor_zones',
+                       'associated_owner_uid'
+                     ]));
       allow delete: if isAdmin();
     }
 
@@ -308,22 +267,6 @@ service cloud.firestore {
       allow read: if true;
       allow create: if isAdmin() && isValidPoi(request.resource.data);
       allow update: if isAdmin() && isValidPoi(request.resource.data);
-      allow delete: if isAdmin();
-    }
-
-    match /interactions/{interactionId} {
-      allow create: if isValidInteraction(request.resource.data);
-      allow read: if isAdmin() || (isPartner() && resource.data.sponsor_id == getPartnerId());
-      allow delete: if isAdmin();
-    }
-
-    match /partners/{partnerId} {
-      allow read: if true;
-      allow create: if isAdmin() && isValidPartner(request.resource.data);
-      allow update: if (isAdmin() && isValidPartner(request.resource.data)) || 
-                    (canPartnerWrite() && getPartnerId() == partnerId &&
-                     isValidPartner(request.resource.data) &&
-                     request.resource.data.diff(resource.data).affectedKeys().hasOnly(['logoUrl', 'logo_url', 'brandColor', 'brand_color', 'dealText', 'deal_text', 'logoUpdatedAt', 'logo_updated_at', 'sponsorZones', 'sponsor_zones']));
       allow delete: if isAdmin();
     }
 
@@ -341,25 +284,42 @@ service cloud.firestore {
       allow read: if true;
       allow write: if isAdmin() && isValidRoute(request.resource.data);
     }
-    
-    match /users/{userId} {
-      allow read: if isAuthenticated() && (request.auth.uid == userId || isAdmin()); 
-      allow create: if isAuthenticated() && (request.auth.uid == userId || isAdmin()) && isValidUser(request.resource.data) && 
-                    (request.resource.data.role in ['user', 'hiker'] || 
-                     isDefaultAdmin() ||
-                     isAdmin() ||
-                     (request.resource.data.role in ['partner', 'partner_admin', 'partner_viewer', 'partner_content_editor'] && 
-                      (get(/databases/$(database)/documents/partners/$(request.resource.data.partnerId || request.resource.data.partner_id)).data.owner_email == request.auth.token.email ||
-                       get(/databases/$(database)/documents/partners/$(request.resource.data.partnerId || request.resource.data.partner_id)).data.ownerEmail == request.auth.token.email)));
-      allow update: if (isAuthenticated() && request.auth.uid == userId && isValidUser(request.resource.data) && 
-                       (request.resource.data.role == resource.data.role || 
-                        isDefaultAdmin() ||
-                        isAdmin() ||
-                        (request.resource.data.role in ['partner', 'partner_admin', 'partner_viewer', 'partner_content_editor'] && 
-                         (get(/databases/$(database)/documents/partners/$(request.resource.data.partnerId || request.resource.data.partner_id)).data.owner_email == request.auth.token.email ||
-                          get(/databases/$(database)/documents/partners/$(request.resource.data.partnerId || request.resource.data.partner_id)).data.ownerEmail == request.auth.token.email)))) || 
-                    (isAdmin() && isValidUser(request.resource.data));
+
+    match /bookings/{bookingId} {
+      allow read: if isAuthenticated() &&
+                  (isAdmin() || request.auth.uid == resource.data.get('userId', ''));
+      allow create: if isAdmin();
       allow delete: if isAdmin();
     }
+
+    // ─── USERS — PATCHED 2026-04-06 ─────────────────────────────
+    // create: removed isValidUser() requirement so first-time Google
+    // login can write a minimal doc (uid + email, no role yet).
+    // Role is assigned post-creation by the app or admin.
+    // update: isValidUser() still enforced once role exists.
+    match /users/{userId} {
+      allow read: if isAuthenticated() &&
+                  (request.auth.uid == userId || isAdmin());
+
+      allow create: if isAuthenticated() &&
+                    (request.auth.uid == userId || isAdmin()) &&
+                    request.resource.data.uid is string &&
+                    request.resource.data.email is string;
+
+      allow update: if (isAdmin() && isValidUser(request.resource.data)) ||
+                    (
+                      isAuthenticated() &&
+                      request.auth.uid == userId &&
+                      isValidUser(request.resource.data) &&
+                      (
+                        request.resource.data.role == resource.data.role ||
+                        isDefaultAdmin() ||
+                        isAdmin()
+                      )
+                    );
+
+      allow delete: if isAdmin();
+    }
+
   }
 }

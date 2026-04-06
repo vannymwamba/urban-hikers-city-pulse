@@ -73,7 +73,6 @@ export interface Broadcast {
   guide_name?: string;
   scope?: 'single_hub' | 'all_nodes';
   discount_value?: string;
-  claim_limit?: number;
 }
 
 export interface Partner {

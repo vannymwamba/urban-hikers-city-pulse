@@ -303,9 +303,7 @@ async function startServer() {
       cover_url,
       payment_type,
       price,
-      walk_details,
-      discount_value,
-      claim_limit
+      walk_details
     } = req.body;
 
     // Validation: Must have a name, type, duration AND some form of location
@@ -377,8 +375,6 @@ async function startServer() {
         scope: scope || 'single_hub',
         payment_type: payment_type || 'free',
         price: price || 0,
-        discount_value: discount_value || null,
-        claim_limit: claim_limit || null,
         created_at: admin.firestore.FieldValue.serverTimestamp(),
       };
 
@@ -688,8 +684,6 @@ async function startServer() {
           scope: payload.scope || 'single_hub',
           payment_type: payload.payment_type || 'free',
           price: payload.price || 0,
-          discount_value: payload.discount_value || null,
-          claim_limit: payload.claim_limit || null,
           created_at: admin.firestore.FieldValue.serverTimestamp(),
           stripe_session_id: sessionId
         };
