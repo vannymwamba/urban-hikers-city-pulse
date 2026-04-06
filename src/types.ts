@@ -1,6 +1,15 @@
 export type Vibe = 'chill' | 'buzzing' | 'packed';
 export type HubType = 'street' | 'conference_center';
-export type BroadcastType = 'flash_deal' | 'event' | 'conference_panel' | 'civic_free' | 'civic_event' | 'live_performance' | 'civic_mural' | 'food_truck';
+export enum BroadcastType {
+  LIVE_EVENT = 'live_event',
+  FOOD_TRUCK = 'food_truck',
+  WALKING_EVENT = 'walking_event',
+  FLASH_DEAL = 'flash_deal',
+  MURAL = 'mural',
+  STREET_ART = 'street_art',
+  POP_UP = 'pop_up',
+  CIVIC_EVENT = 'civic_event'
+}
 export type UserRole = 'admin' | 'partner' | 'user' | 'partner_admin' | 'partner_viewer' | 'partner_content_editor' | 'super_admin' | 'hiker';
 
 export interface UserProfile {
@@ -50,10 +59,21 @@ export interface Broadcast {
   sourceHash?: string;
   sourceUrl?: string | null;
   imageUrl?: string | null;
+  cover_url?: string | null;
   ingestedAt?: any;
   active?: boolean;
+  payment_type?: 'tip_jar' | 'stripe' | 'free';
   tip_url?: string | null;
+  price?: number;
+  stripe_price_id?: string;
+  spots_remaining?: number;
+  max_capacity?: number;
+  departure_time?: string;
+  meeting_point?: string;
+  guide_name?: string;
+  scope?: 'single_hub' | 'all_nodes';
   discount_value?: string;
+  claim_limit?: number;
 }
 
 export interface Partner {

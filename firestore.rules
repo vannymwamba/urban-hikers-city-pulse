@@ -143,16 +143,22 @@ service cloud.firestore {
 
     function isValidBroadcast(data) {
       return data.title is string && data.title.size() < 100 &&
-             data.type in ['flash_deal', 'event', 'conference_panel', 'civic_event', 'civic_free', 'live_performance', 'guided_walk'] &&
+             data.type in ['flash_deal', 'event', 'conference_panel', 'civic_event', 'civic_free', 'live_performance', 'guided_walk', 'live_event', 'food_truck', 'walking_event', 'mural', 'street_art', 'pop_up'] &&
              (data.latitude is number || data.latitude is string) &&
              (data.longitude is number || data.longitude is string) &&
              ( ('expiresAt' in data && (data.expiresAt is string || data.expiresAt is timestamp)) || 
                ('expires_at' in data && (data.expires_at is string || data.expires_at is timestamp)) ) &&
+             ( ('startsAt' in data && (data.startsAt is string || data.startsAt is timestamp)) || 
+               ('starts_at' in data && (data.starts_at is string || data.starts_at is timestamp)) ||
+               !('startsAt' in data || 'starts_at' in data) ) &&
              ( ('currentVibe' in data && data.currentVibe in ['chill', 'buzzing', 'packed']) || 
                ('current_vibe' in data && data.current_vibe in ['chill', 'buzzing', 'packed']) ) &&
              ( ('partnerId' in data && data.partnerId is string) || 
                ('partner_id' in data && data.partner_id is string) || 
                (!('partnerId' in data) && !('partner_id' in data)) ) &&
+             ( ('nodeId' in data && data.nodeId is string) || 
+               ('node_id' in data && data.node_id is string) || 
+               (!('nodeId' in data) && !('node_id' in data)) ) &&
              ( !('tip_url' in data) || data.tip_url == null || (data.tip_url is string && isValidUrl(data.tip_url)) ) &&
              ( ('active' in data && data.active is bool) || !('active' in data) );
     }

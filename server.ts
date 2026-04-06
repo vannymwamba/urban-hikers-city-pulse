@@ -45,16 +45,21 @@ async function startServer() {
   // Firebase initialization for server-side stats
   let db: any = null;
   try {
-    if (!admin.apps.length) {
-      admin.initializeApp();
-    }
-    
-    // Load config to get database ID
+    // Load config to get database ID and project ID
     const configPath = path.join(process.cwd(), 'firebase-applet-config.json');
     let databaseId = '(default)';
+    let projectId = process.env.FIREBASE_PROJECT_ID;
+
     if (fs.existsSync(configPath)) {
       const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
       databaseId = config.firestoreDatabaseId || '(default)';
+      if (!projectId) projectId = config.projectId;
+    }
+
+    if (!admin.apps.length) {
+      admin.initializeApp({
+        projectId: projectId
+      });
     }
 
     db = getFirestore(databaseId);
@@ -79,6 +84,39 @@ async function startServer() {
   } catch (error) {
     console.error("Firebase Admin init error in server:", error);
   }
+
+  // Geocoding Proxy
+  app.get("/api/geocode", async (req, res) => {
+    const { address } = req.query;
+    if (!address) return res.status(400).json({ error: "Address is required" });
+
+    const googleMapsKey = process.env.GOOGLE_MAPS_API_KEY;
+    if (!googleMapsKey) return res.status(500).json({ error: "Google Maps API Key not configured" });
+
+    try {
+      const mapsClient = new Client({});
+      const geoResponse = await mapsClient.geocode({
+        params: {
+          address: address as string,
+          key: googleMapsKey,
+        },
+      });
+
+      if (geoResponse.data.results.length > 0) {
+        const loc = geoResponse.data.results[0].geometry.location;
+        res.json({
+          lat: loc.lat,
+          lon: loc.lng,
+          display_name: geoResponse.data.results[0].formatted_address
+        });
+      } else {
+        res.status(404).json({ error: "Address not found" });
+      }
+    } catch (error) {
+      console.error("Geocoding API Error:", error);
+      res.status(500).json({ error: "Geocoding failed", details: String(error) });
+    }
+  });
 
   // API Routes
   app.get("/api/health", (req, res) => {
@@ -252,7 +290,23 @@ async function startServer() {
 
   // Creator Flash Node Ignite Endpoint
   app.post("/api/creator/ignite", async (req, res) => {
-    const { nodeId, creatorName, performanceType, durationHours, tipUrl, address, latitude, longitude } = req.body;
+    const { 
+      nodeId, 
+      creatorName, 
+      performanceType, 
+      durationHours, 
+      tipUrl, 
+      address, 
+      latitude, 
+      longitude,
+      scope,
+      cover_url,
+      payment_type,
+      price,
+      walk_details,
+      discount_value,
+      claim_limit
+    } = req.body;
 
     // Validation: Must have a name, type, duration AND some form of location
     const hasLocation = nodeId || (latitude && longitude) || address;
@@ -306,9 +360,9 @@ async function startServer() {
       const expiresAt = new Date(Date.now() + durationHours * 3600000).toISOString();
 
       // 3. Create Broadcast
-      const broadcastData = {
+      const broadcastData: any = {
         title: creatorName,
-        type: performanceType === "Food Truck" ? "food_truck" : "live_performance",
+        type: performanceType,
         performance_type: performanceType,
         latitude: finalLat,
         longitude: finalLng,
@@ -319,8 +373,22 @@ async function startServer() {
         current_vibe: "chill",
         active: true,
         tip_url: tipUrl || null,
+        cover_url: cover_url || null,
+        scope: scope || 'single_hub',
+        payment_type: payment_type || 'free',
+        price: price || 0,
+        discount_value: discount_value || null,
+        claim_limit: claim_limit || null,
         created_at: admin.firestore.FieldValue.serverTimestamp(),
       };
+
+      if (performanceType === 'walking_event' && walk_details) {
+        broadcastData.spots_remaining = parseInt(walk_details.capacity) || 20;
+        broadcastData.max_capacity = parseInt(walk_details.capacity) || 20;
+        broadcastData.departure_time = walk_details.departureTime;
+        broadcastData.meeting_point = walk_details.meetingPoint;
+        broadcastData.guide_name = walk_details.guideName;
+      }
 
       const docRef = await db.collection("broadcasts").add(broadcastData);
       
@@ -490,38 +558,180 @@ async function startServer() {
       return res.status(500).json({ error: "Stripe not configured" });
     }
 
-    const { routeId, sessionUuid, price, title } = req.body;
+    const { type, amount, payload, broadcastId, title, price } = req.body;
     const appUrl = process.env.APP_URL || `http://localhost:${PORT}`;
 
     try {
-      const session = await stripe.checkout.sessions.create({
-        payment_method_types: ["card"],
-        line_items: [
-          {
+      let lineItems = [];
+      let metadata: any = { type };
+
+      if (type === 'broadcast_all') {
+        lineItems = [{
+          price_data: {
+            currency: "usd",
+            product_data: {
+              name: "Broadcast to All Nodes",
+              description: `Creator Broadcast: ${payload.creatorName}`,
+            },
+            unit_amount: Math.round(amount * 100),
+          },
+          quantity: 1,
+        }];
+        metadata.payload = JSON.stringify(payload);
+      } else if (type === 'walking_event_booking') {
+        lineItems = [{
+          price_data: {
+            currency: "usd",
+            product_data: {
+              name: `Booking: ${title}`,
+              description: "Walking Event Spot",
+            },
+            unit_amount: Math.round(price * 100),
+          },
+          quantity: 1,
+        }];
+        metadata.broadcastId = broadcastId;
+      } else if (type === 'walking_event_setup') {
+        // Setup might be free or have a fee, for now let's assume it's a placeholder for creator setup
+        // If it's free, we might not even need Stripe, but let's handle it if amount > 0
+        if (amount > 0) {
+          lineItems = [{
             price_data: {
               currency: "usd",
               product_data: {
-                name: title,
-                description: `Walking Tour: ${title}`,
+                name: "Walking Event Setup Fee",
+                description: payload.walk_details.title,
               },
-              unit_amount: Math.round(price * 100),
+              unit_amount: Math.round(amount * 100),
             },
             quantity: 1,
+          }];
+          metadata.payload = JSON.stringify(payload);
+        } else {
+          // If free, just ignite directly (though the client should have handled this)
+          return res.status(400).json({ error: "Free setup should use ignite endpoint" });
+        }
+      } else {
+        // Fallback for existing route payment logic if any
+        const { routeId, sessionUuid } = req.body;
+        lineItems = [{
+          price_data: {
+            currency: "usd",
+            product_data: {
+              name: title || "Walking Tour",
+              description: `Walking Tour: ${title}`,
+            },
+            unit_amount: Math.round((price || amount) * 100),
           },
-        ],
+          quantity: 1,
+        }];
+        metadata.routeId = routeId;
+        metadata.sessionUuid = sessionUuid;
+      }
+
+      const session = await stripe.checkout.sessions.create({
+        payment_method_types: ["card"],
+        line_items: lineItems,
         mode: "payment",
-        client_reference_id: sessionUuid,
-        metadata: {
-          routeId,
-          sessionUuid,
-        },
-        success_url: `${appUrl}/tap/otr-alpha-01?sessionId=${sessionUuid}&status=success&routeId=${routeId}`,
+        metadata,
+        success_url: `${appUrl}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
         cancel_url: `${appUrl}/tap/otr-alpha-01?status=cancel`,
       });
 
       res.json({ url: session.url });
     } catch (error: any) {
       console.error("Stripe error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/checkout/session/:sessionId", async (req, res) => {
+    if (!stripe) return res.status(500).json({ error: "Stripe not configured" });
+    try {
+      const session = await stripe.checkout.sessions.retrieve(req.params.sessionId);
+      res.json(session);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/checkout/finalize", async (req, res) => {
+    const { sessionId } = req.body;
+    if (!stripe || !db) return res.status(500).json({ error: "System not ready" });
+
+    try {
+      const session = await stripe.checkout.sessions.retrieve(sessionId);
+      if (session.payment_status !== 'paid') {
+        return res.status(400).json({ error: "Payment not completed" });
+      }
+
+      const { type, payload: payloadStr, broadcastId } = session.metadata || {};
+
+      if (type === 'broadcast_all' || type === 'walking_event_setup') {
+        const payload = JSON.parse(payloadStr || '{}');
+        const expiresAt = new Date(Date.now() + payload.durationHours * 3600000).toISOString();
+        
+        const broadcastData: any = {
+          title: payload.creatorName,
+          type: payload.performanceType,
+          performance_type: payload.performanceType,
+          latitude: payload.latitude,
+          longitude: payload.longitude,
+          address: payload.address || "MOBILE_LOCATION",
+          node_id: payload.nodeId || null,
+          starts_at: new Date().toISOString(),
+          expires_at: expiresAt,
+          current_vibe: "chill",
+          active: true,
+          tip_url: payload.tipUrl || null,
+          cover_url: payload.cover_url || null,
+          scope: payload.scope || 'single_hub',
+          payment_type: payload.payment_type || 'free',
+          price: payload.price || 0,
+          discount_value: payload.discount_value || null,
+          claim_limit: payload.claim_limit || null,
+          created_at: admin.firestore.FieldValue.serverTimestamp(),
+          stripe_session_id: sessionId
+        };
+
+        if (payload.performanceType === 'walking_event' && payload.walk_details) {
+          broadcastData.spots_remaining = parseInt(payload.walk_details.capacity) || 20;
+          broadcastData.max_capacity = parseInt(payload.walk_details.capacity) || 20;
+          broadcastData.departure_time = payload.walk_details.departureTime;
+          broadcastData.meeting_point = payload.walk_details.meetingPoint;
+          broadcastData.guide_name = payload.walk_details.guideName;
+        }
+
+        const docRef = await db.collection("broadcasts").add(broadcastData);
+        return res.json({ success: true, type: 'broadcast', id: docRef.id });
+      } else if (type === 'walking_event_booking') {
+        // Decrement spots
+        const broadcastRef = db.collection("broadcasts").doc(broadcastId);
+        await db.runTransaction(async (transaction: any) => {
+          const doc = await transaction.get(broadcastRef);
+          if (!doc.exists) throw new Error("Broadcast not found");
+          const data = doc.data();
+          if (data.spots_remaining <= 0) throw new Error("No spots left");
+          transaction.update(broadcastRef, {
+            spots_remaining: data.spots_remaining - 1
+          });
+          
+          // Create booking record
+          const bookingRef = db.collection("bookings").doc();
+          transaction.set(bookingRef, {
+            broadcastId,
+            status: 'confirmed',
+            paid_amount: session.amount_total / 100,
+            created_at: admin.firestore.FieldValue.serverTimestamp(),
+            stripe_session_id: sessionId
+          });
+        });
+        return res.json({ success: true, type: 'booking' });
+      }
+
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Finalize error:", error);
       res.status(500).json({ error: error.message });
     }
   });

@@ -38,7 +38,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
   const [editingPartnerId, setEditingPartnerId] = useState<string | null>(null);
   const [newBroadcast, setNewBroadcast] = useState({ 
     title: '', 
-    type: 'event' as BroadcastType, 
+    type: BroadcastType.LIVE_EVENT, 
     nodeId: '', 
     startTimeOffset: 0, 
     duration: 60, 
@@ -248,21 +248,27 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
     if (!newNode.address) return;
     setIsGeocoding(true);
     try {
-      const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(newNode.address)}`);
+      const response = await fetch(`/api/geocode?address=${encodeURIComponent(newNode.address)}`);
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'SERVER_ERROR' }));
+        throw new Error(errorData.error || 'GEOCODING_FAILED');
+      }
+
       const data = await response.json();
-      if (data && data.length > 0) {
+      if (data && data.lat && data.lon) {
         setNewNode({
           ...newNode,
-          lat: parseFloat(data[0].lat),
-          lng: parseFloat(data[0].lon)
+          lat: parseFloat(data.lat),
+          lng: parseFloat(data.lon)
         });
         setHudMessage({ text: "COORDINATES_RESOLVED", type: 'info' });
       } else {
         setHudMessage({ text: "ADDRESS_NOT_FOUND", type: 'error' });
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("Geocoding error:", err);
-      setHudMessage({ text: "GEOCODING_FAILURE", type: 'error' });
+      setHudMessage({ text: `GEOCODING_FAILURE: ${err.message || 'UNKNOWN'}`, type: 'error' });
     } finally {
       setIsGeocoding(false);
     }
@@ -403,7 +409,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
       handleFirestoreError(err, OperationType.CREATE, 'broadcasts');
     }
     setHudMessage({ text: `SIGNAL_TRANSMITTED: ${newBroadcast.title.toUpperCase()}`, type: 'info' });
-    setNewBroadcast({ title: '', type: 'event', nodeId: '', startTimeOffset: 0, duration: 60, partnerId: '', locationSource: 'node' });
+    setNewBroadcast({ title: '', type: BroadcastType.LIVE_EVENT, nodeId: '', startTimeOffset: 0, duration: 60, partnerId: '', locationSource: 'node' });
   };
 
   const handleRepublish = async (b: Broadcast) => {
@@ -445,21 +451,27 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
     if (!newPartner.address) return;
     setIsGeocoding(true);
     try {
-      const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(newPartner.address)}`);
+      const response = await fetch(`/api/geocode?address=${encodeURIComponent(newPartner.address)}`);
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'SERVER_ERROR' }));
+        throw new Error(errorData.error || 'GEOCODING_FAILED');
+      }
+
       const data = await response.json();
-      if (data && data.length > 0) {
+      if (data && data.lat && data.lon) {
         setNewPartner({
           ...newPartner,
-          lat: parseFloat(data[0].lat),
-          lng: parseFloat(data[0].lon)
+          lat: parseFloat(data.lat),
+          lng: parseFloat(data.lon)
         });
         setHudMessage({ text: "COORDINATES_RESOLVED", type: 'info' });
       } else {
         setHudMessage({ text: "ADDRESS_NOT_FOUND", type: 'error' });
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("Geocoding error:", err);
-      setHudMessage({ text: "GEOCODING_FAILURE", type: 'error' });
+      setHudMessage({ text: `GEOCODING_FAILURE: ${err.message || 'UNKNOWN'}`, type: 'error' });
     } finally {
       setIsGeocoding(false);
     }
@@ -1238,10 +1250,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
                     value={newBroadcast.type}
                     onChange={e => setNewBroadcast({...newBroadcast, type: e.target.value as BroadcastType})}
                   >
-                    <option value="event">LIVE_EVENT</option>
-                    <option value="flash_deal">FLASH_DEAL</option>
-                    <option value="conference_panel">CONFERENCE_PANEL</option>
-                    <option value="civic_free">CIVIC_FREE</option>
+                    <option value={BroadcastType.LIVE_EVENT}>LIVE_EVENT</option>
+                    <option value={BroadcastType.FLASH_DEAL}>FLASH_DEAL</option>
+                    <option value={BroadcastType.FOOD_TRUCK}>FOOD_TRUCK</option>
+                    <option value={BroadcastType.WALKING_EVENT}>WALKING_EVENT</option>
+                    <option value={BroadcastType.MURAL}>MURAL</option>
+                    <option value={BroadcastType.STREET_ART}>STREET_ART</option>
+                    <option value={BroadcastType.POP_UP}>POP_UP</option>
+                    <option value={BroadcastType.CIVIC_EVENT}>CIVIC_EVENT</option>
                   </select>
                 </div>
 

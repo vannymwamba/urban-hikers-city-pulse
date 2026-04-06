@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { Broadcast, Partner, Node, Sponsor } from '../types';
+import { Broadcast, Partner, Node, Sponsor, BroadcastType } from '../types';
 import { BroadcastCard } from './BroadcastCard';
 import { motion } from 'motion/react';
 import { ArrowRight } from 'lucide-react';
@@ -22,9 +22,11 @@ export const Feed: React.FC<FeedProps> = ({
   partnersMap,
   hideOtherSections = false
 }) => {
-  const flashDeals = broadcasts.filter(b => b.type === 'flash_deal');
-  const murals = broadcasts.filter(b => b.type === 'civic_mural');
-  const events = broadcasts.filter(b => ['event', 'conference_panel', 'civic_event', 'live_performance'].includes(b.type));
+  const flashDeals = broadcasts.filter(b => b.type === BroadcastType.FLASH_DEAL);
+  const foodTrucks = broadcasts.filter(b => b.type === BroadcastType.FOOD_TRUCK);
+  const walkingEvents = broadcasts.filter(b => b.type === BroadcastType.WALKING_EVENT);
+  const murals = broadcasts.filter(b => [BroadcastType.MURAL, 'civic_mural', BroadcastType.STREET_ART].includes(b.type as any));
+  const events = broadcasts.filter(b => [BroadcastType.LIVE_EVENT, BroadcastType.POP_UP, 'event', 'conference_panel', BroadcastType.CIVIC_EVENT, 'live_performance'].includes(b.type as any));
   
   const flashDealsRef = useRef<HTMLDivElement>(null);
   const [activeFlashIndex, setActiveFlashIndex] = useState(0);
@@ -106,6 +108,50 @@ export const Feed: React.FC<FeedProps> = ({
         </div>
       )}
 
+      {/* Food Trucks Carousel */}
+      {foodTrucks.length > 0 && !hideOtherSections && (
+        <div className="flex flex-col">
+          <SectionHeader title="FOOD_TRUCKS" count={foodTrucks.length} status="LIVE_NOW" />
+          <div className="flex overflow-x-auto snap-x snap-mandatory no-scrollbar px-6 gap-4">
+            {foodTrucks.map((truck, idx) => (
+              <BroadcastCard 
+                key={truck.id}
+                item={truck}
+                idx={idx}
+                currentNode={currentNode}
+                onSelect={onSelect}
+                onShareEvent={onShareEvent}
+                partner={partnersMap[truck.partnerId || truck.partner_id || '']}
+                variant="peek"
+              />
+            ))}
+            <MoreCard label="MORE_FOOD" />
+          </div>
+        </div>
+      )}
+
+      {/* Walking Events Carousel */}
+      {walkingEvents.length > 0 && !hideOtherSections && (
+        <div className="flex flex-col">
+          <SectionHeader title="WALKING_EVENTS" count={walkingEvents.length} status="BOOKING_OPEN" />
+          <div className="flex overflow-x-auto snap-x snap-mandatory no-scrollbar px-6 gap-4">
+            {walkingEvents.map((walk, idx) => (
+              <BroadcastCard 
+                key={walk.id}
+                item={walk}
+                idx={idx}
+                currentNode={currentNode}
+                onSelect={onSelect}
+                onShareEvent={onShareEvent}
+                partner={partnersMap[walk.partnerId || walk.partner_id || '']}
+                variant="peek"
+              />
+            ))}
+            <MoreCard label="MORE_WALKS" />
+          </div>
+        </div>
+      )}
+
       {/* Events Carousel */}
       {events.length > 0 && !hideOtherSections && (
         <div className="flex flex-col">
@@ -131,7 +177,7 @@ export const Feed: React.FC<FeedProps> = ({
       {/* Murals Carousel */}
       {murals.length > 0 && !hideOtherSections && (
         <div className="flex flex-col">
-          <SectionHeader title="CIVIC_MURALS" count={murals.length} />
+          <SectionHeader title="CIVIC_ART" count={murals.length} />
           <div className="flex overflow-x-auto snap-x snap-mandatory no-scrollbar px-6 gap-4">
             {murals.map((mural, idx) => (
               <BroadcastCard 
@@ -145,7 +191,7 @@ export const Feed: React.FC<FeedProps> = ({
                 variant="peek"
               />
             ))}
-            <MoreCard label="MORE_MURALS" />
+            <MoreCard label="MORE_ART" />
           </div>
         </div>
       )}

@@ -20,7 +20,7 @@ export async function runVisitCincyAgent() {
   // Initialize Firestore if not already done
   if (!admin.apps.length) {
     admin.initializeApp({
-      projectId: process.env.FIREBASE_PROJECT_ID || "gen-lang-client-0404340863",
+      projectId: process.env.FIREBASE_PROJECT_ID || "gen-lang-client-0752567409",
     });
   }
   

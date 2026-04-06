@@ -42,16 +42,18 @@ const MuralNodeAdmin: React.FC = () => {
 
     setIsResolving(true);
     try {
-      const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}`, {
-        headers: {
-          'User-Agent': 'UrbanHikers/1.0'
-        }
-      });
+      const response = await fetch(`/api/geocode?address=${encodeURIComponent(address)}`);
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'SERVER_ERROR' }));
+        throw new Error(errorData.error || 'GEOCODING_FAILED');
+      }
+
       const data = await response.json();
 
-      if (data && data.length > 0) {
-        setLatitude(parseFloat(data[0].lat));
-        setLongitude(parseFloat(data[0].lon));
+      if (data && data.lat && data.lon) {
+        setLatitude(parseFloat(data.lat));
+        setLongitude(parseFloat(data.lon));
         setStatus({ type: 'success', message: 'COORDS_RESOLVED' });
       } else {
         throw new Error('ADDRESS_NOT_FOUND');

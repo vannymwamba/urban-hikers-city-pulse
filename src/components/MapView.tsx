@@ -2,8 +2,8 @@ import React from 'react';
 import { MapContainer, TileLayer, Marker, Popup, Circle, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { Broadcast, Node, Partner } from '../types';
-import { MapPin, Zap, Music, Palette, Calendar, Mic, Ticket } from 'lucide-react';
+import { Broadcast, Node, Partner, BroadcastType } from '../types';
+import { MapPin, Zap, Music, Palette, Calendar, Mic, Ticket, Truck, Footprints, ShoppingBag } from 'lucide-react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { SponsorBadge } from './SponsorBadge';
 
@@ -42,12 +42,14 @@ const createCustomIcon = (type: string, color: string) => {
         justifyContent: 'center',
         color: 'white'
       }}>
-        {type === 'flash_deal' && <Zap size={14} />}
-        {type === 'conference_panel' && <Mic size={14} />}
-        {type === 'event' && <Ticket size={14} />}
-        {type === 'music' && <Music size={14} />}
-        {type === 'art' && <Palette size={14} />}
-        {!['flash_deal', 'conference_panel', 'event', 'music', 'art'].includes(type) && <Calendar size={14} />}
+        {type === BroadcastType.FLASH_DEAL && <Zap size={14} />}
+        {type === BroadcastType.LIVE_EVENT && <Music size={14} />}
+        {type === BroadcastType.FOOD_TRUCK && <Truck size={14} />}
+        {type === BroadcastType.WALKING_EVENT && <Footprints size={14} />}
+        {type === BroadcastType.MURAL && <Palette size={14} />}
+        {type === BroadcastType.STREET_ART && <Palette size={14} />}
+        {type === BroadcastType.POP_UP && <ShoppingBag size={14} />}
+        {!Object.values(BroadcastType).includes(type as any) && <Calendar size={14} />}
       </div>
     );
 
@@ -116,23 +118,20 @@ export const MapView: React.FC<MapViewProps> = ({ currentNode, broadcasts, onSel
   const center: [number, number] = [lat, lng];
 
   const getBroadcastType = (b: Broadcast) => {
-    if (b.type === 'flash_deal') return 'flash_deal';
-    if (b.type === 'conference_panel') return 'conference_panel';
-    if (b.type === 'civic_mural') return 'art';
-    const title = b.title?.toLowerCase() || '';
-    if (title.includes('music')) return 'music';
-    if (title.includes('art')) return 'art';
-    return 'event';
+    return b.type;
   };
 
   const getBroadcastColor = (b: Broadcast) => {
-    if (b.type === 'flash_deal') return '#EF9F27';
-    if (b.type === 'conference_panel') return '#378ADD';
-    if (b.type === 'civic_mural') return '#534AB7';
-    const title = b.title?.toLowerCase() || '';
-    if (title.includes('music')) return '#639922';
-    if (title.includes('art')) return '#534AB7';
-    return '#E24B4A';
+    switch (b.type) {
+      case BroadcastType.LIVE_EVENT: return '#FF3B30';
+      case BroadcastType.FOOD_TRUCK: return '#F97316';
+      case BroadcastType.WALKING_EVENT: return '#10B981';
+      case BroadcastType.FLASH_DEAL: return '#FFE01A';
+      case BroadcastType.MURAL:
+      case BroadcastType.STREET_ART: return '#8B5CF6';
+      case BroadcastType.POP_UP: return '#0EA5E9';
+      default: return '#1A1A1A';
+    }
   };
 
   return (
@@ -219,20 +218,28 @@ export const MapView: React.FC<MapViewProps> = ({ currentNode, broadcasts, onSel
         <div className="text-[8px] font-black tracking-[0.2em] text-white/40 uppercase mb-2">MAP_LEGEND</div>
         <div className="flex flex-col gap-2">
           <div className="flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full bg-[#EF9F27]" />
-            <span className="text-[9px] font-bold uppercase tracking-wider">Flash Deals</span>
+            <div className="w-2 h-2 rounded-full bg-[#FF3B30]" />
+            <span className="text-[9px] font-bold uppercase tracking-wider">Live Event</span>
           </div>
           <div className="flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full bg-[#E24B4A]" />
-            <span className="text-[9px] font-bold uppercase tracking-wider">Live Events</span>
+            <div className="w-2 h-2 rounded-full bg-[#F97316]" />
+            <span className="text-[9px] font-bold uppercase tracking-wider">Food Truck</span>
           </div>
           <div className="flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full bg-[#378ADD]" />
-            <span className="text-[9px] font-bold uppercase tracking-wider">Panels</span>
+            <div className="w-2 h-2 rounded-full bg-[#10B981]" />
+            <span className="text-[9px] font-bold uppercase tracking-wider">Walking Event</span>
           </div>
           <div className="flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full bg-[#534AB7]" />
-            <span className="text-[9px] font-bold uppercase tracking-wider">Murals</span>
+            <div className="w-2 h-2 rounded-full bg-[#FFE01A]" />
+            <span className="text-[9px] font-bold uppercase tracking-wider">Flash Deal</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full bg-[#8B5CF6]" />
+            <span className="text-[9px] font-bold uppercase tracking-wider">Art/Mural</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full bg-[#0EA5E9]" />
+            <span className="text-[9px] font-bold uppercase tracking-wider">Pop-up</span>
           </div>
         </div>
       </div>

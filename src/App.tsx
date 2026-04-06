@@ -3,7 +3,7 @@ import { auth, db } from './firebase';
 import { signInWithPopup, GoogleAuthProvider, onAuthStateChanged, User } from 'firebase/auth';
 import { useLocation } from 'react-router-dom';
 import { collection, onSnapshot, query, where, addDoc, doc, getDoc, setDoc, getDocs, orderBy, getDocFromServer, updateDoc } from 'firebase/firestore';
-import { Node, Broadcast, Vibe, UserProfile, UserRole, Partner } from './types';
+import { Node, Broadcast, Vibe, UserProfile, UserRole, Partner, BroadcastType } from './types';
 import { BASE_URL } from './constants';
 import { DepartureBoard } from './components/DepartureBoard';
 import { VibeCheck } from './components/VibeCheck';
@@ -13,6 +13,8 @@ import { LandingPage } from './components/LandingPage';
 import { Login } from './components/Login';
 import { WalletCard } from './components/WalletCard';
 import { CreatorIntakeWindow } from './components/CreatorIntakeWindow';
+import { CheckoutSuccess } from './components/CheckoutSuccess';
+import { CheckoutCancel } from './components/CheckoutCancel';
 import MuralNodeAdmin from './components/MuralNodeAdmin';
 import seedData from './seed';
 import { getDistance } from './utils/geo';
@@ -417,6 +419,8 @@ export default function App() {
   const tapIndex = pathParts.indexOf('tap');
   const creatorIndex = pathParts.indexOf('creator');
   const isCreatorIgnite = creatorIndex !== -1 && pathParts[creatorIndex + 1] === 'ignite';
+  const isCheckoutSuccess = pathParts.includes('checkout') && pathParts.includes('success');
+  const isCheckoutCancel = pathParts.includes('checkout') && pathParts.includes('cancel');
   const nodeId = tapIndex !== -1 && pathParts[tapIndex + 1] ? pathParts[tapIndex + 1].toUpperCase() : 
                  (isCreatorIgnite && pathParts[creatorIndex + 2] ? pathParts[creatorIndex + 2].toUpperCase() : null);
   const isHome = path === '/' || path === '';
@@ -691,7 +695,7 @@ export default function App() {
         return {
           id: doc.id,
           title: poi.name,
-          type: 'civic_mural',
+          type: BroadcastType.MURAL,
           latitude: poi.latitude,
           longitude: poi.longitude,
           description: poi.description,
@@ -1047,6 +1051,22 @@ export default function App() {
     return (
       <ErrorBoundary>
         <CreatorIntakeWindow nodeId={nodeId || undefined} />
+      </ErrorBoundary>
+    );
+  }
+
+  if (isCheckoutSuccess) {
+    return (
+      <ErrorBoundary>
+        <CheckoutSuccess />
+      </ErrorBoundary>
+    );
+  }
+
+  if (isCheckoutCancel) {
+    return (
+      <ErrorBoundary>
+        <CheckoutCancel />
       </ErrorBoundary>
     );
   }

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Broadcast } from '../types';
+import { Broadcast, BroadcastType } from '../types';
 import { motion } from 'motion/react';
 
 interface BroadcastCountdownProps {
@@ -26,7 +26,7 @@ export const BroadcastCountdown: React.FC<BroadcastCountdownProps> = ({
   const isLive = now >= start && now < end;
   const isUpcoming = now < start;
 
-  if (broadcast.type === 'civic_mural') {
+  if (broadcast.type === BroadcastType.MURAL) {
     if (hideLabel && hideProgress) return null;
     return (
       <div className={`${hideLabel ? '' : 'bg-uh-gray-50 p-4 rounded-2xl border border-uh-gray-100 mt-2'}`}>
