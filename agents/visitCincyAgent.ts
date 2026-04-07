@@ -19,12 +19,17 @@ export async function runVisitCincyAgent() {
   
   // Initialize Firestore if not already done
   if (!admin.apps.length) {
+    const envProjectId = process.env.FIREBASE_PROJECT_ID;
+    const projectId = (envProjectId && !envProjectId.startsWith('ai-studio-')) 
+      ? envProjectId 
+      : "gen-lang-client-0752567409";
+      
     admin.initializeApp({
-      projectId: process.env.FIREBASE_PROJECT_ID || "gen-lang-client-0752567409",
+      projectId: projectId,
     });
   }
   
-  // Use the specific database ID if available, otherwise default
+  // Using specific database ID as requested to match Kroger data location
   const db = getFirestore("ai-studio-8d3a18ac-9f60-480e-8200-f9f5e01c389a");
   
   let ingested = 0;

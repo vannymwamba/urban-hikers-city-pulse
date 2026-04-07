@@ -16,9 +16,11 @@ interface BroadcastCardProps {
   currentNode: Node | null;
   onSelect: (broadcast: Broadcast) => void;
   onShareEvent: (broadcast: Broadcast) => void;
+  onManage?: (broadcast: Broadcast) => void;
   partner: Partner | null;
   sponsor?: Sponsor | null;
   variant?: 'hero' | 'peek';
+  canManage?: boolean;
 }
 
 export const BroadcastCard: React.FC<BroadcastCardProps> = ({
@@ -27,8 +29,10 @@ export const BroadcastCard: React.FC<BroadcastCardProps> = ({
   currentNode,
   onSelect,
   onShareEvent,
+  onManage,
   partner,
-  variant = 'peek'
+  variant = 'peek',
+  canManage = false
 }) => {
   const [progress, setProgress] = useState(100);
   const isFlashDeal = item.type === BroadcastType.FLASH_DEAL;
@@ -136,7 +140,7 @@ export const BroadcastCard: React.FC<BroadcastCardProps> = ({
       <div className="absolute bottom-0 left-0 right-0 p-5 flex flex-col gap-3">
         <div className="flex flex-col">
           <span className="text-uh-yellow text-[10px] font-black font-mono uppercase tracking-widest mb-0.5">
-            {partner?.name || item.partner_id || 'LOCAL_PARTNER'}
+            {partner?.name || (item.partner_id === 'admin' || !item.partner_id ? 'LOCAL_SIGNAL' : item.partner_id)}
           </span>
           <h3 className={`text-white ${variant === 'hero' ? 'text-2xl' : 'text-xl'} font-black tracking-tighter uppercase leading-none truncate`}>
             {item.title}
@@ -210,6 +214,19 @@ export const BroadcastCard: React.FC<BroadcastCardProps> = ({
             >
               <Share2 size={14} />
             </button>
+
+            {canManage && (
+              <button 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (onManage) onManage(item);
+                }}
+                className="p-2 text-uh-yellow hover:text-white transition-colors bg-uh-yellow/10 rounded-full backdrop-blur-md border border-uh-yellow/20"
+                title="Manage Signal"
+              >
+                <Clock size={14} />
+              </button>
+            )}
             
             <button 
               onClick={handleCTA}
@@ -219,7 +236,7 @@ export const BroadcastCard: React.FC<BroadcastCardProps> = ({
                 'bg-uh-yellow text-uh-black shadow-uh-yellow/20'
               }`}
             >
-              {isWalkingEvent ? `BOOK — $${item.price}` : 
+              {isWalkingEvent ? `BOOK — ${item.price ? '$' + item.price : 'FREE'}` : 
                isFlashDeal ? `CLAIM $${item.discount_value || '5'} OFF` : 
                'VIEW'}
             </button>

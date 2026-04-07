@@ -1,30 +1,15 @@
 {
   "firestore": {
+    "database": "ai-studio-8d3a18ac-9f60-480e-8200-f9f5e01c389a",
     "rules": "firestore.rules",
     "indexes": "firestore.indexes.json"
   },
   "storage": {
     "rules": "storage.rules"
   },
-  "functions": [
-    {
-      "source": "functions",
-      "codebase": "default",
-      "ignore": [
-        "node_modules",
-        ".git",
-        "firebase-debug.log",
-        "firebase-debug.*.log"
-      ]
-    }
-  ],
   "hosting": {
     "public": "dist",
-    "ignore": [
-      "firebase.json",
-      "**/.*",
-      "**/node_modules/**"
-    ],
+    "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
     "rewrites": [
       {
         "source": "**",

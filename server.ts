@@ -48,7 +48,8 @@ async function startServer() {
     // Load config to get database ID and project ID
     const configPath = path.join(process.cwd(), 'firebase-applet-config.json');
     let databaseId = '(default)';
-    let projectId = process.env.FIREBASE_PROJECT_ID;
+    let envProjectId = process.env.FIREBASE_PROJECT_ID;
+    let projectId = (envProjectId && !envProjectId.startsWith('ai-studio-')) ? envProjectId : null;
 
     if (fs.existsSync(configPath)) {
       const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
@@ -62,6 +63,8 @@ async function startServer() {
       });
     }
 
+    // Using specific database ID as requested to match Kroger data location
+    databaseId = 'ai-studio-8d3a18ac-9f60-480e-8200-f9f5e01c389a';
     db = getFirestore(databaseId);
     console.log(`Firebase Admin SDK initialized successfully with DB: ${databaseId}`);
     

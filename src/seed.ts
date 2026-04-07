@@ -1,11 +1,23 @@
 import { db } from './firebase';
-import { collection, addDoc, setDoc, doc } from 'firebase/firestore';
+import { collection, addDoc, setDoc, doc, getDocFromServer } from 'firebase/firestore';
 import { addHours } from 'date-fns';
 
 const seedData = async () => {
-  console.log("SEEDING_URBAN_HIKERS_DATABASE...");
+  console.log("SEEDING_URBAN_HIKERS_DATABASE: STARTING...");
 
   try {
+    // 0. Connection Test
+    console.log("SEEDING: TESTING_CONNECTION...");
+    try {
+      await getDocFromServer(doc(db, 'nodes', 'connection-test'));
+      console.log("SEEDING: CONNECTION_SUCCESS");
+    } catch (connErr: any) {
+      console.error("SEEDING: CONNECTION_FAILED", connErr);
+      if (connErr.message?.includes('offline')) {
+        throw new Error("FIREBASE_OFFLINE: Cannot seed while offline. Check your configuration.");
+      }
+    }
+
     // Seed Nodes
     const nodes = [
       { id: 'OTR-ALPHA-01', name: 'ALPHA_PLAZA_HUB', type: 'street', address: 'Main St & E 13th St, Cincinnati, OH', latitude: 39.1092, longitude: -84.5125, radius_limit: 5000 },
@@ -13,6 +25,7 @@ const seedData = async () => {
       { id: 'SECTOR-GAMMA', name: 'GAMMA_GARDENS', type: 'street', address: '1230 Elm St, Cincinnati, OH', latitude: 39.1115, longitude: -84.5185, radius_limit: 3000 }
     ];
 
+    console.log(`SEEDING: INITIALIZING_${nodes.length}_NODES...`);
     for (const node of nodes) {
       await setDoc(doc(db, 'nodes', node.id), node);
       console.log(`NODE_INITIALIZED: ${node.id}`);

@@ -9,40 +9,49 @@ import { getFirestore } from 'firebase-admin/firestore'
 import * as fs from 'fs'
 import * as path from 'path'
 
-admin.initializeApp()
+// Initialize Admin SDK with defensive projectId logic
+const envProjectId = process.env.FIREBASE_PROJECT_ID;
+let initialProjectId = (envProjectId && !envProjectId.startsWith('ai-studio-')) ? envProjectId : undefined;
+
+// Try to find the config file to get the correct projectId if env is wrong
+const paths = [
+  path.join(process.cwd(), 'firebase-applet-config.json'),
+  path.join(process.cwd(), '../firebase-applet-config.json'),
+  path.join(__dirname, '../firebase-applet-config.json'),
+  path.join(__dirname, '../../firebase-applet-config.json')
+];
+
+let configPath = '';
+for (const p of paths) {
+  if (fs.existsSync(p)) {
+    configPath = p;
+    break;
+  }
+}
+
+if (configPath && !initialProjectId) {
+  try {
+    const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+    initialProjectId = config.projectId;
+  } catch (e) {
+    console.error('FAILED_TO_READ_CONFIG_FOR_PROJECT_ID:', e);
+  }
+}
+
+admin.initializeApp({
+  projectId: initialProjectId
+});
 
 // Initialize Firestore with the correct database ID from config
 let db: admin.firestore.Firestore;
-let DATABASE_ID = '(default)';
+let DATABASE_ID = 'ai-studio-8d3a18ac-9f60-480e-8200-f9f5e01c389a';
 
 try {
-  // Try multiple possible paths for the config file
-  const paths = [
-    path.join(process.cwd(), 'firebase-applet-config.json'),
-    path.join(process.cwd(), '../firebase-applet-config.json'),
-    path.join(__dirname, '../firebase-applet-config.json'),
-    path.join(__dirname, '../../firebase-applet-config.json')
-  ];
-  
-  let configPath = '';
-  for (const p of paths) {
-    if (fs.existsSync(p)) {
-      configPath = p;
-      break;
-    }
-  }
-
-  if (configPath) {
-    const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-    DATABASE_ID = config.firestoreDatabaseId;
-    db = getFirestore(DATABASE_ID);
-    console.log(`FIRESTORE_INITIALIZED_WITH_DB: ${DATABASE_ID} FROM ${configPath}`);
-  } else {
-    db = getFirestore();
-    console.log('FIRESTORE_INITIALIZED_WITH_DEFAULT_DB (CONFIG_NOT_FOUND)');
-  }
+  // Using specific database ID as requested to match Kroger data location
+  db = getFirestore(DATABASE_ID);
+  console.log(`FIRESTORE_INITIALIZED_WITH_DB: ${DATABASE_ID}`);
 } catch (e) {
-  console.error('FAILED_TO_LOAD_CONFIG_FOR_FIRESTORE:', e);
+  console.error('FAILED_TO_LOAD_FIRESTORE:', e);
   db = getFirestore();
 }
 

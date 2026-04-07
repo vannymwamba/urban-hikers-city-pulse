@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { Broadcast, Partner, Node, Sponsor, BroadcastType } from '../types';
+import { Broadcast, Partner, Node, Sponsor, BroadcastType, UserProfile } from '../types';
 import { BroadcastCard } from './BroadcastCard';
 import { motion } from 'motion/react';
 import { ArrowRight } from 'lucide-react';
@@ -9,9 +9,11 @@ interface FeedProps {
   currentNode: Node | null;
   onSelect: (broadcast: Broadcast) => void;
   onShareEvent: (broadcast: Broadcast) => void;
+  onManage?: (broadcast: Broadcast) => void;
   partnersMap: Record<string, Partner>;
   sponsorsMap: Record<string, Sponsor>;
   hideOtherSections?: boolean;
+  userProfile?: UserProfile | null;
 }
 
 export const Feed: React.FC<FeedProps> = ({
@@ -19,9 +21,20 @@ export const Feed: React.FC<FeedProps> = ({
   currentNode,
   onSelect,
   onShareEvent,
+  onManage,
   partnersMap,
-  hideOtherSections = false
+  hideOtherSections = false,
+  userProfile = null
 }) => {
+  const isAdmin = userProfile?.role === 'admin' || userProfile?.role === 'super_admin' || userProfile?.email === 'vannymwamba@gmail.com';
+  const isPartner = userProfile?.role === 'partner' || userProfile?.role === 'partner_admin' || userProfile?.role === 'partner_content_editor';
+
+  const canManageBroadcast = (b: Broadcast) => {
+    if (isAdmin) return true;
+    if (isPartner && userProfile?.partner_id === b.partner_id) return true;
+    return false;
+  };
+
   const flashDeals = broadcasts.filter(b => b.type === BroadcastType.FLASH_DEAL);
   const foodTrucks = broadcasts.filter(b => b.type === BroadcastType.FOOD_TRUCK);
   const walkingEvents = broadcasts.filter(b => b.type === BroadcastType.WALKING_EVENT);
@@ -90,8 +103,10 @@ export const Feed: React.FC<FeedProps> = ({
                 currentNode={currentNode}
                 onSelect={onSelect}
                 onShareEvent={onShareEvent}
+                onManage={onManage}
                 partner={partnersMap[deal.partnerId || deal.partner_id || '']}
                 variant="hero"
+                canManage={canManageBroadcast(deal)}
               />
             ))}
           </div>
@@ -121,8 +136,10 @@ export const Feed: React.FC<FeedProps> = ({
                 currentNode={currentNode}
                 onSelect={onSelect}
                 onShareEvent={onShareEvent}
+                onManage={onManage}
                 partner={partnersMap[truck.partnerId || truck.partner_id || '']}
                 variant="peek"
+                canManage={canManageBroadcast(truck)}
               />
             ))}
             <MoreCard label="MORE_FOOD" />
@@ -143,8 +160,10 @@ export const Feed: React.FC<FeedProps> = ({
                 currentNode={currentNode}
                 onSelect={onSelect}
                 onShareEvent={onShareEvent}
+                onManage={onManage}
                 partner={partnersMap[walk.partnerId || walk.partner_id || '']}
                 variant="peek"
+                canManage={canManageBroadcast(walk)}
               />
             ))}
             <MoreCard label="MORE_WALKS" />
@@ -165,8 +184,10 @@ export const Feed: React.FC<FeedProps> = ({
                 currentNode={currentNode}
                 onSelect={onSelect}
                 onShareEvent={onShareEvent}
+                onManage={onManage}
                 partner={partnersMap[event.partnerId || event.partner_id || '']}
                 variant="peek"
+                canManage={canManageBroadcast(event)}
               />
             ))}
             <MoreCard label="MORE_EVENTS" />
@@ -187,8 +208,10 @@ export const Feed: React.FC<FeedProps> = ({
                 currentNode={currentNode}
                 onSelect={onSelect}
                 onShareEvent={onShareEvent}
+                onManage={onManage}
                 partner={partnersMap[mural.partnerId || mural.partner_id || '']}
                 variant="peek"
+                canManage={canManageBroadcast(mural)}
               />
             ))}
             <MoreCard label="MORE_ART" />

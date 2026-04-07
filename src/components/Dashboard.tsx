@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { db, functions } from '../firebase';
+import { useLocation } from 'react-router-dom';
+import { db, functions, storage } from '../firebase';
 import { collection, addDoc, onSnapshot, query, where, doc, setDoc, getDocs, updateDoc, deleteDoc, serverTimestamp, limit, orderBy } from 'firebase/firestore';
+import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { httpsCallable } from 'firebase/functions';
 import { Node, Broadcast, UserProfile, Partner, BroadcastType, HubType, VibeReport, Tap, UserRole, Interaction, TabView } from '../types';
 import { BASE_URL } from '../constants';
-import { Plus, MapPin, Link as LinkIcon, Send, LayoutDashboard, LogOut, ChevronRight, Globe, ShieldCheck, RefreshCw, BarChart3, Image as ImageIcon, Trash2, RotateCcw, Palette } from 'lucide-react';
+import { Plus, MapPin, Link as LinkIcon, Send, LayoutDashboard, LogOut, ChevronRight, Globe, ShieldCheck, RefreshCw, BarChart3, Image as ImageIcon, Trash2, RotateCcw, Palette, X } from 'lucide-react';
 import { motion } from 'motion/react';
 import { handleFirestoreError, OperationType } from '../utils/firebaseErrors';
 import { LogoUpload } from './LogoUpload';
@@ -36,6 +38,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
   const [newNode, setNewNode] = useState({ name: '', type: 'street' as HubType, address: '', lat: 0, lng: 0, radius: 500 });
   const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
   const [editingPartnerId, setEditingPartnerId] = useState<string | null>(null);
+  const [editingBroadcastId, setEditingBroadcastId] = useState<string | null>(null);
   const [newBroadcast, setNewBroadcast] = useState({ 
     title: '', 
     type: BroadcastType.LIVE_EVENT, 
@@ -64,11 +67,51 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
   const [isSyncingLibrary, setIsSyncingLibrary] = useState(false);
   const [isSyncingCivic, setIsSyncingCivic] = useState(false);
   
+  // New Broadcast fields
+  const [broadcastImageUrl, setBroadcastImageUrl] = useState('');
+  const [broadcastImageMode, setBroadcastImageMode] = useState<'url' | 'upload'>('url');
+  const [broadcastAddress, setBroadcastAddress] = useState('');
+  const [broadcastCustomLat, setBroadcastCustomLat] = useState<number | null>(null);
+  const [broadcastCustomLng, setBroadcastCustomLng] = useState<number | null>(null);
+  const [isUploadingBroadcastImage, setIsUploadingBroadcastImage] = useState(false);
+  
   const [activeTab, setActiveTab] = useState<'hubs' | 'broadcasts' | 'partners' | 'analytics' | 'profile'>(isAdmin ? 'hubs' : 'broadcasts');
   const [hudMessage, setHudMessage] = useState<{ text: string; type: 'info' | 'error' } | null>(null);
 
   const [now, setNow] = useState(new Date());
   
+  const location = useLocation();
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const editId = params.get('editBroadcastId');
+    if (editId) {
+      setActiveTab('broadcasts');
+      setEditingBroadcastId(editId);
+    }
+  }, [location.search]);
+
+  useEffect(() => {
+    if (editingBroadcastId && broadcasts.length > 0) {
+      const b = broadcasts.find(b => b.id === editingBroadcastId);
+      if (b) {
+        setNewBroadcast({
+          title: b.title,
+          type: b.type,
+          nodeId: b.nodeId || b.node_id || '',
+          startTimeOffset: 0,
+          duration: 60,
+          partnerId: b.partnerId || b.partner_id || '',
+          locationSource: b.address ? 'node' : 'partner'
+        });
+        setBroadcastImageUrl(b.cover_url || b.imageUrl || '');
+        setBroadcastAddress(b.address || '');
+        setBroadcastCustomLat(b.latitude || null);
+        setBroadcastCustomLng(b.longitude || null);
+      }
+    }
+  }, [editingBroadcastId, broadcasts]);
+
   const parseDate = (val: any): Date => {
     if (!val) return new Date(0);
     if (val instanceof Date) return val;
@@ -350,6 +393,66 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
     }
   };
 
+  const handleBroadcastImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    setIsUploadingBroadcastImage(true);
+    try {
+      const timestamp = Date.now();
+      const storagePath = `broadcasts/${timestamp}_${file.name}`;
+      const storageRef = ref(storage, storagePath);
+      const uploadTask = await uploadBytesResumable(storageRef, file);
+      const downloadURL = await getDownloadURL(uploadTask.ref);
+      setBroadcastImageUrl(downloadURL);
+      setHudMessage({ text: 'IMAGE_UPLOAD_SUCCESS', type: 'info' });
+    } catch (err) {
+      console.error('Broadcast image upload error:', err);
+      setHudMessage({ text: 'UPLOAD_FAILED', type: 'error' });
+    } finally {
+      setIsUploadingBroadcastImage(false);
+    }
+  };
+
+  const handleResolveBroadcastAddress = async () => {
+    if (!broadcastAddress) return;
+    setIsGeocoding(true);
+    try {
+      const response = await fetch(`/api/geocode?address=${encodeURIComponent(broadcastAddress)}`);
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'SERVER_ERROR' }));
+        throw new Error(errorData.error || 'GEOCODING_FAILED');
+      }
+
+      const data = await response.json();
+      if (data && data.lat && data.lon) {
+        setBroadcastCustomLat(parseFloat(data.lat));
+        setBroadcastCustomLng(parseFloat(data.lon));
+        setHudMessage({ text: "COORDINATES_RESOLVED", type: 'info' });
+      } else {
+        setHudMessage({ text: "ADDRESS_NOT_FOUND", type: 'error' });
+      }
+    } catch (err: any) {
+      console.error("Geocoding error:", err);
+      setHudMessage({ text: `GEOCODING_FAILURE: ${err.message || 'UNKNOWN'}`, type: 'error' });
+    } finally {
+      setIsGeocoding(false);
+    }
+  };
+
+  const handleDeleteBroadcast = async (broadcastId: string, title: string) => {
+    if (!isAdmin && !isPartner) return;
+    if (!window.confirm(`CRITICAL: Are you sure you want to terminate the signal for ${title?.toUpperCase() || 'UNKNOWN'}? This will remove it from the live board immediately.`)) return;
+
+    try {
+      await deleteDoc(doc(db, 'broadcasts', broadcastId));
+      setHudMessage({ text: `SIGNAL_TERMINATED: ${title?.toUpperCase() || 'UNKNOWN'}`, type: 'info' });
+    } catch (err) {
+      handleFirestoreError(err, OperationType.DELETE, `broadcasts/${broadcastId}`);
+    }
+  };
+
   const handleCreateBroadcast = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!isAdmin && !isPartner) return;
@@ -362,32 +465,34 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
     const targetNode = nodes.find(n => n.id === newBroadcast.nodeId);
     
     // Explicitly choose location based on source
-    let latitude = 0;
-    let longitude = 0;
-    let address = '';
+    let latitude = broadcastCustomLat !== null ? broadcastCustomLat : 0;
+    let longitude = broadcastCustomLng !== null ? broadcastCustomLng : 0;
+    let address = broadcastAddress || '';
     let nodeId = newBroadcast.nodeId;
 
-    if (newBroadcast.locationSource === 'partner' && partner) {
-      latitude = partner.latitude;
-      longitude = partner.longitude;
-      address = partner.address || '';
-    } else if (targetNode) {
-      latitude = targetNode.latitude;
-      longitude = targetNode.longitude;
-      address = targetNode.address || '';
-    } else if (newBroadcast.locationSource === 'partner' && partnerId === 'admin') {
-      // Fallback for system broadcast with partner source: use a default or current node
-      const defaultNode = nodes[0];
-      if (defaultNode) {
-        latitude = defaultNode.latitude;
-        longitude = defaultNode.longitude;
-        address = defaultNode.address || '';
-        nodeId = defaultNode.id;
+    if (broadcastCustomLat === null) {
+      if (newBroadcast.locationSource === 'partner' && partner) {
+        latitude = partner.latitude;
+        longitude = partner.longitude;
+        address = broadcastAddress || partner.address || '';
+      } else if (targetNode) {
+        latitude = targetNode.latitude;
+        longitude = targetNode.longitude;
+        address = broadcastAddress || targetNode.address || '';
+      } else if (newBroadcast.locationSource === 'partner' && partnerId === 'admin') {
+        // Fallback for system broadcast with partner source: use a default or current node
+        const defaultNode = nodes[0];
+        if (defaultNode) {
+          latitude = defaultNode.latitude;
+          longitude = defaultNode.longitude;
+          address = broadcastAddress || defaultNode.address || '';
+          nodeId = defaultNode.id;
+        }
       }
     }
     
     try {
-      await addDoc(collection(db, 'broadcasts'), {
+      const broadcastData = {
         title: newBroadcast.title,
         type: newBroadcast.type,
         nodeId: nodeId,
@@ -403,13 +508,27 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
         expires_at: expiresAt,
         currentVibe: 'chill',
         current_vibe: 'chill',
-        active: true
-      });
+        active: true,
+        cover_url: broadcastImageUrl
+      };
+
+      if (editingBroadcastId) {
+        await updateDoc(doc(db, 'broadcasts', editingBroadcastId), broadcastData);
+        setHudMessage({ text: `SIGNAL_RECONFIGURED: ${newBroadcast.title.toUpperCase()}`, type: 'info' });
+      } else {
+        await addDoc(collection(db, 'broadcasts'), broadcastData);
+        setHudMessage({ text: `SIGNAL_TRANSMITTED: ${newBroadcast.title.toUpperCase()}`, type: 'info' });
+      }
     } catch (err) {
-      handleFirestoreError(err, OperationType.CREATE, 'broadcasts');
+      handleFirestoreError(err, editingBroadcastId ? OperationType.UPDATE : OperationType.CREATE, editingBroadcastId ? `broadcasts/${editingBroadcastId}` : 'broadcasts');
     }
-    setHudMessage({ text: `SIGNAL_TRANSMITTED: ${newBroadcast.title.toUpperCase()}`, type: 'info' });
+    
     setNewBroadcast({ title: '', type: BroadcastType.LIVE_EVENT, nodeId: '', startTimeOffset: 0, duration: 60, partnerId: '', locationSource: 'node' });
+    setBroadcastImageUrl('');
+    setBroadcastAddress('');
+    setBroadcastCustomLat(null);
+    setBroadcastCustomLng(null);
+    setEditingBroadcastId(null);
   };
 
   const handleRepublish = async (b: Broadcast) => {
@@ -1232,7 +1351,27 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
 
               {/* Create Broadcast Form */}
               <form onSubmit={handleCreateBroadcast} className="bg-uh-gray-50 border border-uh-gray-200 p-6 mb-8 rounded-2xl grid grid-cols-2 gap-4 shadow-sm">
-                <div className="col-span-2 text-[10px] text-uh-gray-500 font-bold mb-2 tracking-widest uppercase">Ignite_New_Broadcast</div>
+                <div className="col-span-2 flex justify-between items-center mb-2">
+                  <div className="text-[10px] text-uh-gray-500 font-bold tracking-widest uppercase">
+                    {editingBroadcastId ? 'Reconfigure_Broadcast' : 'Ignite_New_Broadcast'}
+                  </div>
+                  {editingBroadcastId && (
+                    <button 
+                      type="button"
+                      onClick={() => {
+                        setEditingBroadcastId(null);
+                        setNewBroadcast({ title: '', type: BroadcastType.LIVE_EVENT, nodeId: '', startTimeOffset: 0, duration: 60, partnerId: '', locationSource: 'node' });
+                        setBroadcastImageUrl('');
+                        setBroadcastAddress('');
+                        setBroadcastCustomLat(null);
+                        setBroadcastCustomLng(null);
+                      }}
+                      className="text-[10px] font-black text-uh-magenta uppercase tracking-widest hover:underline"
+                    >
+                      Cancel_Edit
+                    </button>
+                  )}
+                </div>
                 <div className="flex flex-col gap-1">
                   <label className="text-[9px] text-uh-gray-400 font-bold uppercase tracking-widest ml-1">Broadcast_Title</label>
                   <input 
@@ -1351,12 +1490,78 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
                     <option value={1440}>24 HOURS (MAX)</option>
                   </select>
                 </div>
+
+                {/* New Broadcast Fields */}
+                <div className="col-span-2 flex flex-col gap-2 border-t border-uh-gray-200 pt-4 mt-2">
+                  <label className="text-[10px] font-black text-uh-gray-400 uppercase tracking-widest">Cover_Image</label>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="flex flex-col gap-1">
+                      <input 
+                        placeholder="https://example.com/image.jpg"
+                        className="bg-white border border-uh-gray-200 p-3 rounded-xl text-sm focus:border-uh-yellow outline-none transition-all"
+                        value={broadcastImageUrl}
+                        onChange={e => setBroadcastImageUrl(e.target.value)}
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <label className="bg-uh-black text-white text-[10px] font-black p-3 rounded-xl hover:bg-uh-black/90 transition-all cursor-pointer flex items-center justify-center gap-2">
+                        <ImageIcon size={14} className="text-uh-yellow" />
+                        {isUploadingBroadcastImage ? 'UPLOADING...' : 'UPLOAD_IMAGE'}
+                        <input 
+                          type="file" 
+                          className="hidden" 
+                          onChange={handleBroadcastImageUpload}
+                          accept="image/*"
+                        />
+                      </label>
+                    </div>
+                  </div>
+                  {broadcastImageUrl && (
+                    <div className="mt-2 relative w-full h-32 rounded-xl overflow-hidden border border-uh-gray-200">
+                      <img src={broadcastImageUrl} alt="Preview" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                      <button 
+                        type="button"
+                        onClick={() => setBroadcastImageUrl('')}
+                        className="absolute top-2 right-2 p-1 bg-uh-magenta text-white rounded-full shadow-lg"
+                      >
+                        <X size={12} />
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                <div className="col-span-2 flex flex-col gap-2 border-t border-uh-gray-200 pt-4">
+                  <label className="text-[10px] font-black text-uh-gray-400 uppercase tracking-widest">Custom_Address</label>
+                  <div className="flex gap-2">
+                    <input 
+                      placeholder="123 Main St, Cincinnati, OH"
+                      className="flex-1 bg-white border border-uh-gray-200 p-3 rounded-xl text-sm focus:border-uh-yellow outline-none transition-all"
+                      value={broadcastAddress}
+                      onChange={e => setBroadcastAddress(e.target.value)}
+                    />
+                    <button 
+                      type="button"
+                      onClick={handleResolveBroadcastAddress}
+                      disabled={isGeocoding || !broadcastAddress}
+                      className="bg-uh-yellow text-uh-black text-[10px] font-black px-6 rounded-xl hover:bg-uh-yellow/80 transition-all disabled:opacity-50"
+                    >
+                      {isGeocoding ? 'RESOLVING...' : 'RESOLVE'}
+                    </button>
+                  </div>
+                  {broadcastCustomLat && broadcastCustomLng && (
+                    <div className="text-[10px] font-bold text-uh-green ml-1">
+                      RESOLVED_COORDS: {broadcastCustomLat.toFixed(4)}, {broadcastCustomLng.toFixed(4)}
+                    </div>
+                  )}
+                </div>
+
                 <button 
                   type="submit" 
                   disabled={!canWrite}
                   className={`bg-uh-black text-white font-black p-4 rounded-xl hover:bg-uh-black/90 transition-all flex items-center justify-center gap-2 col-span-2 shadow-lg shadow-uh-black/10 ${!canWrite ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
-                  <Send size={18} className="text-uh-yellow" /> {canWrite ? 'TRANSMIT_SIGNAL' : 'READ_ONLY_ACCESS'}
+                  {editingBroadcastId ? <RefreshCw size={18} className="text-uh-yellow" /> : <Send size={18} className="text-uh-yellow" />} 
+                  {canWrite ? (editingBroadcastId ? 'UPDATE_SIGNAL' : 'TRANSMIT_SIGNAL') : 'READ_ONLY_ACCESS'}
                 </button>
               </form>
 
@@ -1392,21 +1597,57 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
                             </div>
                           </div>
                         </div>
-                        <div className="flex items-center gap-6">
-                          <div className="text-right">
-                            <div className="text-xs font-black text-uh-black mb-1">{getRemainingTime(b)}</div>
-                            <div className="text-[9px] text-uh-gray-400 font-bold uppercase tracking-widest">EXPIRES: {b.expires_at ? parseDate(b.expires_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'UNKNOWN'}</div>
+                          <div className="flex items-center gap-6">
+                            <div className="text-right">
+                              <div className="text-xs font-black text-uh-black mb-1">{getRemainingTime(b)}</div>
+                              <div className="text-[9px] text-uh-gray-400 font-bold uppercase tracking-widest">EXPIRES: {b.expires_at ? parseDate(b.expires_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'UNKNOWN'}</div>
+                            </div>
+                            <div className="flex gap-2">
+                              {(isAdmin || (isPartner && userProfile.partner_id === b.partner_id && canWrite)) && (
+                                <>
+                                  <button 
+                                    onClick={() => {
+                                      setEditingBroadcastId(b.id);
+                                      setNewBroadcast({
+                                        title: b.title,
+                                        type: b.type,
+                                        nodeId: b.nodeId || b.node_id || '',
+                                        startTimeOffset: 0, // Reset to immediate start for edits usually
+                                        duration: 60, // Default or calculate from current expiry
+                                        partnerId: b.partnerId || b.partner_id || '',
+                                        locationSource: b.address ? 'node' : 'partner' // Heuristic
+                                      });
+                                      setBroadcastImageUrl(b.cover_url || b.imageUrl || '');
+                                      setBroadcastAddress(b.address || '');
+                                      setBroadcastCustomLat(b.latitude || null);
+                                      setBroadcastCustomLng(b.longitude || null);
+                                      window.scrollTo({ top: 0, behavior: 'smooth' });
+                                    }}
+                                    className="p-3 bg-uh-gray-50 text-uh-gray-600 rounded-xl border border-uh-gray-200 hover:border-uh-yellow hover:text-uh-black transition-all"
+                                    title="EDIT_SIGNAL"
+                                  >
+                                    <RefreshCw size={18} />
+                                  </button>
+                                  <button 
+                                    onClick={() => handleDeleteBroadcast(b.id, b.title)}
+                                    className="p-3 bg-uh-gray-50 text-uh-gray-600 rounded-xl border border-uh-gray-200 hover:border-uh-magenta hover:text-white hover:bg-uh-magenta transition-all"
+                                    title="TERMINATE_SIGNAL"
+                                  >
+                                    <Trash2 size={18} />
+                                  </button>
+                                </>
+                              )}
+                              {(isAdmin || (isPartner && userProfile.partner_id === b.partner_id && canWrite)) && (
+                                <button 
+                                  onClick={() => handleRepublish(b)}
+                                  className="p-3 bg-uh-gray-50 text-uh-gray-600 rounded-xl border border-uh-gray-200 hover:border-uh-yellow hover:text-uh-black hover:bg-uh-yellow transition-all"
+                                  title="REPUBLISH_SIGNAL"
+                                >
+                                  <RotateCcw size={18} />
+                                </button>
+                              )}
+                            </div>
                           </div>
-                          {(isAdmin || (isPartner && userProfile.partner_id === b.partner_id && canWrite)) && (
-                            <button 
-                              onClick={() => handleRepublish(b)}
-                              className="p-3 bg-uh-gray-50 text-uh-gray-600 rounded-xl border border-uh-gray-200 hover:border-uh-yellow hover:text-uh-black hover:bg-uh-yellow transition-all"
-                              title="REPUBLISH_SIGNAL"
-                            >
-                              <RefreshCw size={18} />
-                            </button>
-                          )}
-                        </div>
                       </div>
                     );
                 })}

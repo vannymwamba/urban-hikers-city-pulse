@@ -24,6 +24,7 @@ interface DepartureBoardProps {
   accessVector?: 'nfc' | 'direct' | 'qr';
   onShareNode: () => void;
   onShareEvent: (broadcast: Broadcast) => void;
+  onManage?: (broadcast: Broadcast) => void;
   onSaveToWallet?: (node?: Node) => void;
   isSaved?: boolean;
   activeTab?: 'home' | 'feed' | 'explore' | 'wallet' | 'profile';
@@ -51,6 +52,7 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
   accessVector = 'direct',
   onShareNode,
   onShareEvent,
+  onManage,
   onSaveToWallet,
   isSaved = false,
   activeTab = 'feed',
@@ -530,8 +532,10 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
                         currentNode={currentNode}
                         onSelect={onSelect}
                         onShareEvent={onShareEvent}
+                        onManage={onManage}
                         partner={partnersMap[item.partnerId || item.partner_id || ''] || null}
                         variant="peek"
+                        canManage={userProfile?.role === 'admin' || (userProfile?.role === 'partner' && userProfile?.partner_id === item.partner_id)}
                       />
                     ))}
                   </div>
@@ -604,8 +608,10 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
                   currentNode={currentNode}
                   onSelect={onSelect}
                   onShareEvent={onShareEvent}
+                  onManage={onManage}
                   partnersMap={partnersMap}
                   sponsorsMap={sponsorsMap}
+                  userProfile={userProfile}
                 />
               )}
             </div>

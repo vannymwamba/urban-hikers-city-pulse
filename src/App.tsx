@@ -1106,6 +1106,10 @@ export default function App() {
             `Check out this event at ${currentNode?.name}!`,
             `${BASE_URL}/tap/${nodeId}`
           )}
+          onManage={(b) => {
+            window.history.pushState({}, '', `/dashboard?editBroadcastId=${b.id}`);
+            window.dispatchEvent(new PopStateEvent('popstate'));
+          }}
           onSaveToWallet={(node) => (node || currentNode) && toggleSaveHub(node || currentNode!)}
           isSaved={currentNode ? savedHubs.some(h => h.id === currentNode.id) : false}
           activeTab={currentTab}
