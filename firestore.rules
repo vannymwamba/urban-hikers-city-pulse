@@ -1,7 +1,146 @@
+rules_version = '2';
+
 service cloud.firestore {
   match /databases/{database}/documents {
+    
+    // 0. Global Safety Net
     match /{document=**} {
-      allow read, write: if true;
+      allow read, write: if false;
+    }
+
+    // --- Helpers ---
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    // Bootstrapped Admin: vannymwamba@gmail.com
+    function isAdmin() {
+      return isSignedIn() && (
+        request.auth.token.email == 'vannymwamba@gmail.com' ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin', 'super_admin'])
+      );
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // --- Entity Validations ---
+
+    function isValidNode(data) {
+      return data.keys().hasAll(['id', 'name', 'type', 'latitude', 'longitude', 'radius_limit']) &&
+             data.keys().size() >= 6 &&
+             data.id is string && data.id.size() <= 64 &&
+             data.name is string && data.name.size() <= 100 &&
+             data.type in ['street', 'conference_center'] &&
+             data.latitude is number && data.longitude is number &&
+             data.radius_limit is number &&
+             (!('imageUrl' in data) || data.imageUrl is string);
+    }
+
+    function isValidBroadcast(data) {
+      return data.keys().hasAll(['title', 'type', 'latitude', 'longitude', 'starts_at', 'expires_at', 'current_vibe']) &&
+             data.title is string && data.title.size() <= 200 &&
+             data.type is string && data.type.size() <= 64 &&
+             data.latitude is number && data.longitude is number &&
+             data.starts_at is string &&
+             data.expires_at is string &&
+             timestamp(data.expires_at) > timestamp(data.starts_at) &&
+             data.current_vibe in ['chill', 'buzzing', 'packed'];
+    }
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'email', 'role']) &&
+             data.uid == request.auth.uid &&
+             data.email == request.auth.token.email &&
+             data.role in ['admin', 'super_admin', 'partner', 'user'];
+    }
+
+    function isValidTap(data) {
+      return data.keys().hasAll(['node_id', 'session_uuid', 'timestamp']) &&
+             data.node_id is string && data.session_uuid is string &&
+             data.timestamp is string;
+    }
+
+    // --- Match Groups ---
+
+    match /users/{uid} {
+      allow read: if isOwner(uid) || isAdmin();
+      allow create: if isSignedIn() && isValidUser(incoming()) && (
+        incoming().role == 'user' || isAdmin()
+      );
+      allow update: if isSignedIn() && (
+        (isOwner(uid) && incoming().role == existing().role && incoming().diff(existing()).affectedKeys().hasOnly(['name', 'partner_id'])) ||
+        isAdmin()
+      );
+    }
+
+    match /nodes/{nodeId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /partners/{partnerId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /broadcasts/{broadcastId} {
+      allow read: if true;
+      allow list: if true;
+      // Trusted Gateway Model: Std users cannot create directly via client SDK.
+      // Admin SDK on server bypasses this.
+      allow create: if isAdmin() && 
+                    isValidBroadcast(incoming()) && 
+                    timestamp(incoming().expires_at) > request.time;
+      allow update: if isAdmin() || (
+        isSignedIn() && 
+        incoming().diff(existing()).affectedKeys().hasOnly(['current_vibe'])
+      );
+      allow delete: if isAdmin();
+    }
+
+    match /pois/{poiId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /taps/{tapId} {
+      allow read: if isAdmin();
+      allow create: if true; // Public can log taps anonymously
+    }
+
+    match /vibe_reports/{reportId} {
+      allow read: if isAdmin();
+      allow create: if true; // Public can report vibes
+    }
+
+    match /tab_views/{viewId} {
+      allow read: if isAdmin();
+      allow create: if true;
+    }
+
+    match /interactions/{interactionId} {
+      allow read: if isAdmin();
+      allow create: if true;
+    }
+
+    match /signals/{signalId} {
+      allow read: if true;
+      allow write: if false; // Strictly server-side via Admin SDK
     }
   }
 }

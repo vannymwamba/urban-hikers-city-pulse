@@ -103,7 +103,16 @@ export const CreatorIntakeWindow: React.FC<CreatorIntakeWindowProps> = ({ nodeId
       }
       try {
         console.log("CreatorIntakeWindow: Fetching node", nodeId);
-        const nodeDoc = await getDoc(doc(db, 'nodes', nodeId));
+        let nodeDoc = await getDoc(doc(db, 'nodes', nodeId));
+        
+        // Fallback for case sensitivity
+        if (!nodeDoc.exists()) {
+          nodeDoc = await getDoc(doc(db, 'nodes', nodeId.toLowerCase()));
+          if (!nodeDoc.exists()) {
+            nodeDoc = await getDoc(doc(db, 'nodes', nodeId.toUpperCase()));
+          }
+        }
+
         console.log("CreatorIntakeWindow: Node exists?", nodeDoc.exists());
         if (nodeDoc.exists()) {
           setNode({ id: nodeDoc.id, ...nodeDoc.data() } as Node);
@@ -179,7 +188,10 @@ export const CreatorIntakeWindow: React.FC<CreatorIntakeWindowProps> = ({ nodeId
           navigate(`/tap/${nodeId}`);
         }, 3000);
       } else {
-        setError(result.error || 'IGNITE_FAILURE: Could not broadcast signal.');
+        const errorMsg = result.details 
+          ? `IGNITE_FAILURE: ${result.error} (${result.details})` 
+          : (result.error || 'IGNITE_FAILURE: Could not broadcast signal.');
+        setError(errorMsg);
       }
     } catch (err) {
       console.error('Ignite error:', err);

@@ -6,13 +6,15 @@ import cors from "cors";
 import Stripe from "stripe";
 import { createCanvas, loadImage } from "canvas";
 import admin from "firebase-admin";
-import { getFirestore } from "firebase-admin/firestore";
+import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import dotenv from "dotenv";
 import fs from "fs";
 import { Client } from "@googlemaps/google-maps-services-js";
 import axios from "axios";
 import cron from "node-cron";
-import { runVisitCincyAgent } from "./agents/visitCincyAgent.ts";
+import { runCivicIngestionEngine } from "./agents/visitCincyAgent.ts";
+import { runLibraryIngestionAgent } from "./agents/libraryAgent.ts";
+import { initializeScheduler } from "./src/cron/scheduler.ts";
 
 dotenv.config();
 
@@ -48,42 +50,31 @@ async function startServer() {
     // Load config to get database ID and project ID
     const configPath = path.join(process.cwd(), 'firebase-applet-config.json');
     let databaseId = '(default)';
-    let envProjectId = process.env.FIREBASE_PROJECT_ID;
-    let projectId = (envProjectId && !envProjectId.startsWith('ai-studio-')) ? envProjectId : null;
+    let projectId = process.env.FIREBASE_PROJECT_ID;
 
     if (fs.existsSync(configPath)) {
       const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-      databaseId = config.firestoreDatabaseId || '(default)';
-      if (!projectId) projectId = config.projectId;
+      if (!databaseId || databaseId === '(default)') {
+        databaseId = config.firestoreDatabaseId || '(default)';
+      }
+      if (!projectId) {
+        projectId = config.projectId;
+      }
     }
 
     if (!admin.apps.length) {
+      console.log(`Initializing Firebase Admin for Project: ${projectId}`);
       admin.initializeApp({
         projectId: projectId
       });
     }
 
-    // Using specific database ID as requested to match Kroger data location
-    databaseId = 'ai-studio-8d3a18ac-9f60-480e-8200-f9f5e01c389a';
+    // Using specific database ID as requested to match data location
     db = getFirestore(databaseId);
     console.log(`Firebase Admin SDK initialized successfully with DB: ${databaseId}`);
     
-    // Test connection
-    db.collection("nodes").limit(1).get()
-      .then(() => console.log("Firebase Admin: Connection test SUCCESS"))
-      .catch((err: any) => {
-        console.error("Firebase Admin: Connection test FAILED", err);
-        if (err.code === 7 || err.message?.includes('permission')) {
-          console.warn("PERMISSION_DENIED: Attempting fallback to (default) database...");
-          const fallbackDb = getFirestore('(default)');
-          fallbackDb.collection("nodes").limit(1).get()
-            .then(() => {
-              console.log("Firebase Admin: Fallback (default) SUCCESS");
-              db = fallbackDb;
-            })
-            .catch((fallbackErr: any) => console.error("Firebase Admin: Fallback (default) FAILED", fallbackErr));
-        }
-      });
+    // We remove the async fallback loop to ensure the server remains locked 
+    // to the correct tactical database instance.
   } catch (error) {
     console.error("Firebase Admin init error in server:", error);
   }
@@ -178,119 +169,6 @@ async function startServer() {
     canvas.createPNGStream().pipe(res);
   });
 
-  // CHPL Library Ingestion Agent
-  const syncLibraryEvents = async () => {
-    if (!db) {
-      console.error("Sync Error: Firebase DB not initialized");
-      return { error: "Firebase DB not initialized" };
-    }
-
-    const CHPL_BRANCHES: Record<string, { lat: number, lng: number }> = {
-      'Main Library': { lat: 39.1064, lng: -84.5125 },
-      'Walnut Hills': { lat: 39.1287, lng: -84.4844 },
-      'Corryville': { lat: 39.1333, lng: -84.5083 },
-      'Northside': { lat: 39.1625, lng: -84.5375 },
-      'Avondale': { lat: 39.1464, lng: -84.4925 },
-      'Price Hill': { lat: 39.1089, lng: -84.5625 },
-      'Westwood': { lat: 39.1467, lng: -84.5983 },
-      'Hyde Park': { lat: 39.1414, lng: -84.4439 },
-      'Oakley': { lat: 39.1539, lng: -84.4333 },
-      'Pleasant Ridge': { lat: 39.1811, lng: -84.4267 },
-      'Bond Hill': { lat: 39.1783, lng: -84.4683 },
-      'Roselawn': { lat: 39.1911, lng: -84.4617 },
-      'Hartwell': { lat: 39.2067, lng: -84.4750 },
-      'College Hill': { lat: 39.2017, lng: -84.5450 },
-      'Mt. Healthy': { lat: 39.2333, lng: -84.5500 },
-      'Groesbeck': { lat: 39.2167, lng: -84.5917 },
-      'Monfort Heights': { lat: 39.1833, lng: -84.6167 },
-      'Cheviot': { lat: 39.1583, lng: -84.6133 },
-      'Covedale': { lat: 39.1167, lng: -84.6083 },
-      'Delhi Township': { lat: 39.0917, lng: -84.6167 },
-      'Sayler Park': { lat: 39.1167, lng: -84.7000 },
-      'Miami Township': { lat: 39.1667, lng: -84.7500 },
-      'Harrison': { lat: 39.2667, lng: -84.8000 },
-      'Green Township': { lat: 39.1583, lng: -84.6500 },
-      'North Central': { lat: 39.2667, lng: -84.4500 },
-      'Sharonville': { lat: 39.2667, lng: -84.4167 },
-      'Blue Ash': { lat: 39.2333, lng: -84.3833 },
-      'Deer Park': { lat: 39.2000, lng: -84.4000 },
-      'Madeira': { lat: 39.1833, lng: -84.3667 },
-      'Mariemont': { lat: 39.1417, lng: -84.3833 },
-      'Anderson': { lat: 39.0667, lng: -84.3500 },
-      'Mt. Washington': { lat: 39.0833, lng: -84.3833 },
-      'Forest Park': { lat: 39.2500, lng: -84.5000 },
-      'Greenhills': { lat: 39.2667, lng: -84.5167 },
-      'Wyoming': { lat: 39.2250, lng: -84.4833 },
-      'Reading': { lat: 39.2250, lng: -84.4417 },
-      'St. Bernard': { lat: 39.1667, lng: -84.4917 },
-      'Elmwood Place': { lat: 39.1833, lng: -84.4917 },
-      'Norwood': { lat: 39.1583, lng: -84.4583 },
-      'Madisonville': { lat: 39.1583, lng: -84.3917 },
-      'Loveland': { lat: 39.2667, lng: -84.2500 },
-      'Symmes Township': { lat: 39.2667, lng: -84.3167 },
-    };
-
-    const API_URL = 'https://cincinnatilibrary.bibliocommons.com/events/api/v1/events?limit=100';
-    
-    try {
-      console.log(`Library Agent: Fetching events from ${API_URL}`);
-      const response = await axios.get(API_URL, {
-        headers: {
-          'User-Agent': 'UrbanHikers/1.0 (https://www.urbanhikers.org)',
-          'Accept': 'application/json'
-        }
-      });
-
-      const events = response.data.events || [];
-      console.log(`Library Agent: Received ${events.length} events from CHPL API`);
-      
-      const batch = db.batch();
-      let count = 0;
-
-      for (const evt of events) {
-        if (!evt.id || !evt.title || !evt.start_datetime || !evt.end_datetime) continue;
-
-        const branchName = evt.location?.name || 'Main Library';
-        const coords = CHPL_BRANCHES[branchName] || CHPL_BRANCHES['Main Library'];
-        const broadcastId = `chpl-${evt.id}`;
-        const broadcastRef = db.collection("broadcasts").doc(broadcastId);
-        
-        const startsAt = new Date(evt.start_datetime);
-        const expiresAt = new Date(evt.end_datetime);
-
-        if (isNaN(startsAt.getTime()) || isNaN(expiresAt.getTime())) continue;
-        if (expiresAt.getTime() < Date.now()) continue;
-
-        batch.set(broadcastRef, {
-          title: evt.title,
-          description: evt.description || '',
-          starts_at: startsAt.toISOString(),
-          expires_at: expiresAt.toISOString(),
-          current_vibe: 'chill',
-          type: 'civic_free',
-          partner_id: 'chpl',
-          latitude: coords.lat,
-          longitude: coords.lng,
-          address: branchName,
-          active: true,
-          updated_at: admin.firestore.FieldValue.serverTimestamp()
-        }, { merge: true });
-        
-        count++;
-        if (count >= 500) break;
-      }
-
-      if (count > 0) {
-        await batch.commit();
-        console.log(`Library Agent: Ingest Success. ${count} events synced.`);
-      }
-      return { success: true, count };
-    } catch (error) {
-      console.error("Library Agent: Sync Error:", error);
-      return { error: "Failed to sync library events", details: String(error) };
-    }
-  };
-
   // Creator Flash Node Ignite Endpoint
   app.post("/api/creator/ignite", async (req, res) => {
     const { 
@@ -310,34 +188,57 @@ async function startServer() {
     } = req.body;
 
     // Validation: Must have a name, type, duration AND some form of location
-    const hasLocation = nodeId || (latitude && longitude) || address;
+    const hasLocation = nodeId || (latitude !== undefined && longitude !== undefined) || address;
     
     if (!creatorName || !performanceType || !durationHours || !hasLocation) {
+      console.warn("Creator Ignite: Missing required fields", { creatorName, performanceType, durationHours, hasLocation });
       return res.status(400).json({ error: "Missing required fields" });
     }
 
     if (!db) {
+      console.error("Creator Ignite: Database not initialized");
       return res.status(500).json({ error: "Database not initialized" });
     }
 
     try {
-      let finalLat = latitude;
-      let finalLng = longitude;
+      const parseCoord = (val: any) => {
+        if (val === undefined || val === null || val === '') return undefined;
+        const parsed = parseFloat(val);
+        return isNaN(parsed) ? undefined : parsed;
+      };
+
+      let finalLat = parseCoord(latitude);
+      let finalLng = parseCoord(longitude);
       let finalAddress = address;
+
+      console.log(`Creator Ignite: Processing request for ${creatorName}`, { nodeId, performanceType, durationHours });
 
       // 1. Resolve Coordinates
       if (nodeId) {
-        const nodeDoc = await db.collection("nodes").doc(nodeId).get();
+        let nodeDoc = await db.collection("nodes").doc(nodeId).get();
+        
+        // Casing Fallback: Try lowercase and uppercase if the raw ID fails
+        if (!nodeDoc.exists) {
+          nodeDoc = await db.collection("nodes").doc(nodeId.toLowerCase()).get();
+          if (!nodeDoc.exists) {
+            nodeDoc = await db.collection("nodes").doc(nodeId.toUpperCase()).get();
+          }
+        }
+
         if (nodeDoc.exists) {
           const nodeData = nodeDoc.data();
           finalLat = nodeData.latitude;
           finalLng = nodeData.longitude;
           finalAddress = nodeData.name;
+          console.log(`Creator Ignite: Resolved node ${nodeId} to ${finalLat}, ${finalLng}`);
+        } else {
+          console.warn(`Creator Ignite: Node ${nodeId} not found in database`);
         }
-      } else if (address && (!finalLat || !finalLng)) {
+      } else if (address && (finalLat === undefined || finalLng === undefined)) {
         // Geocode address if coordinates not provided
         const googleMapsKey = process.env.GOOGLE_MAPS_API_KEY;
         if (googleMapsKey) {
+          console.log(`Creator Ignite: Geocoding address ${address}`);
           const mapsClient = new Client({});
           const geoResponse = await mapsClient.geocode({
             params: {
@@ -349,16 +250,19 @@ async function startServer() {
             const loc = geoResponse.data.results[0].geometry.location;
             finalLat = loc.lat;
             finalLng = loc.lng;
+            console.log(`Creator Ignite: Geocoded ${address} to ${finalLat}, ${finalLng}`);
           }
         }
       }
 
-      if (!finalLat || !finalLng) {
+      if (finalLat === undefined || finalLng === undefined) {
+        console.warn("Creator Ignite: Location resolution failed", { finalLat, finalLng });
         return res.status(400).json({ error: "LOCATION_RESOLUTION_FAILED: Could not determine coordinates." });
       }
 
       // 2. Calculate Expiration
-      const expiresAt = new Date(Date.now() + durationHours * 3600000).toISOString();
+      const duration = parseFloat(durationHours) || 1;
+      const expiresAt = new Date(Date.now() + duration * 3600000).toISOString();
 
       // 3. Create Broadcast
       const broadcastData: any = {
@@ -377,8 +281,8 @@ async function startServer() {
         cover_url: cover_url || null,
         scope: scope || 'single_hub',
         payment_type: payment_type || 'free',
-        price: price || 0,
-        created_at: admin.firestore.FieldValue.serverTimestamp(),
+        price: parseFloat(price) || 0,
+        created_at: FieldValue.serverTimestamp(),
       };
 
       if (performanceType === 'walking_event' && walk_details) {
@@ -389,167 +293,30 @@ async function startServer() {
         broadcastData.guide_name = walk_details.guideName;
       }
 
+      console.log("Creator Ignite: Writing to Firestore", broadcastData);
       const docRef = await db.collection("broadcasts").add(broadcastData);
       
-      console.log(`Creator Ignite: ${creatorName} (${performanceType}) at ${finalLat},${finalLng} for ${durationHours}h`);
+      console.log(`Creator Ignite SUCCESS: ${creatorName} (ID: ${docRef.id})`);
       res.json({ success: true, id: docRef.id });
     } catch (error) {
       console.error("Creator Ignite Error:", error);
-      res.status(500).json({ error: "Failed to ignite flash node", details: String(error) });
+      res.status(500).json({ 
+        error: "Failed to ignite flash node", 
+        details: error instanceof Error ? error.message : String(error) 
+      });
     }
   });
 
-  // Manual trigger for library sync
-  app.post("/api/admin/sync-library-events", async (req, res) => {
-    const result = await syncLibraryEvents();
-    if ('error' in result) {
-      return res.status(500).json(result);
-    }
-    res.json(result);
-  });
-
-  // Visit Cincy Civic Ingestion Agent
-  const syncCivicEvents = async () => {
-    const googleMapsKey = process.env.GOOGLE_MAPS_API_KEY;
-    if (!googleMapsKey) {
-      console.error("Sync Error: GOOGLE_MAPS_API_KEY not configured");
-      return { error: "GOOGLE_MAPS_API_KEY not configured" };
-    }
-
-    if (!db) {
-      console.error("Sync Error: Firebase DB not initialized");
-      return { error: "Firebase DB not initialized" };
-    }
-
-    const mapsClient = new Client({});
-    const batch = db.batch();
-
+  // Library Ingestion Agent Manual Sync
+  app.post("/api/admin/agents/library-sync", async (req, res) => {
     try {
-      console.log("Visit Cincy Agent: Starting autonomous sync...");
-      
-      const mockEvents = [
-        {
-          id: "vc-blink-01",
-          title: "Blink Cincinnati Night 1",
-          description: "The largest light, art, and projection mapping event in the nation.",
-          address: "Washington Park, 1230 Elm St, Cincinnati, OH 45202",
-          starts_at: new Date().toISOString(),
-          expires_at: new Date(Date.now() + 86400000).toISOString(), // 24h later
-        },
-        {
-          id: "vc-findlay-01",
-          title: "Findlay Market Spring Festival",
-          description: "Celebrate the season with local vendors, food, and music.",
-          address: "1801 Race St, Cincinnati, OH 45202",
-          starts_at: new Date().toISOString(),
-          expires_at: new Date(Date.now() + 172800000).toISOString(), // 48h later
-        },
-        {
-          id: "vc-reds-01",
-          title: "Reds Opening Day Parade",
-          description: "The historic Findlay Market Opening Day Parade.",
-          address: "Findlay Market, 1801 Race St, Cincinnati, OH 45202",
-          starts_at: new Date(Date.now() + 86400000).toISOString(),
-          expires_at: new Date(Date.now() + 100000000).toISOString(),
-        }
-      ];
-
-      const results = [];
-
-      for (const event of mockEvents) {
-        // Step 3: Geocoding Engine
-        console.log(`Visit Cincy Agent: Geocoding: ${event.address}`);
-        const geoResponse = await mapsClient.geocode({
-          params: {
-            address: event.address,
-            key: googleMapsKey,
-          },
-        });
-
-        if (geoResponse.data.results.length > 0) {
-          const { lat, lng } = geoResponse.data.results[0].geometry.location;
-
-          // Step 4: Schema Mapping & Injection
-          const broadcastRef = db.collection("broadcasts").doc(event.id);
-          const broadcastData = {
-            title: event.title.substring(0, 100),
-            description: event.description,
-            type: "civic_event",
-            starts_at: event.starts_at,
-            expires_at: event.expires_at,
-            current_vibe: "chill",
-            partner_id: "visit-cincy",
-            latitude: lat,
-            longitude: lng,
-            created_at: admin.firestore.FieldValue.serverTimestamp(),
-          };
-
-          batch.set(broadcastRef, broadcastData, { merge: true });
-          results.push({ id: event.id, title: event.title, lat, lng });
-        }
-      }
-
-      if (results.length > 0) {
-        await batch.commit();
-      }
-      console.log(`Visit Cincy Agent: Sync Complete. Processed ${results.length} events.`);
-      return { 
-        status: "Sync Complete", 
-        processed: results.length,
-        events: results 
-      };
-
-    } catch (error) {
-      console.error("Visit Cincy Agent: Sync Error:", error);
-      return { error: "Failed to sync civic events", details: String(error) };
-    }
-  };
-
-  // Manual trigger for admin
-  app.post("/api/admin/sync-civic-events", async (req, res) => {
-    const result = await syncCivicEvents();
-    if ('error' in result) {
-      return res.status(500).json(result);
-    }
-    res.json(result);
-  });
-
-  // Manual trigger for Visit Cincy sync
-  app.post("/api/admin/sync/visit-cincy", async (req, res) => {
-    try {
-      const result = await runVisitCincyAgent();
+      console.log("Admin: Triggering Library Ingestion Agent...");
+      const result = await runLibraryIngestionAgent();
       res.json(result);
     } catch (error) {
-      console.error("Visit Cincy Agent: Sync Error:", error);
-      res.status(500).json({ error: "Failed to sync Visit Cincy events", details: String(error) });
+      console.error("Library Ingestion Agent: Sync Error:", error);
+      res.status(500).json({ error: "Failed to sync Library events", details: String(error) });
     }
-  });
-
-  // Step 1: Schedule: Run daily at 3:00 AM EST (0 3 * * *)
-  // Note: Server time is UTC. 3:00 AM EST is 7:00 AM or 8:00 AM UTC.
-  // We'll use the 'America/New_York' timezone if supported by node-cron, 
-  // or calculate the UTC offset.
-  cron.schedule('0 3 * * *', async () => {
-    console.log("Visit Cincy Agent: Running scheduled 3:00 AM sync...");
-    await syncCivicEvents();
-  }, {
-    timezone: "America/New_York"
-  });
-
-  // Library Agent Schedule: Run daily at 2:00 AM EST (0 2 * * *)
-  cron.schedule('0 2 * * *', async () => {
-    console.log("Library Agent: Running scheduled 2:00 AM sync...");
-    await syncLibraryEvents();
-  }, {
-    timezone: "America/New_York"
-  });
-
-  // Visit Cincy Schedule: Run every 6 hours
-  cron.schedule('0 */6 * * *', async () => {
-    console.log("Visit Cincy Agent: Running scheduled 6-hour sync...");
-    await runVisitCincyAgent();
-  }, {
-    timezone: "America/New_York"
   });
 
   app.post("/api/create-checkout-session", async (req, res) => {
@@ -687,7 +454,7 @@ async function startServer() {
           scope: payload.scope || 'single_hub',
           payment_type: payload.payment_type || 'free',
           price: payload.price || 0,
-          created_at: admin.firestore.FieldValue.serverTimestamp(),
+          created_at: FieldValue.serverTimestamp(),
           stripe_session_id: sessionId
         };
 
@@ -719,7 +486,7 @@ async function startServer() {
             broadcastId,
             status: 'confirmed',
             paid_amount: session.amount_total / 100,
-            created_at: admin.firestore.FieldValue.serverTimestamp(),
+            created_at: FieldValue.serverTimestamp(),
             stripe_session_id: sessionId
           });
         });
@@ -744,6 +511,12 @@ async function startServer() {
     // Intercept index.html in dev to replace OG placeholder
     app.get('*', async (req, res, next) => {
       const url = req.originalUrl;
+      
+      // Skip catch-all for static assets, scripts, and API routes
+      if (url.includes('.') || url.startsWith('/api')) {
+        return next();
+      }
+
       try {
         let template = fs.readFileSync(path.resolve(__dirname, "index.html"), "utf-8");
         template = await vite.transformIndexHtml(url, template);
@@ -761,7 +534,12 @@ async function startServer() {
   } else {
     const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
-    app.get('*', (req, res) => {
+    app.get('*', (req, res, next) => {
+      // Skip for static assets or API nodes
+      if (req.originalUrl.includes('.') || req.originalUrl.startsWith('/api')) {
+        return next();
+      }
+
       const indexPath = path.join(distPath, 'index.html');
       const appUrl = process.env.APP_URL || `http://localhost:${PORT}`;
       const ogImageUrl = `${appUrl}/api/og`;
@@ -778,6 +556,7 @@ async function startServer() {
 
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`URBAN HIKERS OS: LISTENING ON PORT ${PORT}`);
+    initializeScheduler();
   });
 }
 

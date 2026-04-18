@@ -32,6 +32,9 @@ interface DepartureBoardProps {
   savedHubs?: Node[];
   partnersMap?: Record<string, Partner>;
   routes?: Route[];
+  activeRoute?: Route | null;
+  userLocation?: [number, number] | null;
+  onGeolocate?: () => void;
   guidesMap?: Record<string, Guide>;
   sponsorsMap?: Record<string, Sponsor>;
   onStartRoute?: (route: Route) => void;
@@ -59,7 +62,10 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
   onTabChange,
   savedHubs = [],
   partnersMap = {},
-  routes = [],
+  routes: allRoutes = [],
+  activeRoute,
+  userLocation,
+  onGeolocate,
   guidesMap = {},
   sponsorsMap = {},
   onStartRoute = () => {},
@@ -170,7 +176,7 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
       >
         {headerTheme === 'photo' && scrollProgress <= 0.8 && (
           <img 
-            src={`https://picsum.photos/seed/${currentNode?.id || 'node'}/800/600`}
+            src={currentNode?.imageUrl || `https://picsum.photos/seed/${currentNode?.id || 'node'}/800/600`}
             className="absolute inset-0 w-full h-full object-cover opacity-40"
             alt="Header Background"
             referrerPolicy="no-referrer"
@@ -347,6 +353,9 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
                   broadcasts={broadcasts} 
                   onSelect={onSelect} 
                   partnersMap={partnersMap}
+                  activeRoute={activeRoute}
+                  userLocation={userLocation}
+                  onGeolocate={onGeolocate}
                 />
               </div>
               <div className="p-6 flex flex-col gap-4 border-t border-uh-gray-100">
@@ -355,14 +364,14 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
                   <div className="flex-1 h-[1px] bg-uh-gray-100" />
                 </div>
                 
-                {routes.length === 0 ? (
+                {allRoutes.length === 0 ? (
                   <div className="py-12 text-center flex flex-col items-center justify-center">
                     <div className="text-uh-gray-400 italic mb-4 tracking-wider text-[10px] font-sans leading-relaxed max-w-[280px]">
                       No routes available in this sector.
                     </div>
                   </div>
                 ) : (
-                  routes.map((route) => (
+                  allRoutes.map((route) => (
                     <RouteCard 
                       key={route.id} 
                       route={route} 

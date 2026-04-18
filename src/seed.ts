@@ -412,6 +412,13 @@ const seedData = async () => {
           { nodeId: 'OTR-ALPHA-01', name: 'Findlay Market Node', description: 'Meet at the north gate.' },
           { nodeId: 'partner-allez', name: 'Allez Bakery', description: 'End of the sprint and pastry pickup.' }
         ],
+        points: [
+          { lat: 39.1092, lng: -84.5125 },
+          { lat: 39.1100, lng: -84.5125 },
+          { lat: 39.1105, lng: -84.5135 },
+          { lat: 39.1100, lng: -84.5145 },
+          { lat: 39.1085, lng: -84.5120 }
+        ],
         imageUrl: 'https://picsum.photos/seed/arch/800/400'
       },
       {
@@ -434,6 +441,12 @@ const seedData = async () => {
           { nodeId: 'OTR-ALPHA-01', name: 'Alpha Plaza Hub', description: 'Start at the main hub.' },
           { nodeId: 'partner-cac', name: 'Contemporary Arts Center', description: 'End at CAC for the exhibition.' }
         ],
+        points: [
+          { lat: 39.1092, lng: -84.5125 },
+          { lat: 39.1070, lng: -84.5125 },
+          { lat: 39.1050, lng: -84.5121 },
+          { lat: 39.1031, lng: -84.5121 }
+        ],
         imageUrl: 'https://picsum.photos/seed/murals/800/400'
       },
       {
@@ -451,6 +464,12 @@ const seedData = async () => {
         stops: [
           { nodeId: 'OTR-ALPHA-01', description: 'Start at Alpha Plaza' },
           { nodeId: 'partner-rhinegeist', description: 'Rhinegeist Taproom Tasting' }
+        ],
+        points: [
+          { lat: 39.1092, lng: -84.5125 },
+          { lat: 39.1120, lng: -84.5135 },
+          { lat: 39.1150, lng: -84.5160 },
+          { lat: 39.1172, lng: -84.5191 }
         ],
         imageUrl: 'https://picsum.photos/seed/brewery/800/400'
       }

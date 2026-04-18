@@ -30,6 +30,7 @@ export interface Node {
   longitude: number;
   radius_limit: number;
   capacity?: number;
+  imageUrl?: string;
 }
 
 export interface Broadcast {
@@ -46,10 +47,10 @@ export interface Broadcast {
   latitude?: number;
   longitude?: number;
   coords?: { lat: number; lng: number } | null;
-  starts_at?: string;
+  starts_at: string;
   startsAt?: string; // Alias for camelCase
   startTime?: any;
-  expires_at?: string;
+  expires_at: string;
   expiresAt?: string; // Alias for camelCase
   current_vibe?: Vibe;
   currentVibe?: Vibe; // Alias for camelCase
@@ -73,6 +74,7 @@ export interface Broadcast {
   guide_name?: string;
   scope?: 'single_hub' | 'all_nodes';
   discount_value?: string;
+  signal_location_source?: string;
 }
 
 export interface Partner {

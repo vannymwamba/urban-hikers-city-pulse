@@ -199,7 +199,7 @@ export const BroadcastCard: React.FC<BroadcastCardProps> = ({
             <div className="flex items-center gap-1 bg-white/10 backdrop-blur-md px-2 py-1 rounded-[20px] border border-white/10">
               <MapPin size={10} className="text-uh-yellow" />
               <span className="text-[9px] font-black text-white uppercase tracking-tighter font-mono">
-                {item.meeting_point || item.venue || 'Washington Park'} · {walkTime} MIN
+                {item.meeting_point || item.venue || item.address || 'Washington Park'} · {walkTime} MIN
               </span>
             </div>
           </div>

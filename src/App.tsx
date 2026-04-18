@@ -3,9 +3,10 @@ import { auth, db } from './firebase';
 import { signInWithPopup, GoogleAuthProvider, onAuthStateChanged, User } from 'firebase/auth';
 import { useLocation } from 'react-router-dom';
 import { collection, onSnapshot, query, where, addDoc, doc, getDoc, setDoc, getDocs, orderBy, getDocFromServer, updateDoc } from 'firebase/firestore';
-import { Node, Broadcast, Vibe, UserProfile, UserRole, Partner, BroadcastType } from './types';
+import { Node, Broadcast, Vibe, UserProfile, UserRole, Partner, BroadcastType, Route, Guide, Sponsor } from './types';
 import { BASE_URL } from './constants';
 import { DepartureBoard } from './components/DepartureBoard';
+import { BroadcastModal } from './components/BroadcastModal';
 import { VibeCheck } from './components/VibeCheck';
 import { VibeTrend } from './components/VibeTrend';
 import { Dashboard } from './components/Dashboard';
@@ -91,6 +92,9 @@ export default function App() {
   const [currentNode, setCurrentNode] = useState<Node | null>(null);
   const [rawBroadcasts, setRawBroadcasts] = useState<Broadcast[]>([]);
   const [rawPois, setRawPois] = useState<Broadcast[]>([]);
+  const [routes, setRoutes] = useState<Route[]>([]);
+  const [guidesMap, setGuidesMap] = useState<Record<string, Guide>>({});
+  const [sponsorsMap, setSponsorsMap] = useState<Record<string, Sponsor>>({});
   const [broadcasts, setBroadcasts] = useState<Broadcast[]>([]);
   const [partnersMap, setPartnersMap] = useState<Record<string, Partner>>({});
   const [selectedBroadcast, setSelectedBroadcast] = useState<Broadcast | null>(null);
@@ -99,6 +103,8 @@ export default function App() {
   const [nfcStatus, setNfcStatus] = useState<'idle' | 'scanning' | 'error' | 'unsupported'>('idle');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
+  const [activeRoute, setActiveRoute] = useState<Route | null>(null);
   const [isReporting, setIsReporting] = useState(false);
   const [isSeeding, setIsSeeding] = useState(false);
   const [hudMessage, setHudMessage] = useState<{ text: string; type: 'error' | 'info' } | null>(null);
@@ -175,6 +181,35 @@ export default function App() {
     window.addEventListener('popstate', handleLocationChange);
     return () => window.removeEventListener('popstate', handleLocationChange);
   }, []);
+
+  useEffect(() => {
+    if (!navigator.geolocation) return;
+
+    const watchId = navigator.geolocation.watchPosition(
+      (pos) => {
+        setUserLocation([pos.coords.latitude, pos.coords.longitude]);
+      },
+      (err) => {
+        console.warn("GEOLOCATION_ERROR:", err.message);
+      },
+      { enableHighAccuracy: true }
+    );
+
+    return () => navigator.geolocation.clearWatch(watchId);
+  }, []);
+
+  const handleGeolocate = () => {
+    if (!navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setUserLocation([pos.coords.latitude, pos.coords.longitude]);
+        setHudMessage({ text: "LOCATION_RECALIBRATED", type: 'info' });
+      },
+      (err) => {
+        setHudMessage({ text: "LOCATION_ACCESS_DENIED", type: 'error' });
+      }
+    );
+  };
 
   useEffect(() => {
     if (hudMessage) {
@@ -346,6 +381,29 @@ export default function App() {
     return () => unsub();
   }, []);
 
+  // Sync Routes, Guides, and Sponsors
+  useEffect(() => {
+    const unsubRoutes = onSnapshot(collection(db, 'routes'), (snap) => {
+      setRoutes(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Route)));
+    });
+    const unsubGuides = onSnapshot(collection(db, 'guides'), (snap) => {
+      const gMap: Record<string, Guide> = {};
+      snap.docs.forEach(doc => gMap[doc.id] = { id: doc.id, ...doc.data() } as Guide);
+      setGuidesMap(gMap);
+    });
+    const unsubSponsors = onSnapshot(collection(db, 'sponsors'), (snap) => {
+      const sMap: Record<string, Sponsor> = {};
+      snap.docs.forEach(doc => sMap[doc.id] = { id: doc.id, ...doc.data() } as Sponsor);
+      setSponsorsMap(sMap);
+    });
+
+    return () => {
+      unsubRoutes();
+      unsubGuides();
+      unsubSponsors();
+    };
+  }, []);
+
   const handleLogin = (isPartner = false) => {
     // Save the current path to redirect back after login
     if (nodeId) {
@@ -421,8 +479,11 @@ export default function App() {
   const isCreatorIgnite = creatorIndex !== -1 && pathParts[creatorIndex + 1] === 'ignite';
   const isCheckoutSuccess = pathParts.includes('checkout') && pathParts.includes('success');
   const isCheckoutCancel = pathParts.includes('checkout') && pathParts.includes('cancel');
-  const nodeId = tapIndex !== -1 && pathParts[tapIndex + 1] ? pathParts[tapIndex + 1].toUpperCase() : 
-                 (isCreatorIgnite && pathParts[creatorIndex + 2] ? pathParts[creatorIndex + 2].toUpperCase() : null);
+  const rawNodeId = tapIndex !== -1 && pathParts[tapIndex + 1] ? pathParts[tapIndex + 1] : 
+                 (isCreatorIgnite && pathParts[creatorIndex + 2] ? pathParts[creatorIndex + 2] : null);
+  
+  // Use raw ID as-is. Standardize casing only during lookups for maximum compatibility.
+  const nodeId = rawNodeId;
   const isHome = path === '/' || path === '';
 
   useEffect(() => {
@@ -1116,7 +1177,18 @@ export default function App() {
           onTabChange={setCurrentTab}
           savedHubs={savedHubs}
           partnersMap={partnersMap}
+          routes={routes}
+          guidesMap={guidesMap}
+          sponsorsMap={sponsorsMap}
           nfcStatus={nfcStatus}
+          activeRoute={activeRoute}
+          userLocation={userLocation}
+          onGeolocate={handleGeolocate}
+          onStartRoute={(route) => {
+            setActiveRoute(route);
+            setHudMessage({ text: "ROUTE_START: NAVIGATION_HUD_ACTIVE", type: 'info' });
+            setCurrentTab('explore'); // Switch to map tab to show the route
+          }}
         />
 
         {/* HUD Notifications */}
@@ -1146,92 +1218,16 @@ export default function App() {
           {isSeeding ? 'SEEDING...' : '[INIT_DB]'}
         </button>
 
-        <AnimatePresence>
-          {selectedBroadcast && (
-            <motion.div
-              initial={{ y: '100%' }}
-              animate={{ y: 0 }}
-              exit={{ y: '100%' }}
-              transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-              className="absolute inset-x-0 bottom-0 z-[2000] px-4 pb-4"
-            >
-              <div className="bg-white rounded-[40px] shadow-[0_-20px_60px_rgba(0,0,0,0.15)] max-h-[85vh] overflow-y-auto border border-uh-gray-100">
-                {/* Drag Handle */}
-                <div className="flex justify-center pt-4 pb-2">
-                  <div className="w-12 h-1.5 bg-uh-gray-200 rounded-full" />
-                </div>
-
-                <div className="p-8">
-                  <div className="flex justify-between items-start mb-8">
-                    <div className="min-w-0 flex-1">
-                      <div className="text-[10px] font-black tracking-widest text-uh-gray-400 mb-2 uppercase font-mono">SELECTED_EVENT</div>
-                      <h3 className="text-2xl font-black text-uh-black uppercase tracking-tight leading-tight">{selectedBroadcast.title}</h3>
-                    </div>
-                    <div className="flex gap-3">
-                      <button 
-                        onClick={() => handleShare(
-                          selectedBroadcast.title,
-                          `Check out this event at ${currentNode?.name}!`,
-                          `${BASE_URL}/tap/${nodeId}`
-                        )}
-                        className="flex items-center justify-center w-12 h-12 bg-uh-gray-50 text-uh-black rounded-full hover:bg-uh-gray-100 transition-colors border border-uh-gray-100"
-                        title="Share Signal"
-                      >
-                        <Share2 size={20} />
-                      </button>
-                      {selectedBroadcastNode && (
-                        <button 
-                          onClick={() => toggleSaveHub(selectedBroadcastNode)}
-                          className={`flex items-center justify-center w-12 h-12 rounded-full transition-all border ${
-                            isSelectedBroadcastNodeSaved 
-                              ? 'bg-uh-magenta text-white border-uh-magenta shadow-lg shadow-uh-magenta/20' 
-                              : 'bg-uh-gray-50 text-uh-black border-uh-gray-100 hover:bg-uh-gray-100'
-                          }`}
-                          title={isSelectedBroadcastNodeSaved ? "Remove from Wallet" : "Save to Wallet"}
-                        >
-                          <Wallet size={20} />
-                        </button>
-                      )}
-                      <button 
-                        onClick={() => setSelectedBroadcast(null)}
-                        className="w-12 h-12 flex items-center justify-center bg-uh-black text-uh-yellow rounded-full shadow-lg"
-                      >
-                        <X size={20} />
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="mb-10">
-                    <div className="text-[10px] font-black tracking-widest text-uh-gray-400 uppercase mb-4 font-mono">SIGNAL_INTEL</div>
-                    <div className="bg-uh-gray-50 rounded-[32px] p-6 border border-uh-gray-100">
-                      <p className="text-[15px] text-uh-gray-800 leading-relaxed font-sans font-medium">
-                        {selectedBroadcast.description || "NO_ADDITIONAL_INTEL_AVAILABLE_FOR_THIS_SIGNAL."}
-                      </p>
-                      {selectedBroadcast.address && (
-                        <div className="mt-6 pt-6 border-t border-uh-gray-200 flex items-center gap-3 text-[12px] text-uh-gray-600 font-bold">
-                          <MapPin size={16} className="text-uh-yellow" />
-                          <span>{selectedBroadcast.address}</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                  
-                  <div className="grid grid-cols-1 gap-10">
-                    <div>
-                      <div className="text-[10px] font-black tracking-widest text-uh-gray-400 uppercase mb-4 font-mono">VIBE_CHECK</div>
-                      <VibeCheck onReport={handleVibeReport} isReporting={isReporting} />
-                    </div>
-                    
-                    <div>
-                      <div className="text-[10px] font-black tracking-widest text-uh-gray-400 uppercase mb-4 font-mono">VIBE_TREND_ANALYSIS</div>
-                      <VibeTrend broadcastId={selectedBroadcast.id} />
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        <BroadcastModal
+          broadcast={selectedBroadcast}
+          onClose={() => setSelectedBroadcast(null)}
+          onShare={handleShare}
+          onSaveToWallet={toggleSaveHub}
+          isSaved={isSelectedBroadcastNodeSaved}
+          node={selectedBroadcastNode}
+          onVibeReport={handleVibeReport}
+          isReporting={isReporting}
+        />
       </div>
     </ErrorBoundary>
   );

@@ -60,12 +60,13 @@
         "type": { "type": "string", "enum": ["flash_deal", "event", "conference_panel", "civic_event", "civic_free", "live_performance"] },
         "latitude": { "type": "number" },
         "longitude": { "type": "number" },
+        "starts_at": { "type": "string", "format": "date-time" },
         "expires_at": { "type": "string", "format": "date-time" },
         "current_vibe": { "type": "string", "enum": ["chill", "buzzing", "packed"] },
         "active": { "type": "boolean", "description": "Whether the broadcast is currently live" },
         "tip_url": { "type": "string", "description": "Optional digital tip jar URL" }
       },
-      "required": ["id", "title", "type", "latitude", "longitude", "expires_at", "current_vibe"]
+      "required": ["id", "title", "type", "latitude", "longitude", "starts_at", "expires_at", "current_vibe"]
     },
     "Tap": {
       "title": "Proof of Presence Tap",
@@ -145,6 +146,33 @@
         "tab": { "type": "string" }
       },
       "required": ["id", "type", "session_uuid", "access_vector", "timestamp"]
+    },
+    "Signal": {
+      "title": "Civic Pulse Signal",
+      "description": "Scraped and enriched civic events.",
+      "type": "object",
+      "properties": {
+        "source": { "type": "string" },
+        "source_id": { "type": "string" },
+        "signal_title": { "type": "string" },
+        "signal_vibe": { "type": "string", "enum": ["CHILL", "BUZZING", "PACKED"] },
+        "signal_category": { "type": "string", "enum": ["CIVIC_EVENT", "WALKING_EVENT", "COMMUNITY", "KIDS", "WORKSHOP", "PERFORMANCE"] },
+        "short_description": { "type": "string" },
+        "location_name": { "type": "string" },
+        "location_address": { "type": "string" },
+        "nearest_hub": { "type": "string" },
+        "walking_relevance_score": { "type": "number" },
+        "start_datetime": { "type": "string", "format": "date-time" },
+        "end_datetime": { "type": "string", "format": "date-time" },
+        "expires_at": { "type": "string", "format": "date-time" },
+        "registration_required": { "type": "boolean" },
+        "event_url": { "type": "string" },
+        "image_url": { "type": "string" },
+        "created_at": { "type": "string", "format": "date-time" },
+        "node_id": { "type": "string" },
+        "is_active": { "type": "boolean" }
+      },
+      "required": ["source", "source_id", "signal_title", "start_datetime", "end_datetime"]
     }
   },
   "firestore": {
@@ -183,6 +211,10 @@
     "/interactions/{interactionId}": {
       "schema": "Interaction",
       "description": "General user interaction logs."
+    },
+    "/signals/{signalId}": {
+      "schema": "Signal",
+      "description": "Database of aggregated civic signals."
     }
   }
 }

@@ -31,6 +31,14 @@ export const WalletCard: React.FC<WalletCardProps> = ({ sector, vibe = 'UNKNOWN'
         borderColor: colors.magenta,
       }}
     >
+      {/* Sector Background Image */}
+      {sector.imageUrl && (
+        <div className="absolute inset-0 opacity-20 transition-opacity group-hover:opacity-30">
+          <img src={sector.imageUrl} alt="" className="w-full h-full object-cover grayscale" referrerPolicy="no-referrer" />
+          <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent" />
+        </div>
+      )}
+
       {/* Scanline Overlay Effect */}
       <div className="pointer-events-none absolute inset-0 z-10 opacity-10" 
            style={{ background: 'linear-gradient(rgba(18,16,16,0) 50%, rgba(0,0,0,0.25) 50%), linear-gradient(90deg, rgba(255,0,0,0.06), rgba(0,255,0,0.02), rgba(0,0,255,0.06))', backgroundSize: '100% 2px, 3px 100%' }}></div>

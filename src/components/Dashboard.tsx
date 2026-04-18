@@ -33,6 +33,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
   const [taps, setTaps] = useState<Tap[]>([]);
   const [tabViews, setTabViews] = useState<TabView[]>([]);
   const [interactions, setInteractions] = useState<Interaction[]>([]);
+  const [syncLogs, setSyncLogs] = useState<any[]>([]);
   
   // Form states
   const [newNode, setNewNode] = useState({ name: '', type: 'street' as HubType, address: '', lat: 0, lng: 0, radius: 500 });
@@ -70,10 +71,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
   // New Broadcast fields
   const [broadcastImageUrl, setBroadcastImageUrl] = useState('');
   const [broadcastImageMode, setBroadcastImageMode] = useState<'url' | 'upload'>('url');
+  const [nodeImageUrl, setNodeImageUrl] = useState('');
+  const [nodeImageMode, setNodeImageMode] = useState<'url' | 'upload'>('url');
   const [broadcastAddress, setBroadcastAddress] = useState('');
   const [broadcastCustomLat, setBroadcastCustomLat] = useState<number | null>(null);
   const [broadcastCustomLng, setBroadcastCustomLng] = useState<number | null>(null);
   const [isUploadingBroadcastImage, setIsUploadingBroadcastImage] = useState(false);
+  const [isUploadingNodeImage, setIsUploadingNodeImage] = useState(false);
   
   const [activeTab, setActiveTab] = useState<'hubs' | 'broadcasts' | 'partners' | 'analytics' | 'profile'>(isAdmin ? 'hubs' : 'broadcasts');
   const [hudMessage, setHudMessage] = useState<{ text: string; type: 'info' | 'error' } | null>(null);
@@ -204,6 +208,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
         unsubscribers.push(onSnapshot(interactionsQuery, (snap) => {
           setInteractions(snap.docs.map(d => ({ id: d.id, ...d.data() } as Interaction)));
         }, (err) => handleFirestoreError(err, OperationType.LIST, 'interactions')));
+
+        const syncLogsQuery = query(collection(db, 'sync_logs'), orderBy('timestamp', 'desc'), limit(10));
+        unsubscribers.push(onSnapshot(syncLogsQuery, (snap) => {
+          setSyncLogs(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+        }, (err) => handleFirestoreError(err, OperationType.LIST, 'sync_logs')));
       }
 
       return () => unsubscribers.forEach(unsub => unsub());
@@ -277,13 +286,16 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
         address: newNode.address,
         latitude: Number(newNode.lat),
         longitude: Number(newNode.lng),
-        radius_limit: Number(newNode.radius)
+        radius_limit: Number(newNode.radius),
+        imageUrl: nodeImageUrl
       });
     } catch (err) {
       handleFirestoreError(err, OperationType.WRITE, `nodes/${id}`);
     }
     setHudMessage({ text: editingNodeId ? `HUB_RECONFIGURED: ${newNode.name.toUpperCase()}` : `HUB_IGNITED: ${newNode.name.toUpperCase()}`, type: 'info' });
     setNewNode({ name: '', type: 'street', address: '', lat: 0, lng: 0, radius: 500 });
+    setNodeImageUrl('');
+    setNodeImageMode('url');
     setEditingNodeId(null);
   };
 
@@ -414,6 +426,27 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
     }
   };
 
+  const handleNodeImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    setIsUploadingNodeImage(true);
+    try {
+      const timestamp = Date.now();
+      const storagePath = `hubs/${timestamp}_${file.name}`;
+      const storageRef = ref(storage, storagePath);
+      const uploadTask = await uploadBytesResumable(storageRef, file);
+      const downloadURL = await getDownloadURL(uploadTask.ref);
+      setNodeImageUrl(downloadURL);
+      setHudMessage({ text: 'IMAGE_UPLOAD_SUCCESS', type: 'info' });
+    } catch (err) {
+      console.error('Hub image upload error:', err);
+      setHudMessage({ text: 'UPLOAD_FAILED', type: 'error' });
+    } finally {
+      setIsUploadingNodeImage(false);
+    }
+  };
+
   const handleResolveBroadcastAddress = async () => {
     if (!broadcastAddress) return;
     setIsGeocoding(true);
@@ -502,6 +535,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
         latitude,
         longitude,
         address,
+        venue: broadcastAddress || (newBroadcast.locationSource === 'node' ? targetNode?.name : partner?.name) || 'Washington Park',
+        signal_location_source: broadcastAddress ? 'CUSTOM_ADDRESS' : (newBroadcast.locationSource === 'node' ? 'TARGET_HUB' : 'PARTNER_DEFAULT'),
         startsAt: startsAt,
         starts_at: startsAt,
         expiresAt: expiresAt,
@@ -935,6 +970,84 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
                     </select>
                   </div>
 
+                  {/* Hub Identity Image */}
+                  <div className="col-span-2 flex flex-col gap-4 p-6 bg-white border border-uh-gray-200 rounded-2xl">
+                    <div className="flex justify-between items-center">
+                      <label className="text-[10px] font-black text-uh-gray-400 uppercase tracking-widest">Hub_Identity_Image</label>
+                      <div className="flex bg-uh-gray-100 rounded-lg p-1 gap-1">
+                        <button 
+                          type="button"
+                          onClick={() => setNodeImageMode('url')}
+                          className={`px-3 py-1 text-[9px] font-black rounded-md transition-all ${nodeImageMode === 'url' ? 'bg-white text-uh-black shadow-sm' : 'text-uh-gray-400 hover:text-uh-gray-600'}`}
+                        >
+                          DIRECT_LINK
+                        </button>
+                        <button 
+                          type="button"
+                          onClick={() => setNodeImageMode('upload')}
+                          className={`px-3 py-1 text-[9px] font-black rounded-md transition-all ${nodeImageMode === 'upload' ? 'bg-white text-uh-black shadow-sm' : 'text-uh-gray-400 hover:text-uh-gray-600'}`}
+                        >
+                          UPLOAD_FILE
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="flex gap-6 items-start">
+                      <div className="w-32 h-32 rounded-xl bg-uh-gray-50 border-2 border-dashed border-uh-gray-200 overflow-hidden flex items-center justify-center shrink-0">
+                        {nodeImageUrl ? (
+                          <img src={nodeImageUrl} alt="Hub Preview" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                        ) : (
+                          <ImageIcon size={32} className="text-uh-gray-200" />
+                        )}
+                      </div>
+                      
+                      <div className="flex-1 flex flex-col gap-3">
+                        {nodeImageMode === 'url' ? (
+                          <div className="flex gap-2">
+                            <input 
+                              placeholder="HTTPS://IMAGE_SOURCE_URL..."
+                              className="flex-1 bg-uh-gray-50 border border-uh-gray-200 rounded-xl p-4 text-sm focus:border-uh-yellow outline-none text-uh-black font-mono"
+                              value={nodeImageUrl}
+                              onChange={e => setNodeImageUrl(e.target.value)}
+                            />
+                            {nodeImageUrl && (
+                              <button 
+                                type="button" 
+                                onClick={() => setNodeImageUrl('')}
+                                className="px-4 text-uh-magenta hover:bg-uh-magenta/5 rounded-xl transition-all"
+                              >
+                                <X size={18} />
+                              </button>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="relative">
+                            <input 
+                              type="file" 
+                              className="absolute inset-0 opacity-0 cursor-pointer" 
+                              onChange={handleNodeImageUpload}
+                              disabled={isUploadingNodeImage}
+                              accept="image/*"
+                            />
+                            <div className={`w-full p-8 border-2 border-dashed rounded-xl flex flex-col items-center justify-center gap-2 transition-all ${isUploadingNodeImage ? 'bg-uh-gray-100 border-uh-gray-300' : 'bg-uh-gray-50 border-uh-gray-200 hover:border-uh-yellow'}`}>
+                              {isUploadingNodeImage ? (
+                                <RefreshCw size={24} className="text-uh-yellow animate-spin" />
+                              ) : (
+                                <>
+                                  <Plus size={24} className="text-uh-gray-400" />
+                                  <span className="text-[10px] font-black text-uh-gray-400 uppercase tracking-widest">Select_Image_File</span>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                        <p className="text-[9px] text-uh-gray-400 font-bold uppercase tracking-widest leading-relaxed">
+                          Visual representative for this Hub. Shown on departure boards and attendee wallets.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
                   <div className="col-span-2 flex flex-col gap-2">
                     <label className="text-[10px] font-black text-uh-gray-400 uppercase tracking-widest">Physical_Address (Tactical_Location)</label>
                     <div className="flex gap-3">
@@ -1009,9 +1122,16 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
                   .filter(node => isAdmin || broadcasts.some(b => b.node_id === node.id))
                   .map(node => (
                     <div key={node.id} className="bg-white border border-uh-gray-200 rounded-2xl p-6 flex justify-between items-center group hover:border-uh-yellow transition-all shadow-sm">
-                      <div className="flex-1">
-                        <div className="text-lg font-black text-uh-black mb-1">{node.name}</div>
-                        <div className="text-[10px] text-uh-gray-400 font-black tracking-widest uppercase">ID: {node.id} // TYPE: {node.type?.toUpperCase() || 'UNKNOWN'}</div>
+                      <div className="flex-1 flex items-center gap-4">
+                        {node.imageUrl && (
+                          <div className="w-12 h-12 rounded-lg overflow-hidden shrink-0 border border-uh-gray-100 shadow-sm">
+                            <img src={node.imageUrl} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                          </div>
+                        )}
+                        <div>
+                          <div className="text-lg font-black text-uh-black mb-1">{node.name}</div>
+                          <div className="text-[10px] text-uh-gray-400 font-black tracking-widest uppercase">ID: {node.id} // TYPE: {node.type?.toUpperCase() || 'UNKNOWN'}</div>
+                        </div>
                       </div>
                       <div className="flex gap-10 items-center">
                         <div className="w-16 text-right">
@@ -1035,6 +1155,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
                                   lng: node.longitude,
                                   radius: node.radius_limit
                                 });
+                                setNodeImageUrl(node.imageUrl || '');
+                                setNodeImageMode('url');
                                 window.scrollTo({ top: 0, behavior: 'smooth' });
                               }}
                               className="p-3 bg-uh-gray-50 text-uh-gray-600 rounded-xl border border-uh-gray-200 hover:border-uh-yellow hover:text-uh-black transition-all"
@@ -1953,6 +2075,65 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
                               </tr>
                             );
                           })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  {/* Sync Logs */}
+                  <div className="bg-white border border-uh-gray-200 rounded-2xl p-8 shadow-sm">
+                    <div className="flex items-center justify-between mb-6">
+                      <h3 className="text-xl font-black tracking-tighter text-uh-black">CIVIC_INGESTION_LOGS</h3>
+                      <div className="flex gap-2">
+                        <button 
+                          onClick={handleSyncCivic}
+                          disabled={isSyncingCivic}
+                          className="flex items-center gap-2 px-3 py-1.5 border border-uh-gray-200 text-uh-gray-800 text-[9px] font-black tracking-widest hover:bg-uh-gray-100 transition-all disabled:opacity-50 rounded-lg"
+                        >
+                          <RefreshCw size={10} className={isSyncingCivic ? 'animate-spin' : ''} />
+                          FORCE_SYNC
+                        </button>
+                      </div>
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left">
+                        <thead>
+                          <tr className="border-b border-uh-gray-100">
+                            <th className="pb-4 text-[9px] font-black text-uh-gray-400 uppercase tracking-widest">Timestamp</th>
+                            <th className="pb-4 text-[9px] font-black text-uh-gray-400 uppercase tracking-widest">VisitCincy</th>
+                            <th className="pb-4 text-[9px] font-black text-uh-gray-400 uppercase tracking-widest">CHPL</th>
+                            <th className="pb-4 text-[9px] font-black text-uh-gray-400 uppercase tracking-widest">Total</th>
+                            <th className="pb-4 text-[9px] font-black text-uh-gray-400 uppercase tracking-widest">Errors</th>
+                            <th className="pb-4 text-[9px] font-black text-uh-gray-400 uppercase tracking-widest">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-uh-gray-50">
+                          {syncLogs.length === 0 ? (
+                            <tr>
+                              <td colSpan={6} className="py-8 text-center text-uh-gray-400 text-[10px] font-mono italic">
+                                NO_SYNC_DATA_AVAILABLE
+                              </td>
+                            </tr>
+                          ) : (
+                            syncLogs.map((log) => (
+                              <tr key={log.id} className="hover:bg-uh-gray-50/50 transition-colors">
+                                <td className="py-4 text-[10px] font-mono text-uh-black">
+                                  {log.timestamp?.toDate ? log.timestamp.toDate().toLocaleString() : 'PENDING...'}
+                                </td>
+                                <td className="py-4 text-[11px] font-black text-uh-black">{log.visitCincy || 0}</td>
+                                <td className="py-4 text-[11px] font-black text-uh-black">{log.chpl || 0}</td>
+                                <td className="py-4 text-[11px] font-black text-uh-black">{log.total || 0}</td>
+                                <td className="py-4 text-[11px] font-black text-uh-magenta">{log.errors || 0}</td>
+                                <td className="py-4">
+                                  <span className={`text-[8px] font-black px-2 py-0.5 rounded uppercase tracking-widest ${
+                                    log.status === 'success' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'
+                                  }`}>
+                                    {log.status || 'UNKNOWN'}
+                                  </span>
+                                </td>
+                              </tr>
+                            ))
+                          )}
                         </tbody>
                       </table>
                     </div>
