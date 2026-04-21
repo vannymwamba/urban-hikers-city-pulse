@@ -14,6 +14,7 @@ interface BroadcastModalProps {
   node: Node | null;
   onVibeReport?: (vibe: any) => void;
   isReporting?: boolean;
+  confirmed?: boolean;
 }
 
 export const BroadcastModal: React.FC<BroadcastModalProps> = ({
@@ -24,7 +25,8 @@ export const BroadcastModal: React.FC<BroadcastModalProps> = ({
   isSaved,
   node,
   onVibeReport,
-  isReporting
+  isReporting,
+  confirmed = false
 }) => {
   const startsAt = broadcast?.startsAt || broadcast?.starts_at;
   const expiresAt = broadcast?.expiresAt || broadcast?.expires_at;
@@ -52,10 +54,10 @@ export const BroadcastModal: React.FC<BroadcastModalProps> = ({
           />
           
           <motion.div
-            initial={{ scale: 0.9, opacity: 0, y: 20 }}
-            animate={{ scale: 1, opacity: 1, y: 0 }}
-            exit={{ scale: 0.9, opacity: 0, y: 20 }}
-            className="relative w-full max-w-2xl bg-white rounded-[40px] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+            initial={{ scale: 0.95, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.95, opacity: 0 }}
+            className="relative w-full max-w-2xl bg-white rounded-[32px] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
           >
             {/* Header Image */}
             <div className="relative h-64 sm:h-80 shrink-0">
@@ -65,79 +67,73 @@ export const BroadcastModal: React.FC<BroadcastModalProps> = ({
                 className="w-full h-full object-cover"
                 referrerPolicy="no-referrer"
               />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
               
               <button 
                 onClick={onClose}
-                className="absolute top-6 right-6 w-10 h-10 flex items-center justify-center bg-black/50 text-white rounded-full backdrop-blur-md hover:bg-black/70 transition-colors z-10"
+                className="absolute top-6 right-6 w-12 h-12 flex items-center justify-center bg-black/40 text-white rounded-full backdrop-blur-md hover:bg-black/60 transition-all z-10"
               >
-                <X size={20} />
+                <X size={24} />
               </button>
 
               <div className="absolute bottom-8 left-8 right-8">
-                <div className="text-[10px] font-black tracking-[0.2em] text-uh-yellow uppercase mb-2 font-mono">
-                  {broadcast.type.replace('_', ' ')}
-                </div>
+                 <div className="text-uh-yellow text-[11px] font-black tracking-[0.2em] uppercase font-mono mb-2">Local_Signal</div>
                 <h2 className="text-3xl sm:text-4xl font-black text-white uppercase tracking-tight leading-tight">
                   {broadcast.title}
                 </h2>
               </div>
             </div>
 
+            {/* Confirmed banner */}
+            {confirmed && (
+              <div className="bg-uh-teal px-8 py-3 flex items-center gap-3">
+                <div className="w-5 h-5 flex items-center justify-center bg-white/20 text-white rounded-full text-[10px] font-black shrink-0">✓</div>
+                <span className="text-[11px] font-black text-white uppercase tracking-widest font-mono">Signal_Confirmed // Ready for Tap</span>
+              </div>
+            )}
+
             {/* Content Area */}
-            <div className="flex-1 overflow-y-auto p-8 no-scrollbar">
+            <div className="flex-1 overflow-y-auto p-8 no-scrollbar bg-uh-gray-50">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                 {/* Main Info */}
                 <div className="md:col-span-2 space-y-8">
                   <section>
-                    <div className="text-[10px] font-black tracking-widest text-uh-gray-400 uppercase mb-4 font-mono">Signal_Intel</div>
-                    <div className="bg-uh-gray-50 rounded-[32px] p-6 border border-uh-gray-100">
-                      <p className="text-[15px] text-uh-gray-800 leading-relaxed font-sans font-medium whitespace-pre-wrap">
-                        {broadcast.description || "NO_ADDITIONAL_INTEL_AVAILABLE_FOR_THIS_SIGNAL."}
-                      </p>
-                    </div>
+                    <h3 className="text-[10px] font-black text-uh-gray-400 uppercase tracking-widest font-mono mb-3">Signal_Intel</h3>
+                    <p className="text-uh-gray-800 text-sm leading-relaxed whitespace-pre-wrap font-medium">
+                      {broadcast.description || "No additional intel available for this signal."}
+                    </p>
                   </section>
 
-                  <section className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                      <div className="text-[10px] font-black tracking-widest text-uh-gray-400 uppercase mb-3 font-mono">Location</div>
-                      <div className="flex items-start gap-3 p-4 bg-uh-gray-50 rounded-[24px] border border-uh-gray-100">
-                        <MapPin size={18} className="text-uh-yellow shrink-0 mt-0.5" />
-                        <div className="flex flex-col">
-                          <span className="text-sm font-black text-uh-black uppercase tracking-tight">
-                            {broadcast.venue || broadcast.meeting_point || 'Washington Park'}
-                          </span>
-                          {broadcast.address && (
-                            <span className="text-[10px] text-uh-gray-400 font-medium">{broadcast.address}</span>
-                          )}
-                        </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="p-5 bg-white rounded-2xl border border-uh-gray-100 shadow-sm transition-all hover:shadow-md">
+                      <div className="text-[9px] font-black text-uh-gray-400 uppercase tracking-widest font-mono mb-3">Location</div>
+                      <div className="flex items-start gap-2">
+                        <MapPin size={16} className="text-uh-yellow shrink-0 mt-0.5" />
+                        <span className="text-xs font-black text-uh-black uppercase tracking-tight">
+                          {broadcast.venue || broadcast.meeting_point || 'Washington Park'}
+                        </span>
                       </div>
                     </div>
 
-                    <div>
-                      <div className="text-[10px] font-black tracking-widest text-uh-gray-400 uppercase mb-3 font-mono">Schedule</div>
-                      <div className="flex items-start gap-3 p-4 bg-uh-gray-50 rounded-[24px] border border-uh-gray-100">
-                        <Calendar size={18} className="text-uh-yellow shrink-0 mt-0.5" />
-                        <div className="flex flex-col">
-                          <span className="text-sm font-black text-uh-black uppercase tracking-tight">
-                            {formatDate(startsAt)}
-                          </span>
-                          <span className="text-[10px] text-uh-gray-400 font-medium">
-                            {formatTime(startsAt)} — {formatTime(expiresAt)}
-                          </span>
-                        </div>
+                    <div className="p-5 bg-white rounded-2xl border border-uh-gray-100 shadow-sm transition-all hover:shadow-md">
+                      <div className="text-[9px] font-black text-uh-gray-400 uppercase tracking-widest font-mono mb-3">Window</div>
+                      <div className="flex items-start gap-2">
+                        <Clock size={16} className="text-uh-yellow shrink-0 mt-0.5" />
+                        <span className="text-xs font-black text-uh-black uppercase tracking-tight">
+                          {formatTime(startsAt)} — {formatTime(expiresAt)}
+                        </span>
                       </div>
                     </div>
-                  </section>
+                  </div>
 
-                  <div className="grid grid-cols-1 gap-8">
+                  <div className="space-y-8 pt-4">
                     <div>
-                      <div className="text-[10px] font-black tracking-widest text-uh-gray-400 uppercase mb-4 font-mono">Vibe_Check</div>
+                      <h3 className="text-[10px] font-black text-uh-gray-400 uppercase tracking-widest font-mono mb-4">Vibe_Telemetry</h3>
                       <VibeCheck onReport={(vibe) => onVibeReport?.(vibe)} isReporting={isReporting} />
                     </div>
                     
                     <div>
-                      <div className="text-[10px] font-black tracking-widest text-uh-gray-400 uppercase mb-4 font-mono">Vibe_Trend_Analysis</div>
+                      <h3 className="text-[10px] font-black text-uh-gray-400 uppercase tracking-widest font-mono mb-4">Pulse_History</h3>
                       <VibeTrend broadcastId={broadcast.id} />
                     </div>
                   </div>
@@ -145,58 +141,56 @@ export const BroadcastModal: React.FC<BroadcastModalProps> = ({
 
                 {/* Sidebar Actions */}
                 <div className="space-y-6">
-                  <div className="text-[10px] font-black tracking-widest text-uh-gray-400 uppercase mb-4 font-mono">Protocol_Actions</div>
-                  
-                  <div className="flex flex-col gap-3">
-                    {broadcast.sourceUrl && (
-                      <button 
-                        onClick={() => window.open(broadcast.sourceUrl!, '_blank')}
-                        className="w-full bg-uh-yellow text-uh-black py-4 rounded-[24px] flex items-center justify-center gap-2 hover:scale-[1.02] transition-transform shadow-lg shadow-uh-yellow/20 font-black uppercase tracking-widest text-[11px] font-mono"
-                      >
-                        <ExternalLink size={16} />
-                        View Source
-                      </button>
-                    )}
-
-                    <button 
-                      onClick={() => onShare(
-                        broadcast.title,
-                        `Check out this event!`,
-                        window.location.href
+                  <div>
+                    <h3 className="text-[10px] font-black text-uh-gray-400 uppercase tracking-widest font-mono mb-4">Actions</h3>
+                    <div className="flex flex-col gap-3">
+                      {broadcast.sourceUrl && (
+                        <button 
+                          onClick={() => window.open(broadcast.sourceUrl!, '_blank')}
+                          className="w-full bg-uh-yellow text-uh-black py-4 rounded-2xl text-[11px] font-black uppercase tracking-widest hover:scale-[1.02] transition-transform shadow-lg shadow-uh-yellow/10"
+                        >
+                          Execute_Source
+                        </button>
                       )}
-                      className="w-full bg-uh-gray-50 text-uh-black py-4 rounded-[24px] flex items-center justify-center gap-2 hover:bg-uh-gray-100 transition-colors border border-uh-gray-100 font-black uppercase tracking-widest text-[11px] font-mono"
-                    >
-                      <Share2 size={16} />
-                      Share Signal
-                    </button>
 
-                    {node && onSaveToWallet && (
                       <button 
-                        onClick={() => onSaveToWallet(node)}
-                        className={`w-full py-4 rounded-[24px] flex items-center justify-center gap-2 transition-all border font-black uppercase tracking-widest text-[11px] font-mono ${
-                          isSaved 
-                            ? 'bg-uh-magenta text-white border-uh-magenta shadow-lg shadow-uh-magenta/20' 
-                            : 'bg-uh-gray-50 text-uh-black border-uh-gray-100 hover:bg-uh-gray-100'
-                        }`}
+                        onClick={() => onShare(broadcast.title, `Check out this signal: ${broadcast.title}`, window.location.href)}
+                        className="w-full bg-white text-uh-black py-4 rounded-2xl text-[11px] font-black uppercase tracking-widest border border-uh-gray-100 hover:bg-uh-gray-50 transition-colors shadow-sm flex items-center justify-center gap-2"
                       >
-                        <Wallet size={16} />
-                        {isSaved ? "Saved to Wallet" : "Save Hub"}
+                        <Share2 size={14} />
+                        Share_Signal
                       </button>
-                    )}
+
+                      {node && onSaveToWallet && (
+                        <button 
+                          onClick={() => onSaveToWallet(node)}
+                          className={`w-full py-4 rounded-2xl text-[11px] font-black uppercase tracking-widest border transition-all flex items-center justify-center gap-2 ${
+                            isSaved 
+                              ? 'bg-uh-magenta text-white border-uh-magenta shadow-lg shadow-uh-magenta/10' 
+                              : 'bg-white text-uh-gray-400 border-uh-gray-100 hover:text-uh-black shadow-sm'
+                          }`}
+                        >
+                          {isSaved ? <Clock size={14} /> : <Wallet size={14} />}
+                          {isSaved ? "Saved_to_Wallet" : "Save_Hub"}
+                        </button>
+                      )}
+                    </div>
                   </div>
 
                   {broadcast.price !== undefined && (
-                    <div className="p-6 bg-uh-black rounded-[32px] text-center">
-                      <div className="text-[10px] font-black text-uh-yellow/50 uppercase tracking-[0.2em] mb-2 font-mono">Access_Cost</div>
-                      <div className="text-3xl font-black text-white font-mono">
+                    <div className="p-6 bg-uh-black rounded-2xl text-center flex flex-col gap-1 shadow-xl">
+                      <span className="text-[9px] font-black text-uh-gray-400 uppercase tracking-[0.2em]">Access_Level</span>
+                      <span className="text-2xl font-black text-uh-yellow italic">
                         {broadcast.price === 0 ? 'FREE' : `$${broadcast.price}`}
-                      </div>
+                      </span>
                     </div>
                   )}
                 </div>
               </div>
             </div>
           </motion.div>
+
+
         </div>
       )}
     </AnimatePresence>

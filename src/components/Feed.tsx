@@ -8,6 +8,7 @@ interface FeedProps {
   broadcasts: Broadcast[];
   currentNode: Node | null;
   onSelect: (broadcast: Broadcast) => void;
+  onConfirm?: (id: string) => void;
   onShareEvent: (broadcast: Broadcast) => void;
   onManage?: (broadcast: Broadcast) => void;
   partnersMap: Record<string, Partner>;
@@ -20,6 +21,7 @@ export const Feed: React.FC<FeedProps> = ({
   broadcasts,
   currentNode,
   onSelect,
+  onConfirm,
   onShareEvent,
   onManage,
   partnersMap,
@@ -55,14 +57,19 @@ export const Feed: React.FC<FeedProps> = ({
 
   const SectionHeader = ({ title, count, status }: { title: string; count?: number; status?: string }) => (
     <div className="px-6 flex items-center justify-between mb-4">
-      <div className="flex items-center gap-2">
-        <h2 className="text-[12px] font-black tracking-[0.2em] text-uh-black uppercase font-mono">{title}</h2>
-        {count !== undefined && (
-          <span className="text-[10px] font-bold text-uh-gray-400 font-mono">[{count}]</span>
-        )}
+      <div className="flex flex-col">
+        <div className="flex items-center gap-2">
+          <h2 className="text-[13px] font-black tracking-[0.2em] text-uh-black uppercase">{title}</h2>
+          {count !== undefined && (
+            <span className="text-[11px] font-bold text-uh-gray-400">[{count}]</span>
+          )}
+        </div>
       </div>
       {status && (
-        <span className="text-[10px] font-black text-uh-magenta uppercase tracking-widest font-mono animate-pulse">
+        <span className={`text-[10px] font-black uppercase tracking-[0.15em] ${
+          status.includes('LIVE') ? 'text-uh-magenta' : 
+          status.includes('BOOK') ? 'text-uh-teal' : 'text-uh-yellow'
+        }`}>
           {status}
         </span>
       )}
@@ -70,25 +77,20 @@ export const Feed: React.FC<FeedProps> = ({
   );
 
   const MoreCard = ({ label }: { label: string }) => (
-    <div className="flex-shrink-0 w-[85vw] max-w-[340px] h-[200px] rounded-[20px] border-2 border-dashed border-uh-gray-200 flex flex-col items-center justify-center gap-3 bg-uh-gray-50/50 snap-start">
-      <div className="w-12 h-12 rounded-full bg-white border border-uh-gray-100 flex items-center justify-center shadow-sm">
-        <motion.div
-          animate={{ x: [0, 5, 0] }}
-          transition={{ repeat: Infinity, duration: 1.5 }}
-        >
-          <ArrowRight size={24} className="text-uh-black" />
-        </motion.div>
+    <div className="flex-shrink-0 w-[240px] h-[220px] rounded-[32px] border-2 border-dashed border-uh-gray-200 flex flex-col items-center justify-center gap-4 bg-white/50 group cursor-pointer hover:border-uh-yellow transition-colors">
+      <div className="w-12 h-12 rounded-full bg-uh-gray-50 flex items-center justify-center group-hover:bg-uh-yellow/10 transition-colors">
+        <ArrowRight size={20} className="text-uh-gray-300 group-hover:text-uh-black transition-transform group-hover:translate-x-1" />
       </div>
-      <span className="text-[10px] font-black text-uh-gray-400 uppercase tracking-widest font-mono">{label}</span>
+      <span className="text-[11px] font-black text-uh-gray-400 uppercase tracking-widest">{label}</span>
     </div>
   );
 
   return (
-    <div className="flex flex-col gap-10 pb-20">
+    <div className="flex flex-col gap-10 py-6">
       {/* Flash Deals Hero Carousel */}
       {flashDeals.length > 0 && (
         <div className="flex flex-col">
-          <SectionHeader title="FLASH_DEALS" status="LIVE_NOW" />
+          <SectionHeader title="Flash_Deals" status="LIVE_NOW" />
           
           <div 
             ref={flashDealsRef}
@@ -102,6 +104,7 @@ export const Feed: React.FC<FeedProps> = ({
                 idx={idx}
                 currentNode={currentNode}
                 onSelect={onSelect}
+                onConfirm={onConfirm}
                 onShareEvent={onShareEvent}
                 onManage={onManage}
                 partner={partnersMap[deal.partnerId || deal.partner_id || '']}
@@ -112,11 +115,11 @@ export const Feed: React.FC<FeedProps> = ({
           </div>
 
           {/* Snap Dots */}
-          <div className="flex justify-center gap-1.5 mt-4">
+          <div className="flex justify-center gap-2 mt-6">
             {flashDeals.map((_, i) => (
               <div 
                 key={i} 
-                className={`w-1.5 h-1.5 rounded-full transition-all duration-300 ${i === activeFlashIndex ? 'bg-uh-yellow w-4' : 'bg-uh-gray-200'}`} 
+                className={`h-1.5 rounded-full transition-all duration-500 ${i === activeFlashIndex ? 'bg-uh-yellow w-8' : 'bg-uh-gray-200 w-2'}`} 
               />
             ))}
           </div>
@@ -126,7 +129,7 @@ export const Feed: React.FC<FeedProps> = ({
       {/* Food Trucks Carousel */}
       {foodTrucks.length > 0 && !hideOtherSections && (
         <div className="flex flex-col">
-          <SectionHeader title="FOOD_TRUCKS" count={foodTrucks.length} status="LIVE_NOW" />
+          <SectionHeader title="Logistics_Units" count={foodTrucks.length} status="SCANNING" />
           <div className="flex overflow-x-auto snap-x snap-mandatory no-scrollbar px-6 gap-4">
             {foodTrucks.map((truck, idx) => (
               <BroadcastCard 
@@ -135,6 +138,7 @@ export const Feed: React.FC<FeedProps> = ({
                 idx={idx}
                 currentNode={currentNode}
                 onSelect={onSelect}
+                onConfirm={onConfirm}
                 onShareEvent={onShareEvent}
                 onManage={onManage}
                 partner={partnersMap[truck.partnerId || truck.partner_id || '']}
@@ -142,7 +146,7 @@ export const Feed: React.FC<FeedProps> = ({
                 canManage={canManageBroadcast(truck)}
               />
             ))}
-            <MoreCard label="MORE_FOOD" />
+            <MoreCard label="EXPLORE_ALL" />
           </div>
         </div>
       )}
@@ -150,7 +154,7 @@ export const Feed: React.FC<FeedProps> = ({
       {/* Walking Events Carousel */}
       {walkingEvents.length > 0 && !hideOtherSections && (
         <div className="flex flex-col">
-          <SectionHeader title="WALKING_EVENTS" count={walkingEvents.length} status="BOOKING_OPEN" />
+          <SectionHeader title="Protocol_Walks" count={walkingEvents.length} status="BOOKING_OPEN" />
           <div className="flex overflow-x-auto snap-x snap-mandatory no-scrollbar px-6 gap-4">
             {walkingEvents.map((walk, idx) => (
               <BroadcastCard 
@@ -159,6 +163,7 @@ export const Feed: React.FC<FeedProps> = ({
                 idx={idx}
                 currentNode={currentNode}
                 onSelect={onSelect}
+                onConfirm={onConfirm}
                 onShareEvent={onShareEvent}
                 onManage={onManage}
                 partner={partnersMap[walk.partnerId || walk.partner_id || '']}
@@ -166,7 +171,7 @@ export const Feed: React.FC<FeedProps> = ({
                 canManage={canManageBroadcast(walk)}
               />
             ))}
-            <MoreCard label="MORE_WALKS" />
+            <MoreCard label="VIEW_SCHEDULE" />
           </div>
         </div>
       )}
@@ -174,7 +179,7 @@ export const Feed: React.FC<FeedProps> = ({
       {/* Events Carousel */}
       {events.length > 0 && !hideOtherSections && (
         <div className="flex flex-col">
-          <SectionHeader title="LIVE_EVENTS" count={events.length} />
+          <SectionHeader title="Urban_Transmission" count={events.length} />
           <div className="flex overflow-x-auto snap-x snap-mandatory no-scrollbar px-6 gap-4">
             {events.map((event, idx) => (
               <BroadcastCard 
@@ -183,6 +188,7 @@ export const Feed: React.FC<FeedProps> = ({
                 idx={idx}
                 currentNode={currentNode}
                 onSelect={onSelect}
+                onConfirm={onConfirm}
                 onShareEvent={onShareEvent}
                 onManage={onManage}
                 partner={partnersMap[event.partnerId || event.partner_id || '']}
@@ -190,7 +196,7 @@ export const Feed: React.FC<FeedProps> = ({
                 canManage={canManageBroadcast(event)}
               />
             ))}
-            <MoreCard label="MORE_EVENTS" />
+            <MoreCard label="SYSTEM_ARCHIVE" />
           </div>
         </div>
       )}
@@ -207,6 +213,7 @@ export const Feed: React.FC<FeedProps> = ({
                 idx={idx}
                 currentNode={currentNode}
                 onSelect={onSelect}
+                onConfirm={onConfirm}
                 onShareEvent={onShareEvent}
                 onManage={onManage}
                 partner={partnersMap[mural.partnerId || mural.partner_id || '']}

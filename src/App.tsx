@@ -3,7 +3,7 @@ import { auth, db } from './firebase';
 import { signInWithPopup, GoogleAuthProvider, onAuthStateChanged, User } from 'firebase/auth';
 import { useLocation } from 'react-router-dom';
 import { collection, onSnapshot, query, where, addDoc, doc, getDoc, setDoc, getDocs, orderBy, getDocFromServer, updateDoc } from 'firebase/firestore';
-import { Node, Broadcast, Vibe, UserProfile, UserRole, Partner, BroadcastType, Route, Guide, Sponsor } from './types';
+import { Node, Broadcast, Vibe, UserProfile, UserRole, Partner, BroadcastType } from './types';
 import { BASE_URL } from './constants';
 import { DepartureBoard } from './components/DepartureBoard';
 import { BroadcastModal } from './components/BroadcastModal';
@@ -23,6 +23,7 @@ import { handleFirestoreError, OperationType } from './utils/firebaseErrors';
 
 import { v4 as uuidv4 } from 'uuid';
 import { motion, AnimatePresence } from 'motion/react';
+import { LocalPulseLoader, useLoaderLabel } from './components/LocalPulseLoader';
 import { Loader2, AlertTriangle, Share2, MapPin, Wallet, X } from 'lucide-react';
 
 // Session UUID for anonymous tracking
@@ -92,19 +93,15 @@ export default function App() {
   const [currentNode, setCurrentNode] = useState<Node | null>(null);
   const [rawBroadcasts, setRawBroadcasts] = useState<Broadcast[]>([]);
   const [rawPois, setRawPois] = useState<Broadcast[]>([]);
-  const [routes, setRoutes] = useState<Route[]>([]);
-  const [guidesMap, setGuidesMap] = useState<Record<string, Guide>>({});
-  const [sponsorsMap, setSponsorsMap] = useState<Record<string, Sponsor>>({});
   const [broadcasts, setBroadcasts] = useState<Broadcast[]>([]);
   const [partnersMap, setPartnersMap] = useState<Record<string, Partner>>({});
   const [selectedBroadcast, setSelectedBroadcast] = useState<Broadcast | null>(null);
+  const [confirmedBroadcastId, setConfirmedBroadcastId] = useState<string | null>(null);
   const [selectedBroadcastNode, setSelectedBroadcastNode] = useState<Node | null>(null);
   const [isTappedIn, setIsTappedIn] = useState(true);
   const [nfcStatus, setNfcStatus] = useState<'idle' | 'scanning' | 'error' | 'unsupported'>('idle');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
-  const [activeRoute, setActiveRoute] = useState<Route | null>(null);
   const [isReporting, setIsReporting] = useState(false);
   const [isSeeding, setIsSeeding] = useState(false);
   const [hudMessage, setHudMessage] = useState<{ text: string; type: 'error' | 'info' } | null>(null);
@@ -181,35 +178,6 @@ export default function App() {
     window.addEventListener('popstate', handleLocationChange);
     return () => window.removeEventListener('popstate', handleLocationChange);
   }, []);
-
-  useEffect(() => {
-    if (!navigator.geolocation) return;
-
-    const watchId = navigator.geolocation.watchPosition(
-      (pos) => {
-        setUserLocation([pos.coords.latitude, pos.coords.longitude]);
-      },
-      (err) => {
-        console.warn("GEOLOCATION_ERROR:", err.message);
-      },
-      { enableHighAccuracy: true }
-    );
-
-    return () => navigator.geolocation.clearWatch(watchId);
-  }, []);
-
-  const handleGeolocate = () => {
-    if (!navigator.geolocation) return;
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        setUserLocation([pos.coords.latitude, pos.coords.longitude]);
-        setHudMessage({ text: "LOCATION_RECALIBRATED", type: 'info' });
-      },
-      (err) => {
-        setHudMessage({ text: "LOCATION_ACCESS_DENIED", type: 'error' });
-      }
-    );
-  };
 
   useEffect(() => {
     if (hudMessage) {
@@ -379,29 +347,6 @@ export default function App() {
       }
     );
     return () => unsub();
-  }, []);
-
-  // Sync Routes, Guides, and Sponsors
-  useEffect(() => {
-    const unsubRoutes = onSnapshot(collection(db, 'routes'), (snap) => {
-      setRoutes(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Route)));
-    });
-    const unsubGuides = onSnapshot(collection(db, 'guides'), (snap) => {
-      const gMap: Record<string, Guide> = {};
-      snap.docs.forEach(doc => gMap[doc.id] = { id: doc.id, ...doc.data() } as Guide);
-      setGuidesMap(gMap);
-    });
-    const unsubSponsors = onSnapshot(collection(db, 'sponsors'), (snap) => {
-      const sMap: Record<string, Sponsor> = {};
-      snap.docs.forEach(doc => sMap[doc.id] = { id: doc.id, ...doc.data() } as Sponsor);
-      setSponsorsMap(sMap);
-    });
-
-    return () => {
-      unsubRoutes();
-      unsubGuides();
-      unsubSponsors();
-    };
   }, []);
 
   const handleLogin = (isPartner = false) => {
@@ -642,7 +587,7 @@ export default function App() {
       return;
     }
     const fetchNode = () => {
-      const activeNodeId = nodeId || 'OTR-ALPHA-01';
+      const activeNodeId = nodeId || 'ALPHA_PLAZA_HUB';
       console.log(`FETCHING_NODE: ${activeNodeId}`);
       setLoading(true);
       const nodeRef = doc(db, 'nodes', activeNodeId);
@@ -807,7 +752,9 @@ export default function App() {
       const isWithinWindow = !startsAt || startsAt <= twentyFourHoursFromNow;
       const isNotExpired = expiresAt > nowIso;
 
-      const passed = distance <= radiusLimit && isWithinWindow && isNotExpired;
+      // 'all_nodes' scope broadcasts bypass distance filtering
+      const isGlobal = b.scope === 'all_nodes';
+      const passed = (isGlobal || distance <= radiusLimit) && isWithinWindow && isNotExpired;
       if (!passed) {
         // console.log(`BROADCAST_FILTERED: ${b.title} | dist: ${distance.toFixed(0)}m | limit: ${radiusLimit}m | window: ${isWithinWindow} | expired: ${!isNotExpired}`);
       }
@@ -994,13 +941,11 @@ export default function App() {
     ? savedHubs.some(h => h.id === selectedBroadcastNode.id)
     : false;
 
+  const loaderLabel = useLoaderLabel(nodeId ? 'hub' : 'auth');
+
   if (loading) {
     return (
-      <div className="h-screen flex flex-col items-center justify-center bg-hud-bg text-hud-green p-8 text-center">
-        <Loader2 className="animate-spin mb-4" size={48} />
-        <div className="text-xl font-bold tracking-widest mb-2">INITIALIZING_SECTOR_HUB</div>
-        <div className="text-[10px] opacity-60">ESTABLISHING_SECURE_HANDSHAKE...</div>
-      </div>
+      <LocalPulseLoader variant="full" label={loaderLabel} />
     );
   }
 
@@ -1151,6 +1096,7 @@ export default function App() {
           currentNode={currentNode}
           broadcasts={broadcasts}
           onSelect={setSelectedBroadcast}
+          onConfirm={(id) => setConfirmedBroadcastId(id)}
           user={user}
           userProfile={userProfile}
           onLogin={handleLogin}
@@ -1165,7 +1111,7 @@ export default function App() {
           onShareEvent={(b) => handleShare(
             b.title,
             `Check out this event at ${currentNode?.name}!`,
-            `${BASE_URL}/tap/${nodeId}`
+            `${BASE_URL}/tap/${nodeId}?broadcastId=${b.id}`
           )}
           onManage={(b) => {
             window.history.pushState({}, '', `/dashboard?editBroadcastId=${b.id}`);
@@ -1177,18 +1123,7 @@ export default function App() {
           onTabChange={setCurrentTab}
           savedHubs={savedHubs}
           partnersMap={partnersMap}
-          routes={routes}
-          guidesMap={guidesMap}
-          sponsorsMap={sponsorsMap}
           nfcStatus={nfcStatus}
-          activeRoute={activeRoute}
-          userLocation={userLocation}
-          onGeolocate={handleGeolocate}
-          onStartRoute={(route) => {
-            setActiveRoute(route);
-            setHudMessage({ text: "ROUTE_START: NAVIGATION_HUD_ACTIVE", type: 'info' });
-            setCurrentTab('explore'); // Switch to map tab to show the route
-          }}
         />
 
         {/* HUD Notifications */}
@@ -1227,6 +1162,7 @@ export default function App() {
           node={selectedBroadcastNode}
           onVibeReport={handleVibeReport}
           isReporting={isReporting}
+          confirmed={confirmedBroadcastId === selectedBroadcast?.id}
         />
       </div>
     </ErrorBoundary>

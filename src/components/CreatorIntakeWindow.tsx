@@ -6,6 +6,8 @@ import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { Node, BroadcastType } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
 import { Music, Palette, Store, Clock, DollarSign, Zap, ChevronLeft, Loader2, CheckCircle2, AlertCircle, MapPin, Search, Globe, Truck, Navigation, Image as ImageIcon, Link as LinkIcon, Map as MapIcon, List as ListIcon, Share2, ArrowRight } from 'lucide-react';
+import { AddressSearchInput } from './AddressSearchInput';
+import { LocalPulseLoader } from './LocalPulseLoader';
 
 interface CreatorIntakeWindowProps {
   nodeId?: string;
@@ -633,27 +635,46 @@ export const CreatorIntakeWindow: React.FC<CreatorIntakeWindowProps> = ({ nodeId
                   Mobile_Location_Resolution
                 </label>
                 <div className="space-y-4">
-                  <div className="flex gap-2">
-                    <input 
-                      type="text"
-                      placeholder="ENTER_STREET_ADDRESS"
-                      value={address === 'CURRENT_GPS_LOCATION' ? '' : address}
-                      onChange={(e) => setAddress(e.target.value)}
-                      className="flex-1 bg-transparent border-b border-hud-magenta/30 focus:border-hud-magenta outline-none py-2 text-xs font-mono placeholder:opacity-20 transition-all"
-                    />
-                    <button
-                      type="button"
-                      onClick={resolveCurrentLocation}
-                      disabled={resolvingLocation}
-                      className="px-4 py-2 bg-hud-magenta/10 border border-hud-magenta/30 hover:bg-hud-magenta/20 transition-all flex items-center gap-2 text-[10px] font-bold uppercase"
-                    >
-                      {resolvingLocation ? <Loader2 size={12} className="animate-spin" /> : <Navigation size={12} />}
-                      GPS
-                    </button>
+                  <div className="flex flex-col gap-2">
+                    <div className="flex gap-2">
+                      <AddressSearchInput 
+                        value={address === 'CURRENT_GPS_LOCATION' ? '' : address}
+                        onSelect={async (addr) => {
+                          setAddress(addr);
+                          setResolvingLocation(true);
+                          try {
+                            const response = await fetch(`/api/geocode?address=${encodeURIComponent(addr)}`);
+                            if (response.ok) {
+                              const data = await response.json();
+                              if (data && data.lat && data.lon) {
+                                setCustomLat(parseFloat(data.lat));
+                                setCustomLng(parseFloat(data.lon));
+                              }
+                            }
+                          } catch (err) {
+                            console.error("Auto-geocode error:", err);
+                          } finally {
+                            setResolvingLocation(false);
+                          }
+                        }}
+                        placeholder="ENTER_STREET_ADDRESS"
+                        className="flex-1"
+                      />
+                      <button
+                        type="button"
+                        onClick={resolveCurrentLocation}
+                        disabled={resolvingLocation}
+                        className="px-4 py-3 bg-hud-magenta text-hud-bg rounded-2xl hover:bg-hud-magenta/80 transition-all flex items-center gap-2 text-[10px] font-black uppercase shadow-lg shadow-hud-magenta/20"
+                      >
+                        {resolvingLocation ? <Loader2 size={12} className="animate-spin" /> : <Navigation size={12} />}
+                        GPS
+                      </button>
+                    </div>
                   </div>
-                  {customLat && customLng && (
-                    <div className="text-[9px] font-mono text-green-500/80 uppercase tracking-widest">
-                      Resolved: {customLat.toFixed(4)}, {customLng.toFixed(4)}
+                  {customLat && customLng && address && (
+                    <div className="text-[9px] font-mono text-green-500/80 uppercase tracking-widest flex items-center gap-2 bg-green-500/5 p-2 rounded-lg border border-green-500/10">
+                      <CheckCircle2 size={10} />
+                      RESOLVED: {customLat.toFixed(4)}, {customLng.toFixed(4)}
                     </div>
                   )}
                 </div>

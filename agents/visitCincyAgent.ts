@@ -278,12 +278,30 @@ Return JSON only with these fields:
     // Strip markdown fences
     text = text.replace(/```json/g, '').replace(/```/g, '').trim();
     
-    const parsed = JSON.parse(text);
-    return {
-      taxonomy_tags: parsed.taxonomy_tags || ['Civic'],
-      vibe_estimate: parsed.vibe_estimate || 'chill',
-      short_description: parsed.short_description || event.title
-    };
+    if (!text) {
+      console.warn(`Enrichment failed for ${event.title}: Gemini returned empty text`);
+      return {
+        taxonomy_tags: ['Civic'],
+        vibe_estimate: 'chill',
+        short_description: event.title
+      };
+    }
+
+    try {
+      const parsed = JSON.parse(text);
+      return {
+        taxonomy_tags: parsed.taxonomy_tags || ['Civic'],
+        vibe_estimate: parsed.vibe_estimate || 'chill',
+        short_description: parsed.short_description || event.title
+      };
+    } catch (parseErr) {
+      console.error(`JSON parse failed for ${event.title}. Text: "${text}"`, parseErr);
+      return {
+        taxonomy_tags: ['Civic'],
+        vibe_estimate: 'chill',
+        short_description: event.title
+      };
+    }
   } catch (err) {
     console.error(`enrichEventWithAI Error for ${event.title}:`, err);
     return {
@@ -355,13 +373,17 @@ export async function runCivicIngestionEngine() {
   }
 
   // Load config to get database ID
-  let databaseId = "ai-studio-8d3a18ac-9f60-480e-8200-f9f5e01c389a";
+  let databaseId: string | undefined = undefined;
   try {
     const configPath = './firebase-applet-config.json';
-    if (require('fs').existsSync(configPath)) {
-      const config = JSON.parse(require('fs').readFileSync(configPath, 'utf8'));
-      if (config.firestoreDatabaseId) {
-        databaseId = config.firestoreDatabaseId;
+    const fs = require('fs');
+    if (fs.existsSync(configPath) && fs.statSync(configPath).size > 0) {
+      const content = fs.readFileSync(configPath, 'utf8');
+      if (content && content.trim()) {
+        const config = JSON.parse(content);
+        if (config.firestoreDatabaseId && config.firestoreDatabaseId !== '(default)') {
+          databaseId = config.firestoreDatabaseId;
+        }
       }
     }
   } catch (e) {
@@ -369,7 +391,7 @@ export async function runCivicIngestionEngine() {
   }
 
   const db = getFirestore(databaseId);
-  console.log(`Civic Ingestion Engine: Using database ${databaseId}`);
+  console.log(`Civic Ingestion Engine: Using database ${databaseId || '(default)'}`);
   
   const [visitCincyRaw, chplRaw] = await Promise.all([
     fetchVisitCincyEvents(),

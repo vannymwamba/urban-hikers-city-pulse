@@ -11,6 +11,8 @@ import { motion } from 'motion/react';
 import { handleFirestoreError, OperationType } from '../utils/firebaseErrors';
 import { LogoUpload } from './LogoUpload';
 import { SponsorBadge } from './SponsorBadge';
+import { LocalPulseLoader } from './LocalPulseLoader';
+import { AddressSearchInput } from './AddressSearchInput';
 
 interface DashboardProps {
   userProfile: UserProfile;
@@ -47,7 +49,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
     startTimeOffset: 0, 
     duration: 60, 
     partnerId: '',
-    locationSource: 'node' as 'node' | 'partner'
+    locationSource: 'node' as 'node' | 'partner',
+    artist: '',
+    booking_url: ''
   });
   const [newPartner, setNewPartner] = useState({ 
     name: '', 
@@ -106,7 +110,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
           startTimeOffset: 0,
           duration: 60,
           partnerId: b.partnerId || b.partner_id || '',
-          locationSource: b.address ? 'node' : 'partner'
+          locationSource: b.address ? 'node' : 'partner',
+          artist: b.artist || '',
+          booking_url: b.booking_url || ''
         });
         setBroadcastImageUrl(b.cover_url || b.imageUrl || '');
         setBroadcastAddress(b.address || '');
@@ -364,12 +370,22 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
       });
       
       if (!response.ok) {
-        const errorData = await response.json();
+        let errorData;
+        try {
+          errorData = await response.json();
+        } catch (e) {
+          errorData = { error: 'SERVER_ERROR_NOT_JSON' };
+        }
         throw new Error(errorData.error || 'SYNC_FAILED');
       }
       
-      const data = await response.json();
-      setHudMessage({ text: `SYNC_COMPLETE: ${data.count} EVENTS_LOADED`, type: 'info' });
+      let data;
+      try {
+        data = await response.json();
+      } catch (e) {
+        throw new Error('INVALID_JSON_RESPONSE_FROM_SERVER');
+      }
+      setHudMessage({ text: `SYNC_COMPLETE: ${data.count || 0} EVENTS_LOADED`, type: 'info' });
     } catch (err: any) {
       console.error("Library sync error:", err);
       setHudMessage({ text: `SYNC_FAILED: ${err.message || 'INTERNAL_ERROR'}`, type: 'error' });
@@ -391,12 +407,22 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
       });
       
       if (!response.ok) {
-        const errorData = await response.json();
+        let errorData;
+        try {
+          errorData = await response.json();
+        } catch (e) {
+          errorData = { error: 'SERVER_ERROR_NOT_JSON' };
+        }
         throw new Error(errorData.error || 'SYNC_FAILED');
       }
       
-      const data = await response.json();
-      setHudMessage({ text: `SYNC_COMPLETE: ${data.processed} EVENTS_LOADED`, type: 'info' });
+      let data;
+      try {
+        data = await response.json();
+      } catch (e) {
+        throw new Error('INVALID_JSON_RESPONSE_FROM_SERVER');
+      }
+      setHudMessage({ text: `SYNC_COMPLETE: ${data.processed || data.count || 0} EVENTS_LOADED`, type: 'info' });
     } catch (err: any) {
       console.error("Civic sync error:", err);
       setHudMessage({ text: `SYNC_FAILED: ${err.message || 'INTERNAL_ERROR'}`, type: 'error' });
@@ -544,7 +570,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
         currentVibe: 'chill',
         current_vibe: 'chill',
         active: true,
-        cover_url: broadcastImageUrl
+        cover_url: broadcastImageUrl,
+        artist: newBroadcast.artist || null,
+        booking_url: newBroadcast.booking_url || null
       };
 
       if (editingBroadcastId) {
@@ -558,7 +586,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
       handleFirestoreError(err, editingBroadcastId ? OperationType.UPDATE : OperationType.CREATE, editingBroadcastId ? `broadcasts/${editingBroadcastId}` : 'broadcasts');
     }
     
-    setNewBroadcast({ title: '', type: BroadcastType.LIVE_EVENT, nodeId: '', startTimeOffset: 0, duration: 60, partnerId: '', locationSource: 'node' });
+    setNewBroadcast({ title: '', type: BroadcastType.LIVE_EVENT, nodeId: '', startTimeOffset: 0, duration: 60, partnerId: '', locationSource: 'node', artist: '', booking_url: '' });
     setBroadcastImageUrl('');
     setBroadcastAddress('');
     setBroadcastCustomLat(null);
@@ -798,7 +826,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
         </div>
         <div className="flex items-center gap-3">
           <a 
-            href="/tap/OTR-ALPHA-01" 
+            href="/tap/ALPHA_PLAZA_HUB" 
             className="flex items-center gap-2 text-uh-yellow hover:bg-uh-yellow/10 px-4 py-2 border border-uh-yellow/20 transition-all text-xs font-bold"
           >
             <Globe size={16} /> VIEW_LIVE_BOARD
@@ -900,24 +928,21 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
                           disabled={isSyncingLibrary}
                           className="flex items-center gap-2 px-4 py-2 border border-uh-gray-200 text-uh-gray-800 text-[10px] font-black tracking-widest hover:bg-uh-gray-100 transition-all disabled:opacity-50 rounded-lg"
                         >
-                          <RefreshCw size={12} className={isSyncingLibrary ? 'animate-spin' : ''} />
-                          SYNC_LIBRARY
+                          {isSyncingLibrary ? <LocalPulseLoader variant="dots" /> : <><RefreshCw size={12} /> SYNC_LIBRARY</>}
                         </button>
                         <button 
                           onClick={handleSyncCivic}
                           disabled={isSyncingCivic}
                           className="flex items-center gap-2 px-4 py-2 border border-uh-gray-200 text-uh-gray-800 text-[10px] font-black tracking-widest hover:bg-uh-gray-100 transition-all disabled:opacity-50 rounded-lg"
                         >
-                          <RefreshCw size={12} className={isSyncingCivic ? 'animate-spin' : ''} />
-                          SYNC_CIVIC
+                          {isSyncingCivic ? <LocalPulseLoader variant="dots" /> : <><RefreshCw size={12} /> SYNC_CIVIC</>}
                         </button>
                         <button 
                           onClick={handleRestoreData}
                           disabled={isSeeding}
                           className="flex items-center gap-2 px-4 py-2 bg-uh-yellow text-uh-black text-[10px] font-black tracking-widest hover:bg-uh-yellow/80 transition-all disabled:opacity-50 rounded-lg shadow-sm"
                         >
-                          <RefreshCw size={12} className={isSeeding ? 'animate-spin' : ''} />
-                          RESTORE_DATA
+                          {isSeeding ? <LocalPulseLoader variant="dots" /> : <><RefreshCw size={12} /> RESTORE_DATA</>}
                         </button>
                       </div>
                     )}
@@ -1031,7 +1056,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
                             />
                             <div className={`w-full p-8 border-2 border-dashed rounded-xl flex flex-col items-center justify-center gap-2 transition-all ${isUploadingNodeImage ? 'bg-uh-gray-100 border-uh-gray-300' : 'bg-uh-gray-50 border-uh-gray-200 hover:border-uh-yellow'}`}>
                               {isUploadingNodeImage ? (
-                                <RefreshCw size={24} className="text-uh-yellow animate-spin" />
+                                <LocalPulseLoader variant="dots" />
                               ) : (
                                 <>
                                   <Plus size={24} className="text-uh-gray-400" />
@@ -1051,19 +1076,41 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
                   <div className="col-span-2 flex flex-col gap-2">
                     <label className="text-[10px] font-black text-uh-gray-400 uppercase tracking-widest">Physical_Address (Tactical_Location)</label>
                     <div className="flex gap-3">
-                      <input 
-                        placeholder="123 Main St, Cincinnati, OH"
-                        className="flex-1 bg-white border border-uh-gray-200 rounded-xl p-4 text-sm focus:border-uh-yellow focus:ring-2 focus:ring-uh-yellow/20 outline-none transition-all text-uh-black font-medium"
+                      <AddressSearchInput 
                         value={newNode.address}
-                        onChange={e => setNewNode({...newNode, address: e.target.value})}
+                        onSelect={async (addr) => {
+                          setNewNode({...newNode, address: addr});
+                          // Auto-resolve when selected
+                          setIsGeocoding(true);
+                          try {
+                            const response = await fetch(`/api/geocode?address=${encodeURIComponent(addr)}`);
+                            if (response.ok) {
+                              const data = await response.json();
+                              if (data && data.lat && data.lon) {
+                                setNewNode(prev => ({
+                                  ...prev,
+                                  address: addr,
+                                  lat: parseFloat(data.lat),
+                                  lng: parseFloat(data.lon)
+                                }));
+                                setHudMessage({ text: "COORDINATES_RESOLVED", type: 'info' });
+                              }
+                            }
+                          } catch (err) {
+                            console.error("Auto-geocode error:", err);
+                          } finally {
+                            setIsGeocoding(false);
+                          }
+                        }}
+                        placeholder="123 Main St, Cincinnati, OH"
                       />
                       <button 
                         type="button"
                         onClick={handleGeocodeNode}
                         disabled={isGeocoding}
-                        className="px-6 bg-uh-black text-white font-black text-[10px] tracking-widest rounded-xl hover:bg-uh-gray-800 disabled:opacity-50 transition-all"
+                        className="px-6 bg-uh-black text-white font-black text-[10px] tracking-widest rounded-xl hover:bg-uh-gray-800 disabled:opacity-50 transition-all flex items-center justify-center min-w-[100px]"
                       >
-                        {isGeocoding ? 'RESOLVING...' : 'RESOLVE'}
+                        {isGeocoding ? <LocalPulseLoader variant="dots" /> : 'RESOLVE'}
                       </button>
                     </div>
                   </div>
@@ -1260,19 +1307,41 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
                 <div className="col-span-2 flex flex-col gap-2">
                   <label className="text-[10px] font-black text-uh-gray-400 uppercase tracking-widest">Physical_Address (Tactical_Location)</label>
                   <div className="flex gap-3">
-                    <input 
-                      placeholder="123 Main St, Cincinnati, OH"
-                      className="flex-1 bg-white border border-uh-gray-200 rounded-xl p-4 text-sm focus:border-uh-yellow focus:ring-2 focus:ring-uh-yellow/20 outline-none transition-all text-uh-black font-medium"
+                    <AddressSearchInput 
                       value={newPartner.address}
-                      onChange={e => setNewPartner({...newPartner, address: e.target.value})}
+                      onSelect={async (addr) => {
+                        setNewPartner({...newPartner, address: addr});
+                        // Auto-resolve when selected
+                        setIsGeocoding(true);
+                        try {
+                          const response = await fetch(`/api/geocode?address=${encodeURIComponent(addr)}`);
+                          if (response.ok) {
+                            const data = await response.json();
+                            if (data && data.lat && data.lon) {
+                              setNewPartner(prev => ({
+                                ...prev,
+                                address: addr,
+                                lat: parseFloat(data.lat),
+                                lng: parseFloat(data.lon)
+                              }));
+                              setHudMessage({ text: "COORDINATES_RESOLVED", type: 'info' });
+                            }
+                          }
+                        } catch (err) {
+                          console.error("Auto-geocode error:", err);
+                        } finally {
+                          setIsGeocoding(false);
+                        }
+                      }}
+                      placeholder="123 Main St, Cincinnati, OH"
                     />
                     <button 
                       type="button"
                       onClick={handleGeocode}
                       disabled={isGeocoding}
-                      className="px-6 bg-uh-black text-white font-black text-[10px] tracking-widest rounded-xl hover:bg-uh-gray-800 disabled:opacity-50 transition-all"
+                      className="px-6 bg-uh-black text-white font-black text-[10px] tracking-widest rounded-xl hover:bg-uh-gray-800 disabled:opacity-50 transition-all flex items-center justify-center min-w-[100px]"
                     >
-                      {isGeocoding ? 'RESOLVING...' : 'RESOLVE'}
+                      {isGeocoding ? <LocalPulseLoader variant="dots" /> : 'RESOLVE'}
                     </button>
                   </div>
                 </div>
@@ -1482,7 +1551,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
                       type="button"
                       onClick={() => {
                         setEditingBroadcastId(null);
-                        setNewBroadcast({ title: '', type: BroadcastType.LIVE_EVENT, nodeId: '', startTimeOffset: 0, duration: 60, partnerId: '', locationSource: 'node' });
+                        setNewBroadcast({ title: '', type: BroadcastType.LIVE_EVENT, nodeId: '', startTimeOffset: 0, duration: 60, partnerId: '', locationSource: 'node', artist: '', booking_url: '' });
                         setBroadcastImageUrl('');
                         setBroadcastAddress('');
                         setBroadcastCustomLat(null);
@@ -1521,6 +1590,38 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
                     <option value={BroadcastType.CIVIC_EVENT}>CIVIC_EVENT</option>
                   </select>
                 </div>
+
+                {newBroadcast.type === BroadcastType.WALKING_EVENT && (
+                  <div className="col-span-2 flex flex-col gap-1">
+                    <label className="text-[9px] text-uh-gray-400 font-bold uppercase tracking-widest ml-1">External_booking_url</label>
+                    <input 
+                      type="url"
+                      placeholder="https://eventbrite.com/your-walk"
+                      className="bg-uh-yellow/5 border border-uh-yellow/30 p-3 rounded-xl text-sm focus:border-uh-yellow outline-none transition-all"
+                      value={newBroadcast.booking_url}
+                      onChange={e => setNewBroadcast({...newBroadcast, booking_url: e.target.value})}
+                    />
+                    <p className="text-[8px] text-uh-gray-400 font-medium uppercase tracking-tight ml-1">
+                      Leave empty to use Local Pulse inline booking + Stripe. If set, Book button links directly to this URL.
+                    </p>
+                  </div>
+                )}
+
+                {newBroadcast.type === BroadcastType.MURAL && (
+                  <div className="col-span-2 flex flex-col gap-1">
+                    <label className="text-[9px] text-uh-gray-400 font-bold uppercase tracking-widest ml-1">Artist_name</label>
+                    <input 
+                      type="text"
+                      placeholder="e.g. Jenny Ustick"
+                      className="bg-white border border-uh-gray-200 p-3 rounded-xl text-sm focus:border-uh-yellow outline-none transition-all"
+                      value={newBroadcast.artist}
+                      onChange={e => setNewBroadcast({...newBroadcast, artist: e.target.value})}
+                    />
+                    <p className="text-[8px] text-uh-gray-400 font-medium uppercase tracking-tight ml-1">
+                      Displayed as byline below title on the signal card.
+                    </p>
+                  </div>
+                )}
 
                 <div className="col-span-2 flex flex-col gap-1">
                   <label className="text-[9px] text-uh-gray-400 font-bold uppercase tracking-widest ml-1">Signal_Location_Source</label>
@@ -1626,9 +1727,15 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
                       />
                     </div>
                     <div className="flex flex-col gap-1">
-                      <label className="bg-uh-black text-white text-[10px] font-black p-3 rounded-xl hover:bg-uh-black/90 transition-all cursor-pointer flex items-center justify-center gap-2">
-                        <ImageIcon size={14} className="text-uh-yellow" />
-                        {isUploadingBroadcastImage ? 'UPLOADING...' : 'UPLOAD_IMAGE'}
+                      <label className="bg-uh-black text-white text-[10px] font-black p-3 rounded-xl hover:bg-uh-black/90 transition-all cursor-pointer flex items-center justify-center gap-2 min-h-[44px]">
+                        {isUploadingBroadcastImage ? (
+                          <LocalPulseLoader variant="dots" />
+                        ) : (
+                          <>
+                            <ImageIcon size={14} className="text-uh-yellow" />
+                            UPLOAD_IMAGE
+                          </>
+                        )}
                         <input 
                           type="file" 
                           className="hidden" 
@@ -1655,19 +1762,37 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
                 <div className="col-span-2 flex flex-col gap-2 border-t border-uh-gray-200 pt-4">
                   <label className="text-[10px] font-black text-uh-gray-400 uppercase tracking-widest">Custom_Address</label>
                   <div className="flex gap-2">
-                    <input 
-                      placeholder="123 Main St, Cincinnati, OH"
-                      className="flex-1 bg-white border border-uh-gray-200 p-3 rounded-xl text-sm focus:border-uh-yellow outline-none transition-all"
+                    <AddressSearchInput 
                       value={broadcastAddress}
-                      onChange={e => setBroadcastAddress(e.target.value)}
+                      onSelect={async (addr) => {
+                        setBroadcastAddress(addr);
+                        // Auto-resolve when selected
+                        setIsGeocoding(true);
+                        try {
+                          const response = await fetch(`/api/geocode?address=${encodeURIComponent(addr)}`);
+                          if (response.ok) {
+                            const data = await response.json();
+                            if (data && data.lat && data.lon) {
+                              setBroadcastCustomLat(parseFloat(data.lat));
+                              setBroadcastCustomLng(parseFloat(data.lon));
+                              setHudMessage({ text: "COORDINATES_RESOLVED", type: 'info' });
+                            }
+                          }
+                        } catch (err) {
+                          console.error("Auto-geocode error:", err);
+                        } finally {
+                          setIsGeocoding(false);
+                        }
+                      }}
+                      placeholder="123 Main St, Cincinnati, OH"
                     />
                     <button 
                       type="button"
                       onClick={handleResolveBroadcastAddress}
                       disabled={isGeocoding || !broadcastAddress}
-                      className="bg-uh-yellow text-uh-black text-[10px] font-black px-6 rounded-xl hover:bg-uh-yellow/80 transition-all disabled:opacity-50"
+                      className="bg-uh-yellow text-uh-black text-[10px] font-black px-6 rounded-xl hover:bg-uh-yellow/80 transition-all disabled:opacity-50 flex items-center justify-center min-w-[100px]"
                     >
-                      {isGeocoding ? 'RESOLVING...' : 'RESOLVE'}
+                      {isGeocoding ? <LocalPulseLoader variant="dots" /> : 'RESOLVE'}
                     </button>
                   </div>
                   {broadcastCustomLat && broadcastCustomLng && (
@@ -1737,7 +1862,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
                                         startTimeOffset: 0, // Reset to immediate start for edits usually
                                         duration: 60, // Default or calculate from current expiry
                                         partnerId: b.partnerId || b.partner_id || '',
-                                        locationSource: b.address ? 'node' : 'partner' // Heuristic
+                                        locationSource: b.address ? 'node' : 'partner', // Heuristic
+                                        artist: b.artist || '',
+                                        booking_url: b.booking_url || ''
                                       });
                                       setBroadcastImageUrl(b.cover_url || b.imageUrl || '');
                                       setBroadcastAddress(b.address || '');

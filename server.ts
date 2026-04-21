@@ -52,29 +52,46 @@ async function startServer() {
     let databaseId = '(default)';
     let projectId = process.env.FIREBASE_PROJECT_ID;
 
-    if (fs.existsSync(configPath)) {
-      const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-      if (!databaseId || databaseId === '(default)') {
+    if (fs.existsSync(configPath) && fs.statSync(configPath).size > 0) {
+      const content = fs.readFileSync(configPath, 'utf8');
+      if (content && content.trim()) {
+        const config = JSON.parse(content);
         databaseId = config.firestoreDatabaseId || '(default)';
-      }
-      if (!projectId) {
-        projectId = config.projectId;
+        if (!projectId) {
+          projectId = config.projectId;
+        }
       }
     }
 
+    if (!projectId) {
+      projectId = "gen-lang-client-0752567409"; // Final fallback to known project
+    }
+
     if (!admin.apps.length) {
-      console.log(`Initializing Firebase Admin for Project: ${projectId}`);
+      console.log(`[FIREBASE] Initializing Admin SDK for Project: ${projectId}`);
       admin.initializeApp({
         projectId: projectId
       });
     }
 
-    // Using specific database ID as requested to match data location
-    db = getFirestore(databaseId);
-    console.log(`Firebase Admin SDK initialized successfully with DB: ${databaseId}`);
+    // Harden database selection
+    const activeDbId = (databaseId && databaseId !== '(default)') ? databaseId : undefined;
+    console.log(`[FIREBASE] Requesting Firestore Instance: ${activeDbId || 'default'}`);
     
-    // We remove the async fallback loop to ensure the server remains locked 
-    // to the correct tactical database instance.
+    db = getFirestore(activeDbId);
+    
+    // Quick test to verify connectivity and permissions
+    try {
+      await db.collection('nodes').limit(1).get();
+      console.log(`[FIREBASE] Admin connectivity verified for DB: ${activeDbId || 'default'}`);
+    } catch (testError) {
+      console.error(`[FIREBASE] Connection test failed for DB ${activeDbId || 'default'}:`, testError);
+      // Fallback to default if named instance fails connectivity test
+      if (activeDbId) {
+        console.warn(`[FIREBASE] Falling back to (default) database...`);
+        db = getFirestore();
+      }
+    }
   } catch (error) {
     console.error("Firebase Admin init error in server:", error);
   }
@@ -112,61 +129,195 @@ async function startServer() {
     }
   });
 
+  // Places Autocomplete Proxy
+  app.get("/api/autocomplete", async (req, res) => {
+    const { input } = req.query;
+    if (!input) return res.status(400).json({ error: "Input is required" });
+
+    const googleMapsKey = process.env.GOOGLE_MAPS_API_KEY;
+    if (!googleMapsKey) return res.status(500).json({ error: "Google Maps API Key not configured" });
+
+    try {
+      const response = await axios.get('https://maps.googleapis.com/maps/api/place/autocomplete/json', {
+        params: {
+          input: input as string,
+          key: googleMapsKey,
+          components: 'country:us',
+          location: '39.1031,-84.5120',
+          radius: 50000
+        }
+      });
+
+      if (response.data.status === 'OK') {
+        res.json(response.data.predictions.map((p: any) => ({
+          description: p.description,
+          place_id: p.place_id
+        })));
+      } else {
+        res.json([]);
+      }
+    } catch (error) {
+      console.error("Autocomplete API Error:", error);
+      res.status(500).json({ error: "Autocomplete failed" });
+    }
+  });
+
   // API Routes
   app.get("/api/health", (req, res) => {
     res.json({ status: "URBAN HIKERS OS: ONLINE" });
   });
 
   app.get("/api/og", async (req, res) => {
+    const { broadcastId, nodeId, title: qTitle, venue: qVenue } = req.query;
+    
     const width = 1200;
     const height = 630;
     const canvas = createCanvas(width, height);
     const ctx = canvas.getContext("2d");
 
-    // Background (Urban Hikers Yellow)
-    ctx.fillStyle = "#FFD700"; 
-    ctx.fillRect(0, 0, width, height);
+    let title = (qTitle as string) || "LOCAL PULSE";
+    let venue = (qVenue as string) || "OVER-THE-RHINE";
+    let coverUrl = null;
+    let type = "SYSTEM_SIGNAL";
+    let vibe = "chill";
 
-    // Fetch Tap Count
-    let tapCount = 0;
-    if (db) {
+    // Fetch live data if IDs are provided
+    if (broadcastId && db) {
       try {
-        const tapsSnapshot = await db.collection("taps").get();
-        tapCount = tapsSnapshot.size;
-      } catch (error) {
-        console.error("Error fetching taps for OG:", error);
+        const doc = await db.collection("broadcasts").doc(broadcastId as string).get();
+        if (doc.exists) {
+          const data = doc.data();
+          title = data.title || title;
+          venue = data.venue || data.address || venue;
+          coverUrl = data.cover_url || data.imageUrl || null;
+          type = (data.type || "EVENT").toUpperCase();
+          vibe = data.current_vibe || "chill";
+        }
+      } catch (err) {
+        console.error("OG Data Fetch Error:", err);
       }
+    } else if (nodeId && db) {
+      try {
+        const doc = await db.collection("nodes").doc(nodeId as string).get();
+        if (doc.exists) {
+          venue = doc.data().name || venue;
+        }
+      } catch (err) {}
     }
 
-    // Draw stylized hiker figures (simple silhouettes)
-    ctx.fillStyle = "#000000";
-    const drawHiker = (x: number, y: number) => {
+    // Background (Urban Hikers Black)
+    ctx.fillStyle = "#0a0a0a"; 
+    ctx.fillRect(0, 0, width, height);
+
+    // Draw Grid (Subtle)
+    ctx.strokeStyle = "#FFE01A";
+    ctx.lineWidth = 0.5;
+    ctx.globalAlpha = 0.08;
+    for (let x = 0; x <= width; x += 40) {
       ctx.beginPath();
-      ctx.arc(x, y - 120, 40, 0, Math.PI * 2); // Head
-      ctx.fill();
-      ctx.fillRect(x - 20, y - 80, 40, 100); // Body
-      ctx.fillRect(x - 40, y - 70, 20, 80); // Arm L
-      ctx.fillRect(x + 20, y - 70, 20, 80); // Arm R
-      ctx.fillRect(x - 20, y + 20, 15, 80); // Leg L
-      ctx.fillRect(x + 5, y + 20, 15, 80); // Leg R
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, height);
+      ctx.stroke();
+    }
+    for (let y = 0; y <= height; y += 40) {
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(width, y);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1.0;
+
+    // Draw Pulse Rings (Centered at 420, 315)
+    const centerX = 420;
+    const centerY = 315;
+    
+    ctx.strokeStyle = "#FFE01A";
+    
+    // Ring 4
+    ctx.globalAlpha = 0.18;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(centerX, centerY, 258, 0, Math.PI * 2); ctx.stroke();
+    // Ring 3
+    ctx.globalAlpha = 0.35;
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(centerX, centerY, 200, 0, Math.PI * 2); ctx.stroke();
+    // Ring 2
+    ctx.globalAlpha = 0.6;
+    ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.arc(centerX, centerY, 145, 0, Math.PI * 2); ctx.stroke();
+    // Ring 1
+    ctx.globalAlpha = 0.9;
+    ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(centerX, centerY, 90, 0, Math.PI * 2); ctx.stroke();
+    
+    // Center Node
+    ctx.globalAlpha = 1.0;
+    ctx.fillStyle = "#FFE01A";
+    ctx.beginPath(); ctx.arc(centerX, centerY, 70, 0, Math.PI * 2); ctx.fill();
+
+    // Draw NFC Arcs (Simplified for canvas)
+    ctx.strokeStyle = "#0a0a0a";
+    ctx.lineWidth = 5;
+    ctx.lineCap = "round";
+    // Focal dot
+    ctx.fillStyle = "#0a0a0a";
+    ctx.beginPath(); ctx.arc(centerX - 18, centerY, 5.5, 0, Math.PI * 2); ctx.fill();
+    // Arcs
+    const drawArc = (radius: number, span: number) => {
+      ctx.beginPath();
+      ctx.arc(centerX - 18, centerY, radius, -span, span);
+      ctx.stroke();
     };
+    drawArc(15, 0.8);
+    drawArc(28, 0.85);
+    drawArc(42, 0.9);
+    drawArc(56, 1.0);
 
-    drawHiker(width / 2 - 250, height / 2 - 50);
-    drawHiker(width / 2, height / 2 - 50);
-    drawHiker(width / 2 + 250, height / 2 - 50);
+    // Brand Text
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "bold 72px sans-serif";
+    ctx.fillText("LOCAL", 680, 280);
+    ctx.fillStyle = "#FFE01A";
+    ctx.fillText("PULSE", 680, 362);
+    
+    ctx.fillStyle = "#ffffff";
+    ctx.globalAlpha = 0.35;
+    ctx.font = "14px monospace";
+    ctx.fillText("TAP THE CITY. FEEL WHAT'S NOW.", 682, 402);
+    
+    ctx.fillStyle = "#FFE01A";
+    ctx.globalAlpha = 0.5;
+    ctx.font = "11px monospace";
+    ctx.fillText("BY URBAN HIKERS", 682, 460);
 
-    // Draw "URBAN HIKERS" text
-    ctx.fillStyle = "#000000";
-    ctx.font = "bold 100px sans-serif";
+    // Scanning label
+    ctx.globalAlpha = 0.9;
+    ctx.fillStyle = "#111";
+    ctx.fillRect(680, 485, 200, 30);
+    ctx.fillStyle = "#FFE01A";
+    ctx.beginPath(); ctx.arc(698, 500, 4, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "#666";
+    ctx.font = "9px monospace";
+    ctx.fillText("SCANNING CITY...", 710, 504);
+
+    ctx.globalAlpha = 0.15;
+    ctx.fillStyle = "#ffffff";
     ctx.textAlign = "center";
-    ctx.fillText("URBAN HIKERS", width / 2, height / 2 + 150);
-
-    // Draw Tap Count
-    ctx.font = "bold 60px sans-serif";
-    ctx.fillText(`PULSE: ${tapCount} TAPS`, width / 2, height / 2 + 250);
+    ctx.font = "9px monospace";
+    ctx.fillText("URBAN HIKERS // PROTOCOL_0.9.1 // OVER-THE-RHINE", 600, 610);
 
     res.setHeader("Content-Type", "image/png");
     canvas.createPNGStream().pipe(res);
+  });
+
+  // Handle specific asset requests for scrapers if file is missing in public
+  app.get("/og-pulse-v2.png", (req, res) => {
+    const pngPath = path.join(process.cwd(), 'public', 'og-pulse-v2.png');
+    if (fs.existsSync(pngPath)) {
+      return res.sendFile(pngPath);
+    }
+    // Fallback: Redirect to the generator
+    res.redirect("/api/og");
   });
 
   // Creator Flash Node Ignite Endpoint
@@ -217,11 +368,29 @@ async function startServer() {
       if (nodeId) {
         let nodeDoc = await db.collection("nodes").doc(nodeId).get();
         
-        // Casing Fallback: Try lowercase and uppercase if the raw ID fails
+        // Casing and Name Fallback: Try lowercase, uppercase, and specific common HUB names
         if (!nodeDoc.exists) {
           nodeDoc = await db.collection("nodes").doc(nodeId.toLowerCase()).get();
           if (!nodeDoc.exists) {
             nodeDoc = await db.collection("nodes").doc(nodeId.toUpperCase()).get();
+          }
+        }
+
+        // If still not found by ID, try searching by name field
+        if (!nodeDoc.exists) {
+          const nameQuery = await db.collection("nodes").where("name", "==", nodeId).limit(1).get();
+          if (!nameQuery.empty) {
+            nodeDoc = nameQuery.docs[0];
+            console.log(`Creator Ignite: Found node by name field mapping for: ${nodeId}`);
+          }
+        }
+
+        // Specific Hard-Mapping for the Alpha Plaza Hub if requested by its canonical name
+        if (!nodeDoc.exists && (nodeId === 'ALPHA_PLAZA_HUB' || nodeId === 'ALPHA_PLAZA')) {
+          const alphaQuery = await db.collection("nodes").where("name", "==", "ALPHA_PLAZA_HUB").limit(1).get();
+          if (!alphaQuery.empty) {
+            nodeDoc = alphaQuery.docs[0];
+            console.log(`Creator Ignite: Found Alpha Plaza Hub via hard-mapping filter`);
           }
         }
 
@@ -308,14 +477,26 @@ async function startServer() {
   });
 
   // Library Ingestion Agent Manual Sync
-  app.post("/api/admin/agents/library-sync", async (req, res) => {
+  app.post("/api/admin/sync-library-events", async (req, res) => {
     try {
       console.log("Admin: Triggering Library Ingestion Agent...");
       const result = await runLibraryIngestionAgent();
-      res.json(result);
+      res.json(result || { status: 'complete', count: 0 });
     } catch (error) {
       console.error("Library Ingestion Agent: Sync Error:", error);
       res.status(500).json({ error: "Failed to sync Library events", details: String(error) });
+    }
+  });
+
+  // Civic Ingestion Agent Manual Sync
+  app.post("/api/admin/sync-civic-events", async (req, res) => {
+    try {
+      console.log("Admin: Triggering Civic Ingestion Engine...");
+      const result = await runCivicIngestionEngine();
+      res.json(result || { status: 'complete', processed: 0 });
+    } catch (error) {
+      console.error("Civic Ingestion Engine: Sync Error:", error);
+      res.status(500).json({ error: "Failed to sync Civic events", details: String(error) });
     }
   });
 
@@ -500,6 +681,45 @@ async function startServer() {
     }
   });
 
+  // Shared metadata logic
+  const getDynamicMetadata = async (req: any) => {
+    const appUrl = process.env.APP_URL || "https://app.localpulses.com";
+    const ogUrl = `${appUrl}${req.originalUrl}`;
+    let ogTitle = "Local Pulse — Map the City";
+    let ogDesc = "Urban Hikers — Tap the city. Feel what's happening now.";
+    let ogImageUrl = `${appUrl}/api/og`;
+
+    const parsedUrl = new URL(req.url, appUrl);
+    const bId = parsedUrl.searchParams.get('broadcastId');
+    const pathParts = req.originalUrl.split('/');
+    const isTapRoute = pathParts.includes('tap');
+    const nId = isTapRoute ? pathParts[pathParts.indexOf('tap') + 1]?.split('?')[0] : null;
+
+    if (bId && db) {
+      ogImageUrl += `?broadcastId=${bId}`;
+      try {
+        const doc = await db.collection("broadcasts").doc(bId).get();
+        if (doc.exists) {
+          const data = doc.data();
+          ogTitle = `${data.title} @ ${data.venue || 'Cincinnati'}`;
+          ogDesc = data.description?.substring(0, 150) || ogDesc;
+        }
+      } catch (err) {}
+    } else if (nId && nId !== 'tap' && db) {
+      ogImageUrl += `?nodeId=${nId}`;
+      try {
+        const doc = await db.collection("nodes").doc(nId).get();
+        if (doc.exists) {
+          const data = doc.data();
+          ogTitle = `${data.name} | Local Pulse Hub`;
+          ogDesc = `Real-time signals and vibe checks live now at ${data.name}.`;
+        }
+      } catch (err) {}
+    }
+
+    return { ogUrl, ogTitle, ogDesc, ogImageUrl };
+  };
+
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
@@ -521,9 +741,12 @@ async function startServer() {
         let template = fs.readFileSync(path.resolve(__dirname, "index.html"), "utf-8");
         template = await vite.transformIndexHtml(url, template);
         
-        const appUrl = process.env.APP_URL || `http://localhost:${PORT}`;
-        const ogImageUrl = `${appUrl}/api/og`;
-        template = template.replace(/__OG_IMAGE__/g, ogImageUrl);
+        const meta = await getDynamicMetadata(req);
+        
+        template = template.replace(/__OG_IMAGE__/g, meta.ogImageUrl);
+        template = template.replace(/__OG_TITLE__/g, meta.ogTitle);
+        template = template.replace(/__OG_DESCRIPTION__/g, meta.ogDesc);
+        template = template.replace(/__OG_URL__/g, meta.ogUrl);
         
         res.status(200).set({ "Content-Type": "text/html" }).end(template);
       } catch (e) {
@@ -534,19 +757,24 @@ async function startServer() {
   } else {
     const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
-    app.get('*', (req, res, next) => {
+    app.get('*', async (req, res, next) => {
       // Skip for static assets or API nodes
       if (req.originalUrl.includes('.') || req.originalUrl.startsWith('/api')) {
         return next();
       }
 
+      const distPath = path.join(process.cwd(), 'dist');
       const indexPath = path.join(distPath, 'index.html');
-      const appUrl = process.env.APP_URL || `http://localhost:${PORT}`;
-      const ogImageUrl = `${appUrl}/api/og`;
       
       if (fs.existsSync(indexPath)) {
+        const meta = await getDynamicMetadata(req);
         let html = fs.readFileSync(indexPath, 'utf8');
-        html = html.replace(/__OG_IMAGE__/g, ogImageUrl);
+        
+        html = html.replace(/__OG_IMAGE__/g, meta.ogImageUrl);
+        html = html.replace(/__OG_TITLE__/g, meta.ogTitle);
+        html = html.replace(/__OG_DESCRIPTION__/g, meta.ogDesc);
+        html = html.replace(/__OG_URL__/g, meta.ogUrl);
+        
         res.send(html);
       } else {
         res.sendFile(indexPath);

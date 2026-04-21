@@ -1,1 +1,1 @@
-export const BASE_URL = 'https://www.urbanhikers.org';
+export const BASE_URL = 'https://app.localpulses.com';

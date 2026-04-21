@@ -1,0 +1,97 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <defs>
+    <style>
+      @keyframes ring1 {
+        0%   { r: 90;  opacity: 0.9; stroke-width: 3; }
+        50%  { r: 105; opacity: 0.5; stroke-width: 2; }
+        100% { r: 90;  opacity: 0.9; stroke-width: 3; }
+      }
+      @keyframes ring2 {
+        0%   { r: 145; opacity: 0.6; stroke-width: 2.5; }
+        50%  { r: 162; opacity: 0.3; stroke-width: 1.5; }
+        100% { r: 145; opacity: 0.6; stroke-width: 2.5; }
+      }
+      @keyframes ring3 {
+        0%   { r: 200; opacity: 0.35; stroke-width: 2; }
+        50%  { r: 220; opacity: 0.15; stroke-width: 1; }
+        100% { r: 200; opacity: 0.35; stroke-width: 2; }
+      }
+      @keyframes ring4 {
+        0%   { r: 258; opacity: 0.18; stroke-width: 1.5; }
+        50%  { r: 280; opacity: 0.07; stroke-width: 0.8; }
+        100% { r: 258; opacity: 0.18; stroke-width: 1.5; }
+      }
+      @keyframes centerPulse {
+        0%   { r: 68; }
+        50%  { r: 74; }
+        100% { r: 68; }
+      }
+      @keyframes textFade {
+        0%   { opacity: 0.7; }
+        50%  { opacity: 1; }
+        100% { opacity: 0.7; }
+      }
+      .r1 { animation: ring1 2.4s ease-in-out infinite; }
+      .r2 { animation: ring2 2.4s ease-in-out infinite 0.15s; }
+      .r3 { animation: ring3 2.4s ease-in-out infinite 0.3s; }
+      .r4 { animation: ring4 2.4s ease-in-out infinite 0.45s; }
+      .center { animation: centerPulse 2.4s ease-in-out infinite; }
+      .brand  { animation: textFade 2.4s ease-in-out infinite; }
+    </style>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#FFE01A" stroke-width="0.15" opacity="0.08"/>
+    </pattern>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1200" height="630" fill="#0a0a0a"/>
+  <rect width="1200" height="630" fill="url(#grid)"/>
+
+  <!-- Pulse rings centered at 420,315 -->
+  <g transform="translate(420,315)">
+    <circle class="r4" cx="0" cy="0" r="258" fill="none" stroke="#FFE01A" stroke-width="1.5" opacity="0.18"/>
+    <circle class="r3" cx="0" cy="0" r="200" fill="none" stroke="#FFE01A" stroke-width="2"   opacity="0.35"/>
+    <circle class="r2" cx="0" cy="0" r="145" fill="none" stroke="#FFE01A" stroke-width="2.5" opacity="0.6"/>
+    <circle class="r1" cx="0" cy="0" r="90"  fill="none" stroke="#FFE01A" stroke-width="3"   opacity="0.9"/>
+
+    <!-- Center node — bigger -->
+    <circle class="center" cx="0" cy="0" r="68" fill="#FFE01A"/>
+
+    <!--
+      NFC signal icon — larger, 4 arcs, proper NFC shape
+      Centered at 0,0, icon spans ~60x52px
+      Arcs radiate left-to-right from a focal dot
+    -->
+    <g transform="translate(-18, -22)">
+      <!-- focal dot -->
+      <circle cx="0" cy="22" r="5.5" fill="#0a0a0a"/>
+      <!-- arc 1 — smallest -->
+      <path d="M 8 6 C 8 6 16 13 16 22 C 16 31 8 38 8 38"
+            fill="none" stroke="#0a0a0a" stroke-width="5" stroke-linecap="round"/>
+      <!-- arc 2 -->
+      <path d="M 18 0 C 18 0 30 10 30 22 C 30 34 18 44 18 44"
+            fill="none" stroke="#0a0a0a" stroke-width="5" stroke-linecap="round"/>
+      <!-- arc 3 -->
+      <path d="M 28 -6 C 28 -6 44 7 44 22 C 44 37 28 50 28 50"
+            fill="none" stroke="#0a0a0a" stroke-width="5" stroke-linecap="round"/>
+      <!-- arc 4 — largest -->
+      <path d="M 38 -12 C 38 -12 58 4 58 22 C 58 40 38 56 38 56"
+            fill="none" stroke="#0a0a0a" stroke-width="5" stroke-linecap="round"/>
+    </g>
+  </g>
+
+  <!-- Right side brand -->
+  <g class="brand">
+    <text x="680" y="280" font-family="'Space Mono','Courier New',monospace" font-size="72" font-weight="700" fill="#ffffff" letter-spacing="-1" text-anchor="start">LOCAL</text>
+    <text x="680" y="362" font-family="'Space Mono','Courier New',monospace" font-size="72" font-weight="700" fill="#FFE01A" letter-spacing="-1" text-anchor="start">PULSE</text>
+    <text x="682" y="402" font-family="'Space Mono','Courier New',monospace" font-size="14" fill="#ffffff" opacity="0.35" letter-spacing="3" text-anchor="start">TAP THE CITY. FEEL WHAT'S NOW.</text>
+    <text x="682" y="460" font-family="'Space Mono','Courier New',monospace" font-size="11" fill="#FFE01A" opacity="0.5" letter-spacing="4" text-anchor="start">BY URBAN HIKERS</text>
+    <rect x="680" y="490" width="200" height="28" fill="#111" rx="4"/>
+    <circle cx="698" cy="504" r="4" fill="#FFE01A" opacity="0.9">
+      <animate attributeName="opacity" values="0.9;0.2;0.9" dur="1.4s" repeatCount="indefinite"/>
+    </circle>
+    <text x="710" y="509" font-family="'Space Mono','Courier New',monospace" font-size="9" fill="#666" letter-spacing="2">SCANNING CITY...</text>
+  </g>
+
+  <text x="600" y="610" font-family="'Space Mono','Courier New',monospace" font-size="9" fill="#222" letter-spacing="4" text-anchor="middle">URBAN HIKERS // PROTOCOL_0.9.1 // OVER-THE-RHINE</text>
+</svg>

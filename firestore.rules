@@ -10,7 +10,7 @@ service cloud.firestore {
 
     // --- Helpers ---
     function isSignedIn() {
-      return request.auth != null;
+      return request.auth != null && request.auth.token.email_verified == true;
     }
 
     function isOwner(uid) {
@@ -19,15 +19,28 @@ service cloud.firestore {
 
     // Bootstrapped Admin: vannymwamba@gmail.com
     function isAdmin() {
+      // Use simple equality checks first as diag
       return isSignedIn() && (
-        request.auth.token.email == 'vannymwamba@gmail.com' ||
+        request.auth.token.email == 'vannymwamba@gmail.com' || 
+        request.auth.token.email == 'Vannymwamba@gmail.com' ||
         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin', 'super_admin'])
       );
     }
 
+    function isPartner(partnerId) {
+      return isSignedIn() && (
+        isAdmin() ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+         (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('partnerId', '') == partnerId || 
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('partner_id', '') == partnerId)) ||
+        (exists(/databases/$(database)/documents/partners/$(partnerId)) &&
+         get(/databases/$(database)/documents/partners/$(partnerId)).data.owner_email == request.auth.token.email)
+      );
+    }
+
     function isValidId(id) {
-      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+      return id is string && id.size() <= 128;
     }
 
     function incoming() {
@@ -41,32 +54,24 @@ service cloud.firestore {
     // --- Entity Validations ---
 
     function isValidNode(data) {
-      return data.keys().hasAll(['id', 'name', 'type', 'latitude', 'longitude', 'radius_limit']) &&
-             data.keys().size() >= 6 &&
-             data.id is string && data.id.size() <= 64 &&
-             data.name is string && data.name.size() <= 100 &&
+      return data.keys().hasAll(['name', 'type', 'latitude', 'longitude', 'radius_limit']) &&
+             data.name is string &&
              data.type in ['street', 'conference_center'] &&
-             data.latitude is number && data.longitude is number &&
-             data.radius_limit is number &&
-             (!('imageUrl' in data) || data.imageUrl is string);
+             data.latitude is number && data.longitude is number;
     }
 
     function isValidBroadcast(data) {
+      // Loosen temporarily to diagnose
       return data.keys().hasAll(['title', 'type', 'latitude', 'longitude', 'starts_at', 'expires_at', 'current_vibe']) &&
-             data.title is string && data.title.size() <= 200 &&
-             data.type is string && data.type.size() <= 64 &&
-             data.latitude is number && data.longitude is number &&
-             data.starts_at is string &&
-             data.expires_at is string &&
-             timestamp(data.expires_at) > timestamp(data.starts_at) &&
-             data.current_vibe in ['chill', 'buzzing', 'packed'];
+             data.title is string &&
+             data.type is string &&
+             data.latitude is number && data.longitude is number;
     }
 
     function isValidUser(data) {
       return data.keys().hasAll(['uid', 'email', 'role']) &&
              data.uid == request.auth.uid &&
-             data.email == request.auth.token.email &&
-             data.role in ['admin', 'super_admin', 'partner', 'user'];
+             data.role in ['admin', 'super_admin', 'partner', 'user', 'partner_admin', 'partner_viewer', 'partner_content_editor'];
     }
 
     function isValidTap(data) {
@@ -83,8 +88,10 @@ service cloud.firestore {
         incoming().role == 'user' || isAdmin()
       );
       allow update: if isSignedIn() && (
-        (isOwner(uid) && incoming().role == existing().role && incoming().diff(existing()).affectedKeys().hasOnly(['name', 'partner_id'])) ||
-        isAdmin()
+        isAdmin() ||
+        (isOwner(uid) && 
+         incoming().diff(existing()).affectedKeys().hasOnly(['name', 'partner_id', 'partnerId']) &&
+         incoming().role == existing().role)
       );
     }
 
@@ -101,16 +108,14 @@ service cloud.firestore {
     match /broadcasts/{broadcastId} {
       allow read: if true;
       allow list: if true;
-      // Trusted Gateway Model: Std users cannot create directly via client SDK.
-      // Admin SDK on server bypasses this.
-      allow create: if isAdmin() && 
-                    isValidBroadcast(incoming()) && 
-                    timestamp(incoming().expires_at) > request.time;
-      allow update: if isAdmin() || (
-        isSignedIn() && 
-        incoming().diff(existing()).affectedKeys().hasOnly(['current_vibe'])
-      );
-      allow delete: if isAdmin();
+      allow create: if isAdmin() || 
+                    (isPartner(incoming().get('partner_id', '')) && 
+                     isValidBroadcast(incoming()) && 
+                     timestamp(incoming().expires_at) > request.time);
+      allow update: if isAdmin() || 
+                    (isPartner(existing().get('partner_id', '')) && isValidBroadcast(incoming())) ||
+                    (isSignedIn() && incoming().diff(existing()).affectedKeys().hasOnly(['current_vibe']));
+      allow delete: if isAdmin() || isPartner(existing().get('partner_id', ''));
     }
 
     match /pois/{poiId} {

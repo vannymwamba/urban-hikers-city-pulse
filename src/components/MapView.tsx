@@ -1,19 +1,16 @@
 import React from 'react';
-import { MapContainer, TileLayer, Marker, Popup, Circle, useMap, Polyline, Tooltip } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, Circle, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { Broadcast, Node, Partner, BroadcastType, Route } from '../types';
-import { MapPin, Zap, Music, Palette, Calendar, Mic, Ticket, Truck, Footprints, ShoppingBag, Navigation2, Target } from 'lucide-react';
+import { Broadcast, Node, Partner, BroadcastType } from '../types';
+import { MapPin, Zap, Music, Palette, Calendar, Mic, Ticket, Truck, Footprints, ShoppingBag } from 'lucide-react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { SponsorBadge } from './SponsorBadge';
 
 interface MapViewProps {
   currentNode: Node | null;
   broadcasts: Broadcast[];
-  activeRoute?: Route | null;
-  userLocation?: [number, number] | null;
   onSelect: (broadcast: Broadcast) => void;
-  onGeolocate?: () => void;
   partnersMap?: Record<string, Partner>;
 }
 
@@ -95,38 +92,6 @@ const getCurrentNodeIcon = () => {
   }
 };
 
-const getUserIcon = () => {
-  try {
-    return L.divIcon({
-      html: renderToStaticMarkup(
-        <div className="relative">
-          <div className="absolute inset-0 bg-hud-magenta rounded-full animate-ping opacity-20" />
-          <div style={{ 
-            backgroundColor: '#FF00FF', 
-            borderRadius: '50%', 
-            padding: '6px', 
-            border: '2px solid white',
-            boxShadow: '0 0 10px rgba(255, 0, 255, 0.8)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: 'white',
-            position: 'relative',
-            zIndex: 10
-          }}>
-            <Navigation2 size={14} className="transform rotate-45" />
-          </div>
-        </div>
-      ),
-      className: 'user-location-icon',
-      iconSize: [26, 26],
-      iconAnchor: [13, 13],
-    });
-  } catch (e) {
-    return new L.Icon.Default();
-  }
-};
-
 // Component to auto-center map when currentNode changes
 const RecenterMap = ({ coords }: { coords: [number, number] }) => {
   const map = useMap();
@@ -138,17 +103,8 @@ const RecenterMap = ({ coords }: { coords: [number, number] }) => {
   return null;
 };
 
-export const MapView: React.FC<MapViewProps> = ({ 
-  currentNode, 
-  broadcasts, 
-  activeRoute, 
-  userLocation, 
-  onSelect, 
-  onGeolocate, 
-  partnersMap = {} 
-}) => {
+export const MapView: React.FC<MapViewProps> = ({ currentNode, broadcasts, onSelect, partnersMap = {} }) => {
   const currentNodeIcon = React.useMemo(() => getCurrentNodeIcon(), []);
-  const userIcon = React.useMemo(() => getUserIcon(), []);
 
   const lat = currentNode ? Number(currentNode.latitude) : NaN;
   const lng = currentNode ? Number(currentNode.longitude) : NaN;
@@ -204,41 +160,6 @@ export const MapView: React.FC<MapViewProps> = ({
           </Popup>
         </Marker>
 
-        {/* User Location Marker */}
-        {userLocation && (
-          <Marker position={userLocation} icon={userIcon}>
-            <Tooltip permanent direction="top" className="hud-tooltip">
-              <span className="font-bold text-[8px] tracking-widest uppercase">YOU</span>
-            </Tooltip>
-          </Marker>
-        )}
-
-        {/* Active Route Polylines */}
-        {activeRoute && activeRoute.points && activeRoute.points.length > 0 && (
-          <>
-            {/* Outer Glow */}
-            <Polyline 
-              positions={activeRoute.points.map(p => [p.lat, p.lng] as [number, number])}
-              pathOptions={{ 
-                color: '#F5C800', 
-                weight: 8, 
-                opacity: 0.2,
-                lineJoin: 'round'
-              }}
-            />
-            {/* Inner Core */}
-            <Polyline 
-              positions={activeRoute.points.map(p => [p.lat, p.lng] as [number, number])}
-              pathOptions={{ 
-                color: '#F5C800', 
-                weight: 4, 
-                opacity: 1,
-                lineJoin: 'round'
-              }}
-            />
-          </>
-        )}
-
         {/* Broadcast Markers */}
         {Array.isArray(broadcasts) && broadcasts.map((b) => {
           if (!b || typeof b.latitude !== 'number' || typeof b.longitude !== 'number') return null;
@@ -291,17 +212,6 @@ export const MapView: React.FC<MapViewProps> = ({
           pathOptions={{ color: '#4CD98A', fillColor: '#4CD98A', fillOpacity: 0.05, weight: 1, dashArray: '5, 10' }} 
         />
       </MapContainer>
-
-      {/* Map Actions HUD */}
-      <div className="absolute top-4 right-4 z-[500] flex flex-col gap-2">
-        <button 
-          onClick={onGeolocate}
-          className="bg-hud-bg/90 backdrop-blur-md border border-white/10 p-3 rounded-full shadow-xl hover:bg-hud-bg transition-colors group"
-          title="Geolocate"
-        >
-          <Target size={20} className="text-hud-yellow group-hover:scale-110 transition-transform" />
-        </button>
-      </div>
 
       {/* Map Legend Overlay */}
       <div className="absolute bottom-4 left-4 z-[500] bg-hud-bg/90 backdrop-blur-md border border-white/10 p-3 rounded-2xl shadow-xl pointer-events-none">

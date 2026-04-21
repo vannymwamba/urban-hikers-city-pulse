@@ -20,7 +20,7 @@ const seedData = async () => {
 
     // Seed Nodes
     const nodes = [
-      { id: 'OTR-ALPHA-01', name: 'ALPHA_PLAZA_HUB', type: 'street', address: 'Main St & E 13th St, Cincinnati, OH', latitude: 39.1092, longitude: -84.5125, radius_limit: 5000 },
+      { id: 'ALPHA_PLAZA_HUB', name: 'ALPHA_PLAZA_HUB', type: 'street', address: 'Main St & E 13th St, Cincinnati, OH', latitude: 39.1092, longitude: -84.5125, radius_limit: 5000 },
       { id: 'SECTOR-BETA', name: 'BETA_CONCOURSE', type: 'conference_center', address: '525 Elm St, Cincinnati, OH', latitude: 39.1015, longitude: -84.5165, radius_limit: 2000 },
       { id: 'SECTOR-GAMMA', name: 'GAMMA_GARDENS', type: 'street', address: '1230 Elm St, Cincinnati, OH', latitude: 39.1115, longitude: -84.5185, radius_limit: 3000 }
     ];
@@ -169,8 +169,8 @@ const seedData = async () => {
     // Seed Broadcasts
     const broadcasts = [
       {
-        nodeId: 'OTR-ALPHA-01',
-        node_id: 'OTR-ALPHA-01',
+        nodeId: 'ALPHA_PLAZA_HUB',
+        node_id: 'ALPHA_PLAZA_HUB',
         partnerId: 'partner-kroger',
         partner_id: 'partner-kroger',
         title: 'FLASH_TACO_DEAL_50%',
@@ -207,8 +207,8 @@ const seedData = async () => {
         description: 'LAST_CALL: Get 50% off your BTW26 Conference Pass. Limited quantity available for local residents. Tap in now to secure your spot at the future of urban tech.'
       },
       {
-        nodeId: 'OTR-ALPHA-01',
-        node_id: 'OTR-ALPHA-01',
+        nodeId: 'ALPHA_PLAZA_HUB',
+        node_id: 'ALPHA_PLAZA_HUB',
         partnerId: 'partner-rhinegeist',
         partner_id: 'partner-rhinegeist',
         title: 'RHINEGEIST_HAPPY_HOUR',
@@ -226,8 +226,8 @@ const seedData = async () => {
         description: 'Happy Hour is LIVE! $1 off all pints for Urban Hikers. Head to the taproom and show your signal. The perfect way to end your hike.'
       },
       {
-        nodeId: 'OTR-ALPHA-01',
-        node_id: 'OTR-ALPHA-01',
+        nodeId: 'ALPHA_PLAZA_HUB',
+        node_id: 'ALPHA_PLAZA_HUB',
         partnerId: 'partner-music-hall',
         partner_id: 'partner-music-hall',
         title: 'LIVE_JAZZ_QUARTET',
@@ -245,8 +245,8 @@ const seedData = async () => {
         description: 'Enjoy a relaxing evening with the Blue Note Quartet. Live jazz performance in the heart of the city. Open to all, no tickets required. Grab a seat early!'
       },
       {
-        nodeId: 'OTR-ALPHA-01',
-        node_id: 'OTR-ALPHA-01',
+        nodeId: 'ALPHA_PLAZA_HUB',
+        node_id: 'ALPHA_PLAZA_HUB',
         partnerId: 'partner-cac',
         partner_id: 'partner-cac',
         title: 'CAC_OPENING_NIGHT',
@@ -264,8 +264,8 @@ const seedData = async () => {
         description: 'Join us for the opening night of our latest exhibition. Meet the artists, enjoy refreshments, and experience contemporary art like never before. Free for Urban Hikers.'
       },
       {
-        nodeId: 'OTR-ALPHA-01',
-        node_id: 'OTR-ALPHA-01',
+        nodeId: 'ALPHA_PLAZA_HUB',
+        node_id: 'ALPHA_PLAZA_HUB',
         title: 'STREET_ART_EXPO',
         type: 'event',
         address: '1400 Vine St, Cincinnati, OH',
@@ -281,8 +281,8 @@ const seedData = async () => {
         description: 'Local artists showcase their latest murals and installations. Interactive art walk through the Vine Street corridor. Meet the artists and discover the stories behind the walls.'
       },
       {
-        nodeId: 'OTR-ALPHA-01',
-        node_id: 'OTR-ALPHA-01',
+        nodeId: 'ALPHA_PLAZA_HUB',
+        node_id: 'ALPHA_PLAZA_HUB',
         partnerId: 'partner-btw26',
         partner_id: 'partner-btw26',
         title: 'BTW26_KEYNOTE_HALL_B',
@@ -300,8 +300,8 @@ const seedData = async () => {
         description: 'The future of urban infrastructure and NFC technology. Join industry leaders for a deep dive into the BTW26 keynote session. Hall B, limited seating available.'
       },
       {
-        nodeId: 'OTR-ALPHA-01',
-        node_id: 'OTR-ALPHA-01',
+        nodeId: 'ALPHA_PLAZA_HUB',
+        node_id: 'ALPHA_PLAZA_HUB',
         partnerId: 'chpl',
         partner_id: 'chpl',
         title: 'STORYTIME_IN_THE_PARK',
@@ -319,8 +319,8 @@ const seedData = async () => {
         description: 'Join the Cincinnati Public Library for an outdoor storytime session. Perfect for families and young hikers. Discover new stories and enjoy the fresh air.'
       },
       {
-        nodeId: 'OTR-ALPHA-01',
-        node_id: 'OTR-ALPHA-01',
+        nodeId: 'ALPHA_PLAZA_HUB',
+        node_id: 'ALPHA_PLAZA_HUB',
         partnerId: 'chpl',
         partner_id: 'chpl',
         title: 'TECH_HELP_DESK',
@@ -336,6 +336,45 @@ const seedData = async () => {
         current_vibe: 'chill',
         active: true,
         description: 'Need help with your device or the Urban Hikers app? Our tech volunteers are here to help. Drop by the library hub for one-on-one assistance.'
+      },
+      {
+        nodeId: 'ALPHA_PLAZA_HUB',
+        node_id: 'ALPHA_PLAZA_HUB',
+        title: 'MR. DYNAMITE',
+        type: 'mural',
+        artist: 'JENNY USTICK',
+        address: 'Vine & 14th St, Cincinnati, OH',
+        latitude: 39.1105,
+        longitude: -84.5145,
+        startsAt: new Date().toISOString(),
+        starts_at: new Date().toISOString(),
+        expiresAt: addHours(new Date(), 8760).toISOString(),
+        expires_at: addHours(new Date(), 8760).toISOString(),
+        currentVibe: 'chill',
+        current_vibe: 'chill',
+        active: true,
+        cover_url: 'https://picsum.photos/seed/dynamite/800/500',
+        description: 'A tribute to the Godfather of Soul, James Brown. This vibrant mural captures the legendary energy of Mr. Dynamite in the heart of OTR.'
+      },
+      {
+        nodeId: 'ALPHA_PLAZA_HUB',
+        node_id: 'ALPHA_PLAZA_HUB',
+        title: 'MT. LOOKOUT_WALK_PROTOCOL',
+        type: 'walking_event',
+        partner_id: 'partner-chpl',
+        booking_url: 'https://eventbrite.com/e/mt-lookout-walk-123',
+        address: 'Mt Lookout Square, Cincinnati, OH',
+        latitude: 39.1100,
+        longitude: -84.4100,
+        startsAt: new Date().toISOString(),
+        starts_at: new Date().toISOString(),
+        expiresAt: addHours(new Date(), 72).toISOString(),
+        expires_at: addHours(new Date(), 72).toISOString(),
+        currentVibe: 'buzzing',
+        current_vibe: 'buzzing',
+        active: true,
+        price: 15,
+        description: 'Join the Cincinnati Walking Club for a technical scan of the Mt. Lookout corridor. Access through external protocol required.'
       }
     ];
 
@@ -359,8 +398,8 @@ const seedData = async () => {
 
     // Seed Taps
     const sampleTaps = [
-      { node_id: 'OTR-ALPHA-01', session_uuid: 's1', access_vector: 'nfc', timestamp: new Date().toISOString(), sponsor_id: 'partner-kroger' },
-      { node_id: 'OTR-ALPHA-01', session_uuid: 's2', access_vector: 'qr', timestamp: new Date().toISOString(), sponsor_id: 'partner-kroger' },
+      { node_id: 'ALPHA_PLAZA_HUB', session_uuid: 's1', access_vector: 'nfc', timestamp: new Date().toISOString(), sponsor_id: 'partner-kroger' },
+      { node_id: 'ALPHA_PLAZA_HUB', session_uuid: 's2', access_vector: 'qr', timestamp: new Date().toISOString(), sponsor_id: 'partner-kroger' },
       { node_id: 'SECTOR-BETA', session_uuid: 's3', access_vector: 'nfc', timestamp: new Date().toISOString(), sponsor_id: 'partner-medpace' },
     ];
 
@@ -407,17 +446,10 @@ const seedData = async () => {
         rewardText: 'Includes 1 Free Pastry',
         capacity: 20,
         remainingSpots: 3,
-        startNodeId: 'OTR-ALPHA-01',
+        startNodeId: 'ALPHA_PLAZA_HUB',
         stops: [
-          { nodeId: 'OTR-ALPHA-01', name: 'Findlay Market Node', description: 'Meet at the north gate.' },
+          { nodeId: 'ALPHA_PLAZA_HUB', name: 'Findlay Market Node', description: 'Meet at the north gate.' },
           { nodeId: 'partner-allez', name: 'Allez Bakery', description: 'End of the sprint and pastry pickup.' }
-        ],
-        points: [
-          { lat: 39.1092, lng: -84.5125 },
-          { lat: 39.1100, lng: -84.5125 },
-          { lat: 39.1105, lng: -84.5135 },
-          { lat: 39.1100, lng: -84.5145 },
-          { lat: 39.1085, lng: -84.5120 }
         ],
         imageUrl: 'https://picsum.photos/seed/arch/800/400'
       },
@@ -436,16 +468,10 @@ const seedData = async () => {
         rewardText: 'Includes Free Exhibition Entry',
         capacity: 15,
         remainingSpots: 5,
-        startNodeId: 'OTR-ALPHA-01',
+        startNodeId: 'ALPHA_PLAZA_HUB',
         stops: [
-          { nodeId: 'OTR-ALPHA-01', name: 'Alpha Plaza Hub', description: 'Start at the main hub.' },
+          { nodeId: 'ALPHA_PLAZA_HUB', name: 'Alpha Plaza Hub', description: 'Start at the main hub.' },
           { nodeId: 'partner-cac', name: 'Contemporary Arts Center', description: 'End at CAC for the exhibition.' }
-        ],
-        points: [
-          { lat: 39.1092, lng: -84.5125 },
-          { lat: 39.1070, lng: -84.5125 },
-          { lat: 39.1050, lng: -84.5121 },
-          { lat: 39.1031, lng: -84.5121 }
         ],
         imageUrl: 'https://picsum.photos/seed/murals/800/400'
       },
@@ -460,16 +486,10 @@ const seedData = async () => {
         guideId: 'guide-marcus',
         capacity: 10,
         remainingSpots: 2,
-        startNodeId: 'OTR-ALPHA-01',
+        startNodeId: 'ALPHA_PLAZA_HUB',
         stops: [
-          { nodeId: 'OTR-ALPHA-01', description: 'Start at Alpha Plaza' },
+          { nodeId: 'ALPHA_PLAZA_HUB', description: 'Start at Alpha Plaza' },
           { nodeId: 'partner-rhinegeist', description: 'Rhinegeist Taproom Tasting' }
-        ],
-        points: [
-          { lat: 39.1092, lng: -84.5125 },
-          { lat: 39.1120, lng: -84.5135 },
-          { lat: 39.1150, lng: -84.5160 },
-          { lat: 39.1172, lng: -84.5191 }
         ],
         imageUrl: 'https://picsum.photos/seed/brewery/800/400'
       }

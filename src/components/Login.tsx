@@ -6,6 +6,7 @@ import { UserRole, UserProfile } from '../types';
 import { motion } from 'motion/react';
 import { Shield, User as UserIcon, Lock, Mail, ChevronRight, Globe, ArrowLeft } from 'lucide-react';
 import { handleFirestoreError, OperationType } from '../utils/firebaseErrors';
+import { LocalPulseLoader } from './LocalPulseLoader';
 
 interface LoginProps {
   onLoginSuccess: (profile: UserProfile) => void;
@@ -252,7 +253,7 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
               disabled={loading}
               className="w-full bg-uh-yellow text-uh-black font-black p-4 hover:scale-[1.02] active:scale-[0.98] transition-all text-xs tracking-[0.2em] uppercase flex items-center justify-center gap-2 rounded-xl shadow-[0_0_20px_rgba(255,224,26,0.2)]"
             >
-              {loading ? 'PROCESSING...' : isRegistering ? 'Create Account' : 'Email Secure Login'}
+              {loading ? <LocalPulseLoader variant="dots" /> : (isRegistering ? 'Create Account' : 'Email Secure Login')}
             </button>
 
             <div className="relative py-4">
@@ -266,7 +267,7 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
               disabled={loading}
               className="w-full border border-white/10 p-4 hover:bg-white/5 transition-all text-[10px] font-bold tracking-[0.2em] uppercase flex items-center justify-center gap-3 rounded-xl text-white"
             >
-              <Globe size={16} className="text-uh-yellow" /> Google Network
+              {loading ? <LocalPulseLoader variant="dots" /> : <><Globe size={16} className="text-uh-yellow" /> Google Network</>}
             </button>
           </form>
 

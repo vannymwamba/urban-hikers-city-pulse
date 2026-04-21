@@ -58,19 +58,18 @@ export const VibeTrend: React.FC<VibeTrendProps> = ({ broadcastId }) => {
     return () => unsubscribe();
   }, [broadcastId]);
 
-  if (loading) return <div className="h-32 flex items-center justify-center text-[10px] text-hud-green/40 animate-pulse">ANALYZING_VIBE_STREAM...</div>;
-  if (data.length < 2) return <div className="h-32 flex items-center justify-center text-[10px] text-hud-green/40 border border-dashed border-hud-green/20">INSUFFICIENT_DATA_FOR_TREND_ANALYSIS</div>;
+  if (loading) return <div className="h-32 flex items-center justify-center text-[9px] text-[#444] animate-pulse uppercase tracking-[0.2em]">Analyzing_Streams...</div>;
+  if (data.length < 2) return <div className="h-32 flex items-center justify-center text-[9px] text-[#222] border border-dashed border-white/5 uppercase tracking-[0.2em]">Insufficient_Data</div>;
 
   return (
-    <div className="mt-6">
-      <h3 className="text-[10px] font-bold mb-4 tracking-widest text-hud-green/40">VIBE_TREND_ANALYSIS</h3>
-      <div className="h-32 w-full border border-hud-green/10 bg-hud-green/5 p-2">
+    <div className="mt-4">
+      <div className="h-32 w-full border border-white/5 bg-black/40 p-4">
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={data}>
             <defs>
               <linearGradient id="colorVibe" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#00ff00" stopOpacity={0.3}/>
-                <stop offset="95%" stopColor="#00ff00" stopOpacity={0}/>
+                <stop offset="5%" stopColor="#FFE01A" stopOpacity={0.15}/>
+                <stop offset="95%" stopColor="#FFE01A" stopOpacity={0}/>
               </linearGradient>
             </defs>
             <XAxis 
@@ -86,9 +85,9 @@ export const VibeTrend: React.FC<VibeTrendProps> = ({ broadcastId }) => {
               content={({ active, payload }) => {
                 if (active && payload && payload.length) {
                   return (
-                    <div className="bg-hud-bg border border-hud-green p-2 text-[10px] font-mono">
-                      <div className="text-hud-green/60">{payload[0].payload.time}</div>
-                      <div className="text-hud-green font-bold">{VIBE_LABELS[payload[0].value as number]}</div>
+                    <div className="bg-[#111] border border-white/10 p-3 text-[9px] font-mono">
+                      <div className="text-[#444] uppercase tracking-widest">{payload[0].payload.time}</div>
+                      <div className="text-uh-yellow font-bold uppercase tracking-[0.1em]">{VIBE_LABELS[payload[0].value as number]}</div>
                     </div>
                   );
                 }
@@ -98,12 +97,13 @@ export const VibeTrend: React.FC<VibeTrendProps> = ({ broadcastId }) => {
             <Area 
               type="monotone" 
               dataKey="value" 
-              stroke="#00ff00" 
+              stroke="#FFE01A" 
+              strokeOpacity={0.4}
               fillOpacity={1} 
               fill="url(#colorVibe)" 
-              strokeWidth={2}
+              strokeWidth={1.5}
               isAnimationActive={true}
-              animationDuration={1000}
+              animationDuration={1500}
             />
           </AreaChart>
         </ResponsiveContainer>

@@ -16,6 +16,15 @@ import path from 'path';
 
 dotenv.config();
 
+const LIBRARY_FALLBACK_IMAGES: Record<string, string> = {
+  default: 'https://cincinnatilibrary.bibliocommons.com/events/uploads/images/full/86624327f9dd8f925da4e06c95462492/events-cooking-food.png',
+  local:   '/library-fallback.jpg'
+};
+
+function getLibraryFallback(): string {
+  return LIBRARY_FALLBACK_IMAGES.default;
+}
+
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
@@ -29,25 +38,25 @@ function initDb() {
     });
   }
   
-  // The user specifically requested database gen-lang-client-0752567409
-  // We'll also try to read from config for consistency if available, but prioritise the request
-  let databaseId = "gen-lang-client-0752567409";
+  // prioritising the config for the correct named database instance
+  let databaseId: string | undefined = undefined;
   try {
-    const configPath = './firebase-applet-config.json';
-    if (fs.existsSync(configPath)) {
-      const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-      if (config.firestoreDatabaseId && config.firestoreDatabaseId !== '(default)') {
-        // If the environment has a specific database assigned, we should use it
-        // but for this specific agent request, the user was very explicit.
-        // We'll use the user's requested ID.
-        databaseId = "gen-lang-client-0752567409"; 
+    const configPath = path.join(process.cwd(), 'firebase-applet-config.json');
+    if (fs.existsSync(configPath) && fs.statSync(configPath).size > 0) {
+      const content = fs.readFileSync(configPath, 'utf8');
+      if (content && content.trim()) {
+        const config = JSON.parse(content);
+        if (config.firestoreDatabaseId && config.firestoreDatabaseId !== '(default)') {
+          databaseId = config.firestoreDatabaseId;
+        }
       }
     }
   } catch (e) {
-    // Fallback to the requested ID
+    console.warn("Library Agent: Failed to read database config", e);
   }
   
   db = getFirestore(databaseId);
+  console.log(`Library Agent: Initialized with DB: ${databaseId || '(default)'}`);
 }
 
 interface LibraryEvent {
@@ -105,7 +114,11 @@ async function fetchLibraryEvents(): Promise<LibraryEvent[]> {
           category: evt.audiences?.[0]?.name || 'All Ages',
           registration_required: !!evt.registration_required,
           event_url: `https://cincinnatilibrary.bibliocommons.com/events/${evt.id}`,
-          image_url: evt.image_url || '',
+          image_url: evt.image_url || 
+                     evt.cover_image?.url || 
+                     evt.images?.[0]?.url || 
+                     evt.thumbnail_url || 
+                     '',
           source_id: String(evt.id)
         });
       }
@@ -180,7 +193,17 @@ Return only valid JSON, no markdown.`;
     // Clean JSON from potential markdown markers
     text = text.replace(/```json/g, '').replace(/```/g, '').trim();
     
-    return JSON.parse(text) as EnrichedSignal;
+    if (!text) {
+      console.warn(`Library Agent: Gemini returned empty text for ${event.title}`);
+      return null;
+    }
+
+    try {
+      return JSON.parse(text) as EnrichedSignal;
+    } catch (parseError) {
+      console.error(`Library Agent: JSON parse failed for ${event.title}. Text: "${text}"`, parseError);
+      return null;
+    }
   } catch (error) {
     console.error(`Library Agent: Enrichment failed for ${event.title}`, error);
     return null;
@@ -193,6 +216,7 @@ Return only valid JSON, no markdown.`;
 export async function runLibraryIngestionAgent() {
   initDb();
   
+  const MAX_PER_RUN = 3;
   const summary = {
     total_fetched: 0,
     total_enriched: 0,
@@ -205,10 +229,18 @@ export async function runLibraryIngestionAgent() {
     const rawEvents = await fetchLibraryEvents();
     summary.total_fetched = rawEvents.length;
 
-    for (const rawEvent of rawEvents) {
+    const downtownEvents = rawEvents.filter(evt =>
+      evt.location_name.toLowerCase().includes('downtown') ||
+      evt.location_name.toLowerCase().includes('main')
+    );
+
+    for (const rawEvent of downtownEvents) {
       try {
+        const eventStart = new Date(rawEvent.start_datetime);
+        if (isNaN(eventStart.getTime()) || eventStart < new Date()) continue;
+
         // DEDUPLICATION
-        const existingDoc = await db.collection('signals')
+        const existingDoc = await db.collection('broadcasts')
           .where('source', '==', 'cincinnati_library')
           .where('source_id', '==', rawEvent.source_id)
           .limit(1)
@@ -228,10 +260,10 @@ export async function runLibraryIngestionAgent() {
         const documentData = {
           source: 'cincinnati_library',
           source_id: rawEvent.source_id,
-          signal_title: enriched?.signal_title || rawEvent.title,
-          signal_vibe: enriched?.signal_vibe || 'CHILL',
-          signal_category: enriched?.signal_category || 'CIVIC_EVENT',
-          short_description: enriched?.short_description || rawEvent.description.slice(0, 150),
+          title: enriched?.signal_title || rawEvent.title,
+          vibe: enriched?.signal_vibe || 'CHILL',
+          type: enriched?.signal_category || 'CIVIC_EVENT',
+          description: enriched?.short_description || rawEvent.description.slice(0, 150),
           location_name: rawEvent.location_name,
           location_address: rawEvent.location_address,
           nearest_hub: enriched?.nearest_hub_hint || '',
@@ -240,15 +272,25 @@ export async function runLibraryIngestionAgent() {
           end_datetime: endTimestamp,
           expires_at: endTimestamp, // same as end_datetime
           registration_required: rawEvent.registration_required,
-          event_url: rawEvent.event_url,
-          image_url: rawEvent.image_url,
+          booking_url: rawEvent.event_url,
+          cover_url: (rawEvent.image_url && rawEvent.image_url.trim() !== '')
+            ? rawEvent.image_url          
+            : getLibraryFallback(),
+          scope:      'all_nodes',
+          latitude:   39.1031,
+          longitude:  -84.5120,
+          venue:      'Cincinnati Public Library',
+          address:    '800 Vine St, Cincinnati, OH 45202',
+          partner_id: 'cincinnati-public-library',
           created_at: FieldValue.serverTimestamp(),
           node_id: null, // geocoded later
           is_active: true
         };
 
-        await db.collection('signals').add(documentData);
+        await db.collection('broadcasts').add(documentData);
         summary.total_written++;
+
+        if (summary.total_written >= MAX_PER_RUN) break;
 
       } catch (innerError) {
         console.error(`Library Agent: Error processing event ${rawEvent.source_id}`, innerError);

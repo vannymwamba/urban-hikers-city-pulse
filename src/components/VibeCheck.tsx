@@ -1,6 +1,7 @@
 import React from 'react';
 import { Vibe } from '../types';
 import { motion } from 'motion/react';
+import { LocalPulseLoader } from './LocalPulseLoader';
 
 interface VibeCheckProps {
   onReport: (vibe: Vibe) => void;
@@ -9,18 +10,18 @@ interface VibeCheckProps {
 
 export const VibeCheck: React.FC<VibeCheckProps> = ({ onReport, isReporting }) => {
   const options: { vibe: Vibe; color: string; label: string; accent: string }[] = [
-    { vibe: 'chill', color: 'bg-hud-teal', label: 'CHILL', accent: 'text-hud-teal' },
-    { vibe: 'buzzing', color: 'bg-hud-amber', label: 'BUZZING', accent: 'text-hud-amber' },
-    { vibe: 'packed', color: 'bg-hud-coral', label: 'PACKED', accent: 'text-hud-coral' },
+    { vibe: 'chill', color: 'bg-uh-teal', label: 'CHILL', accent: 'text-uh-teal' },
+    { vibe: 'buzzing', color: 'bg-uh-yellow', label: 'BUZZING', accent: 'text-uh-yellow' },
+    { vibe: 'packed', color: 'bg-uh-magenta', label: 'PACKED', accent: 'text-uh-magenta' },
   ];
 
   return (
-    <div className="bg-hud-bg p-4 border border-white/5">
-      <div className="flex items-center gap-2 mb-4">
-        <div className="w-1 h-3 bg-hud-yellow" />
-        <h3 className="text-[10px] font-black tracking-[0.2em] text-white/30 uppercase font-mono">CROWD_VIBE_REPORT_INPUT</h3>
+    <div className="bg-[#111] p-6 border border-white/5">
+      <div className="flex items-center gap-2 mb-6">
+        <div className="w-1 h-3 bg-uh-yellow" />
+        <h3 className="text-[9px] font-bold tracking-[0.2em] text-[#444] uppercase font-mono">Telemetry_Source_Input</h3>
       </div>
-      <div className="grid grid-cols-3 gap-2">
+      <div className="grid grid-cols-3 gap-3">
         {options.map((opt) => (
           <motion.button
             key={opt.vibe}
@@ -28,18 +29,16 @@ export const VibeCheck: React.FC<VibeCheckProps> = ({ onReport, isReporting }) =
             whileTap={{ scale: 0.98 }}
             disabled={isReporting}
             onClick={() => onReport(opt.vibe)}
-            className={`flex flex-col items-center justify-center py-5 border border-white/10 hover:border-white/30 transition-all group relative overflow-hidden bg-black/20 rounded-sm ${isReporting ? 'opacity-50 cursor-not-allowed' : ''}`}
+            className={`flex flex-col items-center justify-center py-6 border border-white/5 hover:border-white/10 transition-all group relative overflow-hidden bg-black/40 rounded-sm ${isReporting ? 'opacity-50 cursor-not-allowed' : ''}`}
           >
-            {isReporting && (
-              <motion.div 
-                initial={{ width: 0 }}
-                animate={{ width: '100%' }}
-                transition={{ duration: 0.5 }}
-                className={`absolute inset-0 ${opt.color}/10`}
-              />
+            {isReporting ? (
+              <LocalPulseLoader variant="dots" />
+            ) : (
+              <>
+                <div className={`w-1.5 h-1.5 mb-4 ${opt.color} transition-all`} />
+                <span className={`text-[9px] font-bold tracking-[0.15em] relative z-10 font-mono ${opt.accent}`}>{opt.label}</span>
+              </>
             )}
-            <div className={`w-1.5 h-1.5 mb-3 ${opt.color} group-hover:shadow-[0_0_12px_currentColor] relative z-10 transition-all`} />
-            <span className={`text-[9px] font-black tracking-[0.15em] relative z-10 font-mono ${opt.accent}`}>{opt.label}</span>
           </motion.button>
         ))}
       </div>

@@ -75,6 +75,8 @@ export interface Broadcast {
   scope?: 'single_hub' | 'all_nodes';
   discount_value?: string;
   signal_location_source?: string;
+  artist?: string;
+  booking_url?: string;
 }
 
 export interface Partner {

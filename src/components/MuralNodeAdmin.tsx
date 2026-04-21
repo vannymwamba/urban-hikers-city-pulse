@@ -11,11 +11,11 @@ import {
   Zap, 
   CheckCircle2, 
   AlertCircle, 
-  Loader2, 
   ChevronLeft,
   Search,
   Image as ImageIcon
 } from 'lucide-react';
+import { LocalPulseLoader } from './LocalPulseLoader';
 
 const MuralNodeAdmin: React.FC = () => {
   const [muralName, setMuralName] = useState('');
@@ -184,10 +184,9 @@ const MuralNodeAdmin: React.FC = () => {
                   type="button"
                   onClick={resolveCoords}
                   disabled={isResolving}
-                  className="px-4 border border-[#FFD700] hover:bg-[#FFD700] hover:text-[#0A0A0A] transition-all text-[10px] font-bold uppercase disabled:opacity-50 flex items-center gap-2"
+                  className="px-4 border border-[#FFD700] hover:bg-[#FFD700] hover:text-[#0A0A0A] transition-all text-[10px] font-bold uppercase disabled:opacity-50 flex items-center justify-center min-w-[120px]"
                 >
-                  {isResolving ? <Loader2 className="animate-spin" size={14} /> : <Search size={14} />}
-                  Resolve_Coords
+                  {isResolving ? <LocalPulseLoader variant="dots" /> : <><Search size={14} className="mr-2" /> Resolve_Coords</>}
                 </button>
               </div>
             </div>
@@ -285,13 +284,10 @@ const MuralNodeAdmin: React.FC = () => {
           <button 
             type="submit"
             disabled={isSubmitting}
-            className="w-full bg-[#FFD700] text-[#0A0A0A] p-4 font-bold uppercase tracking-[0.2em] hover:bg-[#FFD700]/90 transition-all flex items-center justify-center gap-3 disabled:opacity-50"
+            className="w-full bg-[#FFD700] text-[#0A0A0A] p-4 font-bold uppercase tracking-[0.2em] hover:bg-[#FFD700]/90 transition-all flex items-center justify-center gap-3 disabled:opacity-50 min-h-[56px]"
           >
             {isSubmitting ? (
-              <>
-                <Loader2 className="animate-spin" size={20} />
-                Deploying_to_Grid...
-              </>
+              <LocalPulseLoader variant="dots" />
             ) : (
               <>
                 <Zap size={20} />

@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { UserProfile } from '../types';
-import { motion } from 'motion/react';
-import { ArrowRight } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 
 interface LandingPageProps {
   onLogin: () => void;
@@ -13,177 +12,179 @@ interface LandingPageProps {
   onOpenWallet?: () => void;
 }
 
-export const LandingPage: React.FC<LandingPageProps> = ({ onLogin, onPartnerLogin, onTapIntoPulse, onCreatorIgnite, userProfile }) => {
-  const [tapsCount, setTapsCount] = useState(12482);
+export const LandingPage: React.FC<LandingPageProps> = ({ 
+  onLogin, 
+  onPartnerLogin, 
+  onTapIntoPulse, 
+  onCreatorIgnite, 
+  userProfile 
+}) => {
+  const [tapsCount, setTapsCount] = useState(12);
+  const [pulseKey, setPulseKey] = useState(0);
 
-  // Increment taps counter every 3s
   useEffect(() => {
     const interval = setInterval(() => {
-      setTapsCount(prev => prev + Math.floor(Math.random() * 3) + 1);
-    }, 3000);
+      setPulseKey(prev => prev + 1);
+    }, 6000);
     return () => clearInterval(interval);
   }, []);
 
-  const mockEvents = [
-    { time: '18:30', name: 'LIVE JAZZ @ GHOST BABY', node: 'OTR-04', vibe: 'BUZZING', vibeColor: 'bg-uh-yellow text-uh-black' },
-    { time: '19:00', name: 'ROOFTOP YOGA', node: 'PEND-02', vibe: 'CHILL', vibeColor: 'bg-white/10 text-white/60' },
-    { time: '20:15', name: 'TECH MIXER', node: 'CBD-09', vibe: 'LIVE', vibeColor: 'bg-uh-magenta text-white' },
-    { time: '21:00', name: 'VINYL NIGHT', node: 'NS-01', vibe: 'HYPE', vibeColor: 'bg-uh-yellow text-uh-black' },
-  ];
-
   return (
-    <div className="bg-uh-black text-white font-sans selection:bg-uh-yellow selection:text-uh-black overflow-x-hidden relative min-h-screen">
-      {/* Rotated Side Labels */}
-      <div className="fixed left-4 bottom-12 z-50 hidden lg:block">
-        <div className="font-display text-[10px] text-white/20 tracking-[4px] uppercase vertical-text rotate-180" style={{ writingMode: 'vertical-rl' }}>
-          ESTABLISHED_2024_CINCINNATI
-        </div>
-      </div>
-      <div className="fixed right-4 bottom-12 z-50 hidden lg:block">
-        <div className="font-display text-[10px] text-white/20 tracking-[4px] uppercase vertical-text" style={{ writingMode: 'vertical-rl' }}>
-          HYPER_LOCAL_CIVIC_OS
-        </div>
+    <div className="bg-uh-black min-h-screen font-mono text-white flex flex-col selection:bg-uh-yellow selection:text-uh-black overflow-hidden">
+      {/* Pulse Scan Overlay Waves */}
+      <div className="fixed inset-0 pointer-events-none z-0 flex items-center justify-center overflow-hidden">
+        {[0, 280, 560].map((delay, i) => (
+          <motion.div
+            key={`${pulseKey}-${i}`}
+            initial={{ scale: 0, opacity: 0 }}
+            animate={{ 
+              scale: [0, 5], 
+              opacity: [0.3, 0.4, 0] 
+            }}
+            transition={{ 
+              duration: 2.2, 
+              delay: delay / 1000,
+              ease: "easeOut"
+            }}
+            className="absolute aspect-square w-[400px] rounded-full border border-uh-yellow/30"
+          />
+        ))}
       </div>
 
-      {/* NAV */}
-      <nav className="fixed top-0 left-0 right-0 z-[100] px-6 md:px-12 h-20 flex items-center justify-between bg-uh-black/80 backdrop-blur-md border-b border-white/5">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 bg-uh-yellow rounded-full flex items-center justify-center">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M12 2L4.5 20.29L5.21 21L12 18L18.79 21L19.5 20.29L12 2Z" fill="#0A0A0A"/>
-            </svg>
-          </div>
-          <div className="flex flex-col leading-none">
-            <span className="font-display text-xl tracking-[1px] text-white uppercase">Urban Hikers</span>
-            <span className="font-sans text-[9px] text-uh-yellow/60 tracking-[2px] uppercase font-bold">Local Pulse</span>
-          </div>
+      {/* LP-NAV */}
+      <nav className="flex items-center justify-between px-10 py-5 border-b border-white/5 relative z-10 bg-uh-black/50 backdrop-blur-sm">
+        <div className="flex flex-col">
+          <span className="text-[11px] font-bold tracking-[0.18em] text-uh-yellow uppercase italic">Local Pulse</span>
+          <span className="text-[9px] tracking-[0.22em] text-[#555] uppercase">by Urban Hikers</span>
         </div>
-
-        <button 
-          onClick={onLogin}
-          className="px-8 py-2 rounded-full border border-white/20 text-white text-[12px] font-bold tracking-[1px] hover:bg-white hover:text-uh-black transition-all uppercase"
-        >
-          {userProfile ? 'Dashboard' : 'Login'}
-        </button>
+        <div className="flex items-center gap-6">
+          <span className="text-[10px] tracking-[0.15em] text-[#666] uppercase cursor-pointer hover:text-white transition-colors hidden sm:block">Nodes</span>
+          <span className="text-[10px] tracking-[0.15em] text-[#666] uppercase cursor-pointer hover:text-white transition-colors hidden sm:block">Partners</span>
+          <button 
+            onClick={onLogin}
+            className="text-[10px] tracking-[0.15em] text-white uppercase border border-[#444] px-[18px] py-2 bg-transparent cursor-pointer hover:border-uh-yellow hover:text-uh-yellow transition-all"
+          >
+            {userProfile ? 'Dashboard' : 'Login'}
+          </button>
+        </div>
       </nav>
 
-      {/* HERO */}
-      <section className="relative min-h-screen flex flex-col items-center justify-center px-6 text-center pt-20">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8 }}
-          className="relative mb-8"
-        >
-          <h1 className="font-display text-7xl sm:text-9xl tracking-[4px] text-white mb-4 uppercase italic">Urban Hikers</h1>
-          <div className="w-48 h-[2px] bg-uh-yellow mx-auto mb-8"></div>
+      {/* LP-HERO */}
+      <div className="flex-1 flex flex-col items-center justify-center px-10 py-20 text-center relative z-10">
+        <div className="flex items-center gap-2 mb-12 border border-white/5 px-4 py-1.5 bg-[#111] relative">
+          <motion.div 
+            key={`dot-${pulseKey}`}
+            animate={{ 
+              backgroundColor: ["#FFE01A", "#FFFFFF", "#FFE01A"] 
+            }}
+            transition={{ 
+              duration: 1.5,
+              times: [0, 0.5, 1],
+              repeat: 1,
+              repeatType: "reverse"
+            }}
+            className="w-1.5 h-1.5 rounded-full bg-uh-yellow"
+          />
+          <span className="text-[9px] tracking-[0.2em] text-[#666] uppercase">OTR live signals</span>
+          <span className="text-[9px] tracking-[0.1em] text-uh-yellow ml-1 italic">{tapsCount + 2} active</span>
           
-          <div className="font-display text-2xl sm:text-4xl tracking-[1px] text-white mb-12 uppercase">
-            Walking to Inspire / <span className="text-uh-yellow italic">Curiosity of Exploration</span>
-          </div>
-
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-            <button 
-              onClick={onTapIntoPulse}
-              className="w-full sm:w-auto px-10 py-4 bg-uh-yellow text-uh-black font-bold tracking-[1px] uppercase hover:scale-105 transition-all shadow-[0_0_30px_rgba(255,224,26,0.3)]"
+          <AnimatePresence>
+            <motion.div
+              key={`status-text-${pulseKey}`}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: [0, 1, 0] }}
+              transition={{ duration: 3, delay: 0.8 }}
+              className="absolute -top-8 left-1/2 -translate-x-1/2 whitespace-nowrap text-[8px] font-bold tracking-widest text-uh-yellow/60 uppercase italic"
             >
-              Tap into the Pulse
-            </button>
-            <button 
-              onClick={onCreatorIgnite}
-              className="w-full sm:w-auto px-10 py-4 bg-uh-magenta text-white font-bold tracking-[1px] uppercase hover:scale-105 transition-all shadow-[0_0_30px_rgba(255,0,255,0.3)]"
-            >
-              Creator Ignite
-            </button>
-            <a href="#board" className="w-full sm:w-auto px-10 py-4 border border-white/20 text-white font-bold tracking-[1px] uppercase hover:bg-white/5 transition-all">
-              ↓ Open Departure Board
-            </a>
-            <button 
-              onClick={onPartnerLogin}
-              className="w-full sm:w-auto px-10 py-4 text-white/40 font-bold tracking-[1px] uppercase hover:text-white transition-all"
-            >
-              Partner Login
-            </button>
-          </div>
-        </motion.div>
-      </section>
+              Scanning city vibrancy...
+            </motion.div>
+          </AnimatePresence>
 
-      {/* DEPARTURE BOARD */}
-      <section id="board" className="px-6 md:px-12 py-24 border-t border-white/5 bg-uh-black/50">
-        <div className="max-w-6xl mx-auto">
-          <div className="flex items-center gap-4 mb-12">
-            <div className="relative">
-              <div className="w-3 h-3 bg-uh-magenta rounded-full"></div>
-              <div className="absolute inset-0 bg-uh-magenta rounded-full animate-ping opacity-75"></div>
-            </div>
-            <h2 className="font-display text-3xl tracking-[2px] text-white uppercase">Departure Board — Cincinnati</h2>
-          </div>
-
-          <div className="border border-white/10 rounded-lg overflow-hidden">
-            {mockEvents.map((event, i) => (
-              <div key={i} className="grid grid-cols-[80px_1fr_auto] md:grid-cols-[120px_1fr_200px_auto] gap-4 p-6 border-b border-white/5 hover:bg-white/[0.02] transition-colors items-center">
-                <div className="font-display text-2xl text-uh-yellow italic">{event.time}</div>
-                <div className="flex flex-col">
-                  <span className="font-bold text-lg tracking-tight uppercase">{event.name}</span>
-                  <span className="text-[10px] text-white/40 tracking-[2px] uppercase font-mono">{event.node} SECTOR</span>
-                </div>
-                <div className="hidden md:block">
-                  <div className="w-full h-1 bg-white/5 rounded-full overflow-hidden">
-                    <div className="h-full bg-uh-yellow/20 w-3/4"></div>
-                  </div>
-                </div>
-                <div className={`px-4 py-1 rounded text-[10px] font-black tracking-[2px] uppercase ${event.vibeColor}`}>
-                  {event.vibe}
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <div className="mt-8 flex justify-end">
-            <button className="shimmer-sweep group flex items-center gap-2 px-8 py-3 bg-uh-yellow text-uh-black font-bold tracking-[1px] uppercase transition-all">
-              View Full Board <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
-            </button>
-          </div>
+          <span className="text-[9px] tracking-[0.2em] text-[#666] uppercase ml-4 hidden sm:inline">nodes online</span>
+          <span className="text-[9px] tracking-[0.1em] text-uh-yellow ml-1 hidden sm:inline italic">9</span>
         </div>
-      </section>
 
-      {/* STATS BAR */}
-      <section className="px-6 md:px-12 py-12 border-y border-white/5 bg-uh-black">
-        <div className="max-w-6xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-8">
-          <div className="flex flex-col">
-            <span className="text-[10px] text-white/40 tracking-[2px] uppercase mb-1">Active Nodes</span>
-            <span className="font-display text-4xl text-white italic">42</span>
-          </div>
-          <div className="flex flex-col">
-            <span className="text-[10px] text-white/40 tracking-[2px] uppercase mb-1">Partners</span>
-            <span className="font-display text-4xl text-white italic">128</span>
-          </div>
-          <div className="flex flex-col">
-            <span className="text-[10px] text-white/40 tracking-[2px] uppercase mb-1">Taps Today</span>
-            <span className="font-display text-4xl text-uh-yellow italic">{tapsCount.toLocaleString()}</span>
-          </div>
-          <div className="flex flex-col">
-            <span className="text-[10px] text-white/40 tracking-[2px] uppercase mb-1">Network</span>
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 bg-uh-magenta rounded-full animate-pulse"></div>
-              <span className="font-display text-4xl text-white italic">CIN-ON</span>
+        <div className="text-[72px] font-bold tracking-tight leading-none mb-1.5 uppercase">
+          Local<span className="text-uh-yellow">Pulse</span>
+        </div>
+        <div className="text-[11px] tracking-[0.22em] text-[#555] uppercase mb-14">
+          Tap the city. Feel what's happening now.
+        </div>
+
+        <div className="flex flex-col items-center gap-5 mb-16">
+          <div 
+            onClick={onTapIntoPulse}
+            className="relative w-[240px] h-[240px] flex items-center justify-center cursor-pointer group mb-10"
+          >
+            <motion.div 
+              animate={{ scale: [1, 1.25, 1], opacity: [0.7, 0.3, 0.7] }}
+              transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+              className="absolute w-[112px] h-[112px] rounded-full border-[1.5px] border-uh-yellow/70"
+            />
+            <motion.div 
+              animate={{ scale: [1, 1.2, 1], opacity: [0.35, 0.1, 0.35] }}
+              transition={{ duration: 2, repeat: Infinity, ease: "easeInOut", delay: 0.3 }}
+              className="absolute w-[164px] h-[164px] rounded-full border-[1.5px] border-uh-yellow/35"
+            />
+            <motion.div 
+              animate={{ scale: [1, 1.15, 1], opacity: [0.15, 0.05, 0.15] }}
+              transition={{ duration: 2, repeat: Infinity, ease: "easeInOut", delay: 0.6 }}
+              className="absolute w-[224px] h-[224px] rounded-full border-[1.5px] border-uh-yellow/15"
+            />
+            <div className="w-20 h-20 rounded-full bg-uh-yellow flex items-center justify-center z-10 group-hover:scale-110 group-active:scale-95 transition-transform">
+              <svg width="36" height="36" viewBox="0 0 20 20" fill="none">
+                <path d="M4 10c0-3.31 2.69-6 6-6M7 10c0-1.65 1.35-3 3-3M10 10c0 0 0 0 0 0" stroke="#0a0a0a" strokeWidth="2" strokeLinecap="round"/>
+                <circle cx="10" cy="10" r="1.5" fill="#0a0a0a"/>
+              </svg>
             </div>
           </div>
-        </div>
-      </section>
-
-      {/* FOOTER */}
-      <footer className="px-6 md:px-12 py-20 bg-uh-black border-t border-white/5">
-        <div className="max-w-6xl mx-auto flex flex-col md:flex-row justify-between items-start gap-12">
           <div>
-            <div className="font-display text-3xl tracking-[2px] text-white mb-2 uppercase italic">Urban Hikers</div>
-            <div className="font-sans text-[10px] text-uh-yellow tracking-[3px] uppercase font-bold">Local Pulse OS v2.4.0</div>
-          </div>
-          <div className="font-display text-[10px] text-white/20 tracking-[2px] uppercase text-right">
-            &copy; 2024 Urban Hikers / Cincinnati_OH / All Rights Reserved
+            <div className="text-[10px] tracking-[0.25em] text-[#555] uppercase">Tap to ignite</div>
+            <div className="text-[10px] tracking-[0.1em] text-uh-yellow uppercase italic">Access city vibrancy in real time</div>
           </div>
         </div>
-      </footer>
+
+        <div className="flex flex-wrap items-center justify-center gap-3 mb-20">
+          <button 
+            onClick={onTapIntoPulse}
+            className="bg-uh-yellow text-uh-black font-bold text-[10px] tracking-[0.18em] uppercase px-7 py-3.5 border-none cursor-pointer hover:bg-[#f5d400] transition-colors"
+          >
+            Open departure board &darr;
+          </button>
+          <button 
+            onClick={onCreatorIgnite}
+            className="bg-transparent text-white font-normal text-[10px] tracking-[0.18em] uppercase px-7 py-3.5 border border-[#333] cursor-pointer hover:border-[#666] transition-colors"
+          >
+            Creator ignite
+          </button>
+          <button 
+            onClick={onPartnerLogin}
+            className="bg-transparent text-[#444] font-normal text-[10px] tracking-[0.18em] uppercase px-5 py-3.5 border-none cursor-pointer hover:text-[#888] transition-colors"
+          >
+            Partner login &rarr;
+          </button>
+        </div>
+      </div>
+
+      {/* LP-DEPARTURE */}
+      <div className="border-t border-[#181818] px-10 py-6 grid grid-cols-1 md:grid-cols-3 gap-0">
+        <div className="px-5 py-4 border-r border-[#181818] last:border-r-0">
+          <div className="text-[8px] tracking-[0.2em] text-[#444] uppercase mb-1.5">Now broadcasting</div>
+          <div className="text-[13px] text-white tracking-[0.05em] mb-0.5 whitespace-nowrap overflow-hidden text-ellipsis">50% off tacos — Gomez</div>
+          <div className="text-[9px] text-uh-yellow tracking-[0.1em] uppercase italic">38 min remaining</div>
+        </div>
+        <div className="px-5 py-4 border-r border-[#181818] last:border-r-0">
+          <div className="text-[8px] tracking-[0.2em] text-[#444] uppercase mb-1.5">Vibe check &middot; Vine St</div>
+          <div className="text-[13px] text-white tracking-[0.05em] mb-0.5">Buzzing</div>
+          <div className="text-[9px] text-uh-yellow tracking-[0.1em] uppercase italic">12 taps in last hour</div>
+        </div>
+        <div className="px-5 py-4 border-r border-[#181818] last:border-r-0">
+          <div className="text-[8px] tracking-[0.2em] text-[#444] uppercase mb-1.5">Next signal</div>
+          <div className="text-[13px] text-white tracking-[0.05em] mb-0.5 overflow-hidden text-ellipsis whitespace-nowrap">Live jazz &middot; Woodward</div>
+          <div className="text-[9px] text-[#444] tracking-[0.1em] uppercase italic">Starts in 22 min</div>
+        </div>
+      </div>
     </div>
   );
 };
+
