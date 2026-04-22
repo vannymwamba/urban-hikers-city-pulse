@@ -46,8 +46,15 @@ const ACCESS_VECTOR = (() => {
 })();
 
 
-class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean, errorInfo: string | null }> {
-  constructor(props: { children: React.ReactNode }) {
+class ErrorBoundary extends React.Component<
+  { children: React.ReactNode; section?: string }, 
+  { hasError: boolean; errorInfo: string | null }
+> {
+  static defaultProps = {
+    section: 'SYSTEM'
+  };
+
+  constructor(props: { children: React.ReactNode; section?: string }) {
     super(props);
     this.state = { hasError: false, errorInfo: null };
   }
@@ -57,6 +64,8 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { has
   }
 
   render() {
+    const { section } = this.props;
+
     if (this.state.hasError) {
       let displayMessage = "A system error has occurred.";
       try {
@@ -69,16 +78,27 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { has
       }
 
       return (
-        <div className="h-screen flex flex-col items-center justify-center bg-hud-bg text-hud-magenta p-8 text-center">
+        <div className={section !== 'SYSTEM'
+          ? "flex flex-col items-center justify-center bg-hud-bg text-hud-magenta p-8 text-center border border-hud-magenta/20 m-4 rounded shadow-2xl"
+          : "h-screen flex flex-col items-center justify-center bg-hud-bg text-hud-magenta p-8 text-center"
+        }>
           <AlertTriangle className="mb-4" size={48} />
-          <div className="text-xl font-bold tracking-widest mb-2">SYSTEM_CRITICAL_FAILURE</div>
+          <div className="text-xl font-bold tracking-widest mb-2 uppercase">{section}</div>
           <div className="text-sm border border-hud-magenta p-4 bg-hud-magenta/10 mb-4">{displayMessage}</div>
-          <button 
-            onClick={() => window.location.reload()}
-            className="px-6 py-2 border border-hud-magenta hover:bg-hud-magenta hover:text-hud-bg transition-all font-bold"
-          >
-            REBOOT_SYSTEM
-          </button>
+          <div className="flex gap-4">
+            <button 
+              onClick={() => this.setState({ hasError: false, errorInfo: null })}
+              className="px-6 py-2 border border-hud-magenta hover:bg-hud-magenta hover:text-hud-bg transition-all font-bold text-xs"
+            >
+              DISMISS
+            </button>
+            <button 
+              onClick={() => window.location.reload()}
+              className="px-6 py-2 border border-hud-magenta hover:bg-hud-magenta hover:text-hud-bg transition-all font-bold text-xs"
+            >
+              REBOOT_SYSTEM
+            </button>
+          </div>
         </div>
       );
     }
@@ -336,11 +356,16 @@ export default function App() {
     const unsub = onSnapshot(
       collection(db, 'partners'),
       (snap) => {
-        const map: Record<string, Partner> = {};
-        snap.docs.forEach(doc => {
-          map[doc.id] = { id: doc.id, ...doc.data() } as Partner;
-        });
-        setPartnersMap(map);
+        try {
+          const map: Record<string, Partner> = {};
+          snap.docs.forEach(doc => {
+            map[doc.id] = { id: doc.id, ...doc.data() } as Partner;
+          });
+          setPartnersMap(map);
+        } catch (err) {
+          console.error("PARTNERS_SNAPSHOT_PROCESSING_ERROR", err);
+          setPartnersMap({});
+        }
       },
       (err) => {
         handleFirestoreError(err, OperationType.LIST, 'partners');
@@ -1091,58 +1116,62 @@ export default function App() {
         {/* Scanline Effect */}
         <div className="absolute inset-0 pointer-events-none bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.1)_50%),linear-gradient(90deg,rgba(255,0,0,0.03),rgba(0,255,0,0.01),rgba(0,0,255,0.03))] z-50 bg-[length:100%_2px,3px_100%] opacity-30" />
         
-        <DepartureBoard 
-          nodeName={currentNode?.name || 'UNKNOWN_SECTOR'} 
-          currentNode={currentNode}
-          broadcasts={broadcasts}
-          onSelect={setSelectedBroadcast}
-          onConfirm={(id) => setConfirmedBroadcastId(id)}
-          user={user}
-          userProfile={userProfile}
-          onLogin={handleLogin}
-          isTappedIn={isTappedIn}
-          onTapToggle={setIsTappedIn}
-          accessVector={ACCESS_VECTOR}
-          onShareNode={() => handleShare(
-            `Urban Hikers: ${currentNode?.name}`,
-            `Check out what's live at ${currentNode?.name}!`,
-            window.location.href
-          )}
-          onShareEvent={(b) => handleShare(
-            b.title,
-            `Check out this event at ${currentNode?.name}!`,
-            `${BASE_URL}/tap/${nodeId}?broadcastId=${b.id}`
-          )}
-          onManage={(b) => {
-            window.history.pushState({}, '', `/dashboard?editBroadcastId=${b.id}`);
-            window.dispatchEvent(new PopStateEvent('popstate'));
-          }}
-          onSaveToWallet={(node) => (node || currentNode) && toggleSaveHub(node || currentNode!)}
-          isSaved={currentNode ? savedHubs.some(h => h.id === currentNode.id) : false}
-          activeTab={currentTab}
-          onTabChange={setCurrentTab}
-          savedHubs={savedHubs}
-          partnersMap={partnersMap}
-          nfcStatus={nfcStatus}
-        />
+        <ErrorBoundary section="DEPARTURE_BOARD">
+          <DepartureBoard 
+            nodeName={currentNode?.name || 'UNKNOWN_SECTOR'} 
+            currentNode={currentNode}
+            broadcasts={broadcasts}
+            onSelect={setSelectedBroadcast}
+            onConfirm={(id) => setConfirmedBroadcastId(id)}
+            user={user}
+            userProfile={userProfile}
+            onLogin={handleLogin}
+            isTappedIn={isTappedIn}
+            onTapToggle={setIsTappedIn}
+            accessVector={ACCESS_VECTOR}
+            onShareNode={() => handleShare(
+              `Urban Hikers: ${currentNode?.name}`,
+              `Check out what's live at ${currentNode?.name}!`,
+              window.location.href
+            )}
+            onShareEvent={(b) => handleShare(
+              b.title,
+              `Check out this event at ${currentNode?.name}!`,
+              `${BASE_URL}/tap/${nodeId}?broadcastId=${b.id}`
+            )}
+            onManage={(b) => {
+              window.history.pushState({}, '', `/dashboard?editBroadcastId=${b.id}`);
+              window.dispatchEvent(new PopStateEvent('popstate'));
+            }}
+            onSaveToWallet={(node) => (node || currentNode) && toggleSaveHub(node || currentNode!)}
+            isSaved={currentNode ? savedHubs.some(h => h.id === currentNode.id) : false}
+            activeTab={currentTab}
+            onTabChange={setCurrentTab}
+            savedHubs={savedHubs}
+            partnersMap={partnersMap}
+            nfcStatus={nfcStatus}
+          />
+        </ErrorBoundary>
 
         {/* HUD Notifications */}
-        <AnimatePresence>
-          {hudMessage && (
-            <motion.div
-              initial={{ opacity: 0, y: -20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0 }}
-              className={`absolute top-32 left-1/2 -translate-x-1/2 z-[2100] px-6 py-3 rounded-full font-black text-[10px] tracking-widest shadow-2xl border ${
-                hudMessage.type === 'error' 
-                  ? 'bg-uh-magenta text-white border-uh-magenta' 
-                  : 'bg-uh-black text-uh-yellow border-uh-black'
-              }`}
-            >
-              {hudMessage.text.toUpperCase()}
-            </motion.div>
-          )}
-        </AnimatePresence>
+        <ErrorBoundary section="HUD_NOTIFICATIONS">
+          <AnimatePresence>
+            {hudMessage && (
+              <motion.div
+                initial={{ opacity: 0, y: -20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                className={`absolute top-32 left-1/2 -translate-x-1/2 z-[2100] px-6 py-3 rounded-full font-black text-[10px] tracking-widest shadow-2xl border ${
+                  hudMessage.type === 'error' 
+                    ? 'bg-uh-magenta text-white border-uh-magenta' 
+                    : 'bg-uh-black text-uh-yellow border-uh-black'
+                }`}
+              >
+                {hudMessage.text.toUpperCase()}
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </ErrorBoundary>
 
         {/* Hidden Seed Button for Demo */}
         <button 
@@ -1153,17 +1182,19 @@ export default function App() {
           {isSeeding ? 'SEEDING...' : '[INIT_DB]'}
         </button>
 
-        <BroadcastModal
-          broadcast={selectedBroadcast}
-          onClose={() => setSelectedBroadcast(null)}
-          onShare={handleShare}
-          onSaveToWallet={toggleSaveHub}
-          isSaved={isSelectedBroadcastNodeSaved}
-          node={selectedBroadcastNode}
-          onVibeReport={handleVibeReport}
-          isReporting={isReporting}
-          confirmed={confirmedBroadcastId === selectedBroadcast?.id}
-        />
+        <ErrorBoundary section="BROADCAST_MODAL">
+          <BroadcastModal
+            broadcast={selectedBroadcast}
+            onClose={() => setSelectedBroadcast(null)}
+            onShare={handleShare}
+            onSaveToWallet={toggleSaveHub}
+            isSaved={isSelectedBroadcastNodeSaved}
+            node={selectedBroadcastNode}
+            onVibeReport={handleVibeReport}
+            isReporting={isReporting}
+            confirmed={confirmedBroadcastId === selectedBroadcast?.id}
+          />
+        </ErrorBoundary>
       </div>
     </ErrorBoundary>
   );

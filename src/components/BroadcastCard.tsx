@@ -11,6 +11,8 @@ import {
   getDotColor
 } from '../utils/broadcastHelpers';
 
+const ARTWAVE_DONATION_URL = 'https://4agc.com/donation_pages/0785fa30-9065-400b-b54d-74458f2c9eb0';
+
 interface BroadcastCardProps {
   item: Broadcast;
   idx: number;
@@ -42,6 +44,7 @@ export const BroadcastCard: React.FC<BroadcastCardProps> = ({
   const [spots, setSpots] = useState(1);
   const isFlashDeal = item.type === BroadcastType.FLASH_DEAL;
   const isWalkingEvent = item.type === BroadcastType.WALKING_EVENT;
+  const isMural = [BroadcastType.MURAL, 'civic_mural', BroadcastType.STREET_ART].includes(item.type as any);
   const isAllNodes = item.scope === 'all_nodes';
   
   const distance = currentNode ? getDistance(
@@ -51,7 +54,7 @@ export const BroadcastCard: React.FC<BroadcastCardProps> = ({
     item.longitude || 0
   ) : 0;
   const distanceMiles = (distance / 1609.34).toFixed(1);
-  const walkTime = Math.ceil(distance / 80);
+  const walkMinutes = Math.ceil(distance / 80);
   const status = getEventStatus(item);
   const categoryTag = getCategoryTag(item);
   const statusTag = getStatusTag(item);
@@ -84,7 +87,7 @@ export const BroadcastCard: React.FC<BroadcastCardProps> = ({
     e.stopPropagation();
     if (isWalkingEvent) {
       if (item.booking_url) {
-        window.open(item.booking_url, '_blank');
+        window.open(item.booking_url, '_blank', 'noopener,noreferrer');
         return;
       }
       setShowBooking(true); // open inline sheet instead of Stripe
@@ -110,6 +113,10 @@ export const BroadcastCard: React.FC<BroadcastCardProps> = ({
     ? format(new Date(item.startsAt || item.starts_at || 0), 'h:mm a')
     : '7:00 PM';
 
+  const locationLabel = item.venue
+    || item.address?.split(',')[0]?.trim()
+    || 'Nearby';
+
   return (
     <>
       <motion.div
@@ -117,121 +124,159 @@ export const BroadcastCard: React.FC<BroadcastCardProps> = ({
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: idx * 0.05 }}
         onClick={() => onSelect(item)}
-        className={`${cardWidth} ${cardHeight} relative rounded-[32px] overflow-hidden flex-shrink-0 cursor-pointer snap-start shadow-xl group`}
+        className={`${cardWidth} ${cardHeight} relative rounded-[32px] overflow-hidden flex-shrink-0 cursor-pointer snap-start shadow-2xl group bg-uh-black`}
+        style={{ contain: 'layout paint' }}
       >
+        {/* Background Layer: Illustration with reduced opacity */}
         <img 
           src={item.cover_url || item.imageUrl || `https://picsum.photos/seed/${item.type}/800/500`}
           alt={item.title}
-          className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+          className="absolute inset-0 w-full h-full object-cover opacity-65 mix-blend-normal transition-transform duration-700 group-hover:scale-105"
           referrerPolicy="no-referrer"
         />
-        <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a0a] via-[#0a0a0a]/20 to-transparent" />
+        
+        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-black/10" />
         
         {/* Top Header */}
-        <div className="absolute top-5 left-5 right-5 flex items-start justify-between z-10 pointer-events-none">
-          {/* Status Pill - Top Left */}
+        <div className="absolute top-6 left-6 right-6 flex items-start justify-between z-10 pointer-events-none">
+          {/* Status Pill / Sponsor Logo Slot */}
           <div className="pointer-events-auto">
-            <div className={`px-5 py-2.5 rounded-full flex items-center gap-2.5 backdrop-blur-xl shadow-2xl ${statusTag.bg || 'bg-uh-magenta'} border border-white/20 scale-100 active:scale-95 transition-transform`}>
-              <div className={`w-2 h-2 rounded-full ${getDotColor(item) || 'bg-white'} animate-pulse shadow-[0_0_8px_rgba(255,255,255,0.8)]`} />
-              <span className="text-[11px] font-black tracking-[0.15em] uppercase text-white font-mono leading-none">
-                {statusTag.label}
-              </span>
-            </div>
+            {isWalkingEvent ? (
+              item.sponsor_logo_url ? (
+                <div className="px-3 py-1.5 rounded-full bg-white/90 backdrop-blur-sm border border-white/20 flex items-center justify-center shadow-sm">
+                  <img src={item.sponsor_logo_url} alt="Sponsored by" className="h-5 w-auto object-contain max-w-[80px]" referrerPolicy="no-referrer" />
+                </div>
+              ) : (
+                <div className={`px-4 py-2 rounded-full flex items-center gap-2 backdrop-blur-md shadow-lg ${statusTag.bg} border border-white/10`}>
+                  <div className={`w-1.5 h-1.5 rounded-full ${getDotColor(item)} animate-pulse`} />
+                  <span className="text-[10px] font-black tracking-widest uppercase text-white font-mono">
+                    {statusTag.label}
+                  </span>
+                </div>
+              )
+            ) : !isMural ? (
+              <div className={`px-4 py-2 rounded-full flex items-center gap-2 backdrop-blur-md shadow-lg ${statusTag.bg} border border-white/10`}>
+                <div className={`w-1.5 h-1.5 rounded-full ${getDotColor(item)} animate-pulse`} />
+                <span className="text-[10px] font-black tracking-widest uppercase text-white font-mono">
+                  {statusTag.label}
+                </span>
+              </div>
+            ) : null}
           </div>
 
           <div className="flex items-center gap-4 pointer-events-auto">
-            {/* Share FAB */}
-            <button 
-              onClick={(e) => {
-                e.stopPropagation();
-                onShareEvent(item);
-              }}
-              className="w-11 h-11 bg-black/50 backdrop-blur-xl rounded-full border border-white/20 flex items-center justify-center text-white hover:bg-uh-gray-800 transition-all shadow-2xl active:scale-90"
-            >
-              <Share2 size={18} strokeWidth={2.5} />
-            </button>
+            {isMural ? (
+              <a
+                href={ARTWAVE_DONATION_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                title="Support this artist via ArtWave"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-black/55 backdrop-blur-sm border border-white/12 hover:bg-black/75 transition-all z-10"
+              >
+                <svg width="13" height="8" viewBox="0 0 24 14" fill="none">
+                  <path d="M1 7 C3 3 5 3 7 7 C9 11 11 11 13 7 C15 3 17 3 19 7 C20 9 21 9 23 7" stroke="#FFE01A" strokeWidth="2.2" strokeLinecap="round" fill="none"/>
+                </svg>
+                <span className="text-[8px] font-black tracking-widest uppercase text-white/70 font-mono">Donate</span>
+              </a>
+            ) : (
+              /* Share FAB - Minimal */
+              <button 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onShareEvent(item);
+                }}
+                className="w-10 h-10 bg-white/90 backdrop-blur rounded-full flex items-center justify-center text-uh-black border border-black/5 hover:bg-white transition-all shadow-sm active:scale-90"
+              >
+                <Share2 size={16} strokeWidth={2.5} />
+              </button>
+            )}
           </div>
         </div>
 
         {/* Content Overlay */}
-        <div className="absolute inset-x-0 bottom-0 p-5 flex flex-col justify-end gap-2">
-          <div className="mb-2 relative z-10">
-             {isWalkingEvent && partner && (
-               <span className="text-uh-yellow text-[10px] font-black tracking-[0.2em] uppercase font-mono block mb-1 drop-shadow-md">
-                 Organizer: {partner.name}
+        <div className="absolute inset-x-0 bottom-0 p-4 flex flex-col justify-end gap-2 overflow-hidden">
+          {/* Meta Info */}
+          <div className="mb-1 relative z-10">
+             {isWalkingEvent && partner?.name && (
+               <span className="text-white/45 text-[9px] font-black tracking-[0.16em] uppercase font-mono block mb-0.5">
+                 {partner.name}
                </span>
              )}
-             <h3 className="text-white text-xl font-black uppercase tracking-tight leading-snug drop-shadow-[0_4px_12px_rgba(0,0,0,0.8)] max-w-[95%]">
+             
+             {/* Primary Focal Point: Title */}
+             <h3 className="text-white text-lg font-black uppercase tracking-tight leading-tight line-clamp-2 break-words max-w-full">
               {item.title}
-            </h3>
-            
-            {/* Thematic Accent Line & Progress */}
-            <div className="flex flex-col gap-2 mt-2">
-              <div className="w-16 h-1 bg-uh-yellow shadow-[0_0_8px_rgba(255,224,26,0.6)]" />
-              
-              {isFlashDeal && (
-                <div className="w-full h-1 bg-white/20 rounded-full overflow-hidden">
-                  <motion.div 
-                    initial={false}
-                    animate={{ width: `${progress}%` }}
-                    transition={{ duration: 1, ease: "linear" }}
-                    className={`h-full ${progress < 20 ? 'bg-uh-magenta shadow-[0_0_8px_rgba(255,60,111,0.5)]' : 'bg-uh-yellow'}`}
-                  />
-                </div>
-              )}
+             </h3>
 
-              {item.type === BroadcastType.MURAL && item.artist && (
-                <span className="text-uh-gray-300 text-[10px] font-black uppercase tracking-[0.15em] mt-1 drop-shadow-lg">{item.artist}</span>
-              )}
-            </div>
+             {isMural && item.artist && (
+               <span className="text-white/45 text-[9px] font-black tracking-[0.12em] uppercase font-mono block mt-1">
+                 {item.artist}
+               </span>
+             )}
+            
+            {/* Flash Deal Progress Bar - High Contrast Urban Style */}
+            {isFlashDeal && (
+              <div className="w-full h-1 bg-white/10 rounded-full overflow-hidden mt-3 max-w-[200px]">
+                <motion.div 
+                  initial={false}
+                  animate={{ width: `${progress}%` }}
+                  transition={{ duration: 1, ease: "linear" }}
+                  className="h-full bg-uh-yellow shadow-[0_0_8px_rgba(255,224,26,0.2)]"
+                />
+              </div>
+            )}
           </div>
 
-          <div className="flex items-end justify-between gap-4 relative z-10 w-full">
-             {/* Location Capsule - Clickable to Maps */}
+          {/* Location & CTA Row - Anchored */}
+          <div className="flex items-center gap-2 mt-2 relative z-10 w-full">
+             {/* Location Capsule */}
              <button 
               onClick={openMaps}
-              className="group/loc flex items-center gap-2.5 px-4 py-2.5 bg-black/90 backdrop-blur-2xl rounded-full border border-white/10 shadow-[0_8px_32px_rgba(0,0,0,0.5)] flex-1 overflow-hidden hover:bg-uh-gray-800 active:scale-[0.98] transition-all"
+              className={`flex items-center gap-3 px-4 py-3 bg-uh-black rounded-2xl ${isWalkingEvent || isMural ? 'flex-1' : 'w-full'} overflow-hidden hover:bg-uh-black/90 active:scale-[0.98] transition-all shadow-lg border border-white/10`}
              >
-                <div className="w-6 h-6 rounded-full bg-uh-yellow flex items-center justify-center shrink-0 group-hover/loc:scale-110 transition-transform shadow-lg">
-                  <MapPin size={12} className="text-uh-black fill-uh-black" strokeWidth={3} />
+                <div className="w-5 h-5 rounded-full bg-uh-yellow flex items-center justify-center shrink-0">
+                  <MapPin size={10} className="text-uh-black fill-uh-black" strokeWidth={3} />
                 </div>
-                <div className="flex items-center gap-1.5 min-w-0">
-                  <span className="text-[10px] font-black text-white uppercase tracking-tight truncate">
-                    {item.venue || item.address?.split(',')[0]?.trim() || 'Nearby'}
-                  </span>
-                  <span className="text-[10px] font-black text-uh-yellow shrink-0">
-                    · {distanceMiles} mi · {walkTime} min
-                  </span>
-                </div>
+                <span className="text-[11px] font-bold text-white uppercase tracking-tight truncate font-mono">
+                  {locationLabel} · {distanceMiles} mi · {walkMinutes} min
+                </span>
             </button>
             
-            {/* Unified CTA Circle */}
-            <button 
-              onClick={handleCTA}
-              className="w-12 h-12 bg-uh-yellow text-uh-black rounded-full flex items-center justify-center shadow-[0_8px_24px_rgba(255,224,26,0.3)] hover:scale-110 active:scale-90 transition-all shrink-0 group/cta"
-            >
-              {isWalkingEvent ? (
-                <span className="text-[10px] font-black uppercase tracking-tight">Book</span>
-              ) : (
-                <ArrowRight size={20} strokeWidth={3} className="group-hover/cta:translate-x-1 transition-transform" />
-              )}
-            </button>
-          </div>
+            {/* CTA Buttons */}
+            {isWalkingEvent && (
+              <button 
+                onClick={handleCTA}
+                className="px-5 py-3 bg-uh-yellow text-uh-black rounded-2xl flex flex-col items-center justify-center shadow-xl hover:scale-105 active:scale-95 transition-all whitespace-nowrap min-w-[100px]"
+              >
+                <span className="text-[10px] font-black uppercase tracking-widest font-mono">Book Spot</span>
+                <span className="text-[10px] font-black uppercase tracking-wide font-mono opacity-80">— {item.price === 0 || !item.price ? 'Free' : `$${item.price}`}</span>
+              </button>
+            )}
 
-          {isWalkingEvent && (
-            <div className="mt-3 pt-3 border-t border-white/5 flex items-center justify-center gap-2">
-              <svg width="10" height="10" viewBox="0 0 20 20" fill="none">
-                <path
-                  d="M4 10c0-3.31 2.69-6 6-6M7 10c0-1.65 1.35-3 3-3"
-                  stroke="#FFE01A"
-                  strokeWidth="2.5"
-                  strokeLinecap="round"
-                />
-                <circle cx="10" cy="10" r="1.8" fill="#FFE01A"/>
-              </svg>
-              <span className="text-[8px] text-white/30 uppercase tracking-[0.14em] font-mono">Tap node at start to check in</span>
-            </div>
-          )}
+            {isMural && (
+              <div className="flex gap-2">
+                <button 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onSelect(item);
+                  }}
+                  className="px-5 py-3 bg-uh-yellow text-uh-black rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl hover:scale-105 active:scale-95 transition-all whitespace-nowrap"
+                >
+                  VIEW
+                </button>
+                <button 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onShareEvent(item);
+                  }}
+                  className="w-11 h-11 bg-white/10 backdrop-blur rounded-2xl flex items-center justify-center text-white border border-white/10 hover:bg-white/20 transition-all shadow-sm active:scale-90"
+                >
+                  <Share2 size={16} strokeWidth={2.5} />
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </motion.div>
 
@@ -297,10 +342,6 @@ export const BroadcastCard: React.FC<BroadcastCardProps> = ({
             >
               {(item.price ?? 0) === 0 ? 'Initialize_Spot — Free' : `Secure_Checkout · $${((item.price??0)*spots).toFixed(2)}`}
             </button>
-
-            <div style={{fontSize:9,color:'#444',textAlign:'center', letterSpacing: '0.1em'}} className="uppercase">
-              {(item.price ?? 0) === 0 ? 'Tap NFC Signal Node at meeting point to verify ID' : 'Encrypted Transaction · 0.5% Protocol Fee Included'}
-            </div>
           </div>
         </div>
       </div>

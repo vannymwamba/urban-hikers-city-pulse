@@ -12,6 +12,8 @@ import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import { Client } from "@googlemaps/google-maps-services-js";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import dotenv from 'dotenv';
+import fs from 'fs';
+import { fetchAndProcessCHPLEvents } from '../shared/chplIngestion.ts';
 
 dotenv.config();
 
@@ -19,50 +21,7 @@ const mapsClient = new Client({});
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
-const CHPL_BRANCHES: Record<string, { lat: number, lng: number }> = {
-  'Main Library': { lat: 39.1064, lng: -84.5125 },
-  'Walnut Hills': { lat: 39.1287, lng: -84.4844 },
-  'Corryville': { lat: 39.1333, lng: -84.5083 },
-  'Northside': { lat: 39.1625, lng: -84.5375 },
-  'Avondale': { lat: 39.1464, lng: -84.4925 },
-  'Price Hill': { lat: 39.1089, lng: -84.5625 },
-  'Westwood': { lat: 39.1467, lng: -84.5983 },
-  'Hyde Park': { lat: 39.1414, lng: -84.4439 },
-  'Oakley': { lat: 39.1539, lng: -84.4333 },
-  'Pleasant Ridge': { lat: 39.1811, lng: -84.4267 },
-  'Bond Hill': { lat: 39.1783, lng: -84.4683 },
-  'Roselawn': { lat: 39.1911, lng: -84.4617 },
-  'Hartwell': { lat: 39.2067, lng: -84.4750 },
-  'College Hill': { lat: 39.2017, lng: -84.5450 },
-  'Mt. Healthy': { lat: 39.2333, lng: -84.5500 },
-  'Groesbeck': { lat: 39.2167, lng: -84.5917 },
-  'Monfort Heights': { lat: 39.1833, lng: -84.6167 },
-  'Cheviot': { lat: 39.1583, lng: -84.6133 },
-  'Covedale': { lat: 39.1167, lng: -84.6083 },
-  'Delhi Township': { lat: 39.0917, lng: -84.6167 },
-  'Sayler Park': { lat: 39.1167, lng: -84.7000 },
-  'Miami Township': { lat: 39.1667, lng: -84.7500 },
-  'Harrison': { lat: 39.2667, lng: -84.8000 },
-  'Green Township': { lat: 39.1583, lng: -84.6500 },
-  'North Central': { lat: 39.2667, lng: -84.4500 },
-  'Sharonville': { lat: 39.2667, lng: -84.4167 },
-  'Blue Ash': { lat: 39.2333, lng: -84.3833 },
-  'Deer Park': { lat: 39.2000, lng: -84.4000 },
-  'Madeira': { lat: 39.1833, lng: -84.3667 },
-  'Mariemont': { lat: 39.1417, lng: -84.3833 },
-  'Anderson': { lat: 39.0667, lng: -84.3500 },
-  'Mt. Washington': { lat: 39.0833, lng: -84.3833 },
-  'Forest Park': { lat: 39.2500, lng: -84.5000 },
-  'Greenhills': { lat: 39.2667, lng: -84.5167 },
-  'Wyoming': { lat: 39.2250, lng: -84.4833 },
-  'Reading': { lat: 39.2250, lng: -84.4417 },
-  'St. Bernard': { lat: 39.1667, lng: -84.4917 },
-  'Elmwood Place': { lat: 39.1833, lng: -84.4917 },
-  'Norwood': { lat: 39.1583, lng: -84.4583 },
-  'Madisonville': { lat: 39.1583, lng: -84.3917 },
-  'Loveland': { lat: 39.2667, lng: -84.2500 },
-  'Symmes Township': { lat: 39.2667, lng: -84.3167 },
-};
+const RawEvent: any = null; // Placeholder as CHPL_BRANCHES was removed
 
 interface RawEvent {
   title: string;
@@ -217,50 +176,6 @@ async function fetchVisitCincyEvents(): Promise<RawEvent[]> {
   return events;
 }
 
-async function fetchCHPLEvents(): Promise<RawEvent[]> {
-  const events: RawEvent[] = [];
-  try {
-    const response = await axios.get('https://cincinnatilibrary.bibliocommons.com/events/api/v1/events?limit=100', {
-      headers: {
-        'User-Agent': 'UrbanHikers/1.0 (https://www.urbanhikers.org)',
-        'Accept': 'application/json'
-      }
-    });
-
-    const rawEvents = response.data.events || [];
-    for (const evt of rawEvents) {
-      if (!evt.id || !evt.title || !evt.start_datetime || !evt.end_datetime) continue;
-
-      const startsAt = new Date(evt.start_datetime);
-      const expiresAt = new Date(evt.end_datetime);
-
-      if (isNaN(startsAt.getTime()) || isNaN(expiresAt.getTime())) continue;
-      if (expiresAt.getTime() < Date.now()) continue;
-
-      const branchName = evt.location?.name || 'Main Library';
-      const coords = CHPL_BRANCHES[branchName] || CHPL_BRANCHES['Main Library'];
-      const sourceHash = crypto.createHash('md5').update(`chpl-${evt.id}`).digest('hex');
-
-      events.push({
-        title: evt.title,
-        description: evt.description || '',
-        starts_at: startsAt.toISOString(),
-        expires_at: expiresAt.toISOString(),
-        venue: branchName,
-        sourceUrl: `https://cincinnatilibrary.bibliocommons.com/events/${evt.id}`,
-        imageUrl: null,
-        source: 'chpl',
-        sourceHash,
-        latitude: coords.lat,
-        longitude: coords.lng
-      });
-    }
-  } catch (err) {
-    console.error("fetchCHPLEvents Error:", err);
-  }
-  return events;
-}
-
 async function enrichEventWithAI(event: RawEvent): Promise<EnrichedEvent> {
   try {
     const prompt = `Given this Cincinnati event: Title: ${event.title}, Description: ${event.description}
@@ -376,7 +291,6 @@ export async function runCivicIngestionEngine() {
   let databaseId: string | undefined = undefined;
   try {
     const configPath = './firebase-applet-config.json';
-    const fs = require('fs');
     if (fs.existsSync(configPath) && fs.statSync(configPath).size > 0) {
       const content = fs.readFileSync(configPath, 'utf8');
       if (content && content.trim()) {
@@ -393,17 +307,18 @@ export async function runCivicIngestionEngine() {
   const db = getFirestore(databaseId);
   console.log(`Civic Ingestion Engine: Using database ${databaseId || '(default)'}`);
   
-  const [visitCincyRaw, chplRaw] = await Promise.all([
+  // CHPL sync is now handled by the shared module directly
+  const [visitCincyRaw, chplResult] = await Promise.all([
     fetchVisitCincyEvents(),
-    fetchCHPLEvents()
+    fetchAndProcessCHPLEvents(db)
   ]);
 
-  const allRawEvents = [...visitCincyRaw, ...chplRaw];
-  console.log(`Civic Ingestion Engine: Found ${allRawEvents.length} raw events.`);
+  const allRawEvents = [...visitCincyRaw];
+  console.log(`Civic Ingestion Engine: Found ${allRawEvents.length} raw visitCincy events. CHPL: ${chplResult.count} processed.`);
 
   let visitCincyCount = 0;
-  let chplCount = 0;
-  let errorCount = 0;
+  let chplCount = chplResult.count;
+  let errorCount = chplResult.errors;
   let batch = db.batch();
   let batchCount = 0;
 

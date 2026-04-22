@@ -1,83 +1,109 @@
 import { onDocumentCreated } from 'firebase-functions/v2/firestore';
 import * as admin from 'firebase-admin';
 
+// ─── Config ───────────────────────────────────────────────────────────────────
+// Your named Firestore database ID (from Firebase console → Firestore → Database ID)
+// Replace this value if your DB ID differs.
+const DB_ID = 'ai-studio-8d3a18ac-9f60-480e-8200-f9f5e01c389a';
+
 /**
- * Haversine formula to calculate distance between two points in miles.
+ * Haversine formula — distance between two lat/lng points in miles.
  */
-function getDistanceMiles(lat1: number, lon1: number, lat2: number, lon2: number): number {
-  const R = 3958.8; // Radius of the Earth in miles
+function getDistanceMiles(
+  lat1: number, lon1: number,
+  lat2: number, lon2: number
+): number {
+  const R = 3958.8;
   const dLat = (lat2 - lat1) * (Math.PI / 180);
   const dLon = (lon2 - lon1) * (Math.PI / 180);
   const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) *
-    Math.sin(dLon / 2) * Math.sin(dLon / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c;
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(lat1 * (Math.PI / 180)) *
+    Math.cos(lat2 * (Math.PI / 180)) *
+    Math.sin(dLon / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
 /**
- * Cloud Function to tag new broadcasts to the closest sector hub.
+ * Tags new broadcasts to the closest sector hub node.
+ *
+ * Robustness notes:
+ * - database must match the named DB where broadcasts live.
+ * - admin.firestore(DB_ID) scopes all reads/writes to the same instance.
+ * - Skips docs missing coords or already tagged (idempotent).
+ * - Logs a warning (not an error) when no hub is within radius — expected for
+ *   events far from any node.
  */
-export const tagEventToSector = onDocumentCreated({
-  document: 'broadcasts/{eventId}',
-  database: '(default)' // Will be overridden if needed in index.ts
-}, async (event) => {
-  const data = event.data?.data();
-  if (!data) return;
+export const tagEventToSector = onDocumentCreated(
+  {
+    document: 'broadcasts/{eventId}',
+    database: DB_ID, // FIX: was '(default)' — triggers on the wrong DB instance
+  },
+  async (event) => {
+    const data = event.data?.data();
+    if (!data) return;
 
-  // Skip if coords is null or sectorId is already set
-  if (!data.coords || data.sectorId) {
-    console.log(`[visit-cincy] Skipping tagging for ${event.params.eventId}: coords missing or sectorId already set.`);
-    return;
-  }
+    // Idempotency guard — skip if already tagged or coords missing
+    if (!data.coords || data.sectorId) {
+      console.log(
+        `[tagEventToSector] Skipping ${event.params.eventId}: ` +
+        (!data.coords ? 'no coords' : 'sectorId already set')
+      );
+      return;
+    }
 
-  const { lat, lng } = data.coords;
-  const db = admin.firestore();
+    const { lat, lng } = data.coords;
 
-  try {
-    // Read all documents from nodes (acting as sectorHubs)
-    // The prompt specifically said "sectorHubs" collection, so we'll use that.
-    // If it doesn't exist, we'll fallback to "nodes" if we want, but we'll follow the prompt.
-    const hubsSnap = await db.collection('nodes').get();
-    
-    let closestHubId = null;
-    let minDistance = Infinity;
+    // FIX: was admin.firestore() which targets '(default)'.
+    // getDatabase(DB_ID) ensures reads/writes stay in the named instance.
+    const db = admin.firestore(DB_ID);
 
-    hubsSnap.forEach(doc => {
-      const hub = doc.data();
-      if (hub.latitude && hub.longitude) {
+    try {
+      const hubsSnap = await db.collection('nodes').get();
+
+      let closestHubId: string | null = null;
+      let minDistance = Infinity;
+
+      hubsSnap.forEach((doc) => {
+        const hub = doc.data();
+        if (typeof hub.latitude !== 'number' || typeof hub.longitude !== 'number') return;
+
         const distance = getDistanceMiles(lat, lng, hub.latitude, hub.longitude);
-        const radiusMiles = (hub.radius_limit || 5000) / 1609.34; // Convert meters to miles if needed, or use radiusMiles if it exists
-        
-        // Use radiusMiles if present, otherwise use converted radius_limit
-        const limit = hub.radiusMiles || radiusMiles;
 
-        if (distance <= limit && distance < minDistance) {
+        // Prefer explicit radiusMiles; fall back to radius_limit (metres → miles)
+        const limitMiles: number =
+          typeof hub.radiusMiles === 'number'
+            ? hub.radiusMiles
+            : (hub.radius_limit ?? 8046) / 1609.34; // default 5 miles if neither set
+
+        if (distance <= limitMiles && distance < minDistance) {
           minDistance = distance;
           closestHubId = doc.id;
         }
-      }
-    });
-
-    if (closestHubId) {
-      console.log(`[visit-cincy] Tagging ${event.params.eventId} to hub ${closestHubId} (distance: ${minDistance.toFixed(2)} miles)`);
-      
-      const batch = db.batch();
-      
-      // a) stamp sectorId on the broadcast document
-      batch.update(event.data!.ref, { sectorId: closestHubId });
-      
-      // b) increment eventCount on the matched sectorHub document
-      batch.update(db.doc(`nodes/${closestHubId}`), {
-        eventCount: admin.firestore.FieldValue.increment(1)
       });
-      
-      await batch.commit();
-    } else {
-      console.log(`[visit-cincy] No suitable hub found for ${event.params.eventId} within radius.`);
+
+      if (closestHubId) {
+        console.log(
+          `[tagEventToSector] Tagging ${event.params.eventId} → hub ${closestHubId} ` +
+          `(${minDistance.toFixed(2)} mi)`
+        );
+
+        const batch = db.batch();
+        batch.update(event.data!.ref, { sectorId: closestHubId });
+        batch.update(db.doc(`nodes/${closestHubId}`), {
+          eventCount: admin.firestore.FieldValue.increment(1),
+        });
+        await batch.commit();
+      } else {
+        // Warning, not an error — valid for events outside all hub radii
+        console.warn(
+          `[tagEventToSector] No hub within radius for ${event.params.eventId} ` +
+          `at (${lat}, ${lng})`
+        );
+      }
+    } catch (error) {
+      console.error('[tagEventToSector] Fatal error:', error);
+      throw error; // Re-throw so Firebase retries the function
     }
-  } catch (error) {
-    console.error('[visit-cincy] Error in tagEventToSector:', error);
   }
-});
+);

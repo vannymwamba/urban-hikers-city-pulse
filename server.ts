@@ -15,6 +15,7 @@ import cron from "node-cron";
 import { runCivicIngestionEngine } from "./agents/visitCincyAgent.ts";
 import { runLibraryIngestionAgent } from "./agents/libraryAgent.ts";
 import { initializeScheduler } from "./src/cron/scheduler.ts";
+import { createRateLimiter } from "./rateLimiter.ts";
 
 dotenv.config();
 
@@ -24,6 +25,12 @@ const __dirname = path.dirname(__filename);
 const stripe = process.env.STRIPE_SECRET_KEY 
   ? new Stripe(process.env.STRIPE_SECRET_KEY) 
   : null;
+
+const igniteRateLimiter = createRateLimiter({
+  windowMs: 60_000,
+  max: 5,
+  message: 'Too many broadcasts from this IP. Please wait 60 seconds.',
+});
 
 async function startServer() {
   const app = express();
@@ -321,7 +328,7 @@ async function startServer() {
   });
 
   // Creator Flash Node Ignite Endpoint
-  app.post("/api/creator/ignite", async (req, res) => {
+  app.post("/api/creator/ignite", igniteRateLimiter, async (req, res) => {
     const { 
       nodeId, 
       creatorName, 

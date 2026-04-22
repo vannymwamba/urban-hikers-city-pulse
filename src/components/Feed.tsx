@@ -66,11 +66,12 @@ export const Feed: React.FC<FeedProps> = ({
         </div>
       </div>
       {status && (
-        <span className={`text-[10px] font-black uppercase tracking-[0.15em] ${
+        <span className={`text-[9px] font-black tracking-[0.14em] uppercase font-mono ${
+          status === 'PUBLIC_MURALS' ? 'text-purple-400' :
           status.includes('LIVE') ? 'text-uh-magenta' : 
           status.includes('BOOK') ? 'text-uh-teal' : 'text-uh-yellow'
         }`}>
-          {status}
+          {status.replace('_', ' ')}
         </span>
       )}
     </div>
@@ -204,7 +205,7 @@ export const Feed: React.FC<FeedProps> = ({
       {/* Murals Carousel */}
       {murals.length > 0 && !hideOtherSections && (
         <div className="flex flex-col">
-          <SectionHeader title="CIVIC_ART" count={murals.length} />
+          <SectionHeader title="CIVIC_ART" count={murals.length} status="PUBLIC_MURALS" />
           <div className="flex overflow-x-auto snap-x snap-mandatory no-scrollbar px-6 gap-4">
             {murals.map((mural, idx) => (
               <BroadcastCard 

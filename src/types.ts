@@ -77,6 +77,7 @@ export interface Broadcast {
   signal_location_source?: string;
   artist?: string;
   booking_url?: string;
+  sponsor_logo_url?: string;
 }
 
 export interface Partner {

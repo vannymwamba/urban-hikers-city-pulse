@@ -51,7 +51,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
     partnerId: '',
     locationSource: 'node' as 'node' | 'partner',
     artist: '',
-    booking_url: ''
+    booking_url: '',
+    sponsor_logo_url: ''
   });
   const [newPartner, setNewPartner] = useState({ 
     name: '', 
@@ -112,7 +113,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
           partnerId: b.partnerId || b.partner_id || '',
           locationSource: b.address ? 'node' : 'partner',
           artist: b.artist || '',
-          booking_url: b.booking_url || ''
+          booking_url: b.booking_url || '',
+          sponsor_logo_url: b.sponsor_logo_url || ''
         });
         setBroadcastImageUrl(b.cover_url || b.imageUrl || '');
         setBroadcastAddress(b.address || '');
@@ -572,7 +574,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
         active: true,
         cover_url: broadcastImageUrl,
         artist: newBroadcast.artist || null,
-        booking_url: newBroadcast.booking_url || null
+        booking_url: newBroadcast.booking_url || null,
+        sponsor_logo_url: newBroadcast.sponsor_logo_url || null
       };
 
       if (editingBroadcastId) {
@@ -586,7 +589,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
       handleFirestoreError(err, editingBroadcastId ? OperationType.UPDATE : OperationType.CREATE, editingBroadcastId ? `broadcasts/${editingBroadcastId}` : 'broadcasts');
     }
     
-    setNewBroadcast({ title: '', type: BroadcastType.LIVE_EVENT, nodeId: '', startTimeOffset: 0, duration: 60, partnerId: '', locationSource: 'node', artist: '', booking_url: '' });
+    setNewBroadcast({ title: '', type: BroadcastType.LIVE_EVENT, nodeId: '', startTimeOffset: 0, duration: 60, partnerId: '', locationSource: 'node', artist: '', booking_url: '', sponsor_logo_url: '' });
     setBroadcastImageUrl('');
     setBroadcastAddress('');
     setBroadcastCustomLat(null);
@@ -1551,7 +1554,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
                       type="button"
                       onClick={() => {
                         setEditingBroadcastId(null);
-                        setNewBroadcast({ title: '', type: BroadcastType.LIVE_EVENT, nodeId: '', startTimeOffset: 0, duration: 60, partnerId: '', locationSource: 'node', artist: '', booking_url: '' });
+                        setNewBroadcast({ title: '', type: BroadcastType.LIVE_EVENT, nodeId: '', startTimeOffset: 0, duration: 60, partnerId: '', locationSource: 'node', artist: '', booking_url: '', sponsor_logo_url: '' });
                         setBroadcastImageUrl('');
                         setBroadcastAddress('');
                         setBroadcastCustomLat(null);
@@ -1759,6 +1762,24 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
                   )}
                 </div>
 
+                {newBroadcast.type === BroadcastType.WALKING_EVENT && (
+                  <>
+                    <div className="col-span-2 flex flex-col gap-1">
+                      <label className="text-[9px] text-uh-gray-400 font-bold uppercase tracking-widest ml-1">Sponsor_logo_url</label>
+                      <input 
+                        type="url"
+                        placeholder="https://... (sponsor logo image URL)"
+                        className="bg-white border border-uh-gray-200 p-3 rounded-xl text-sm focus:border-uh-yellow outline-none transition-all"
+                        value={newBroadcast.sponsor_logo_url}
+                        onChange={e => setNewBroadcast({...newBroadcast, sponsor_logo_url: e.target.value})}
+                      />
+                      <p className="text-[8px] text-uh-gray-400 font-medium uppercase tracking-tight ml-1">
+                        Replaces "Booking Open" pill with sponsor logo on card.
+                      </p>
+                    </div>
+                  </>
+                )}
+
                 <div className="col-span-2 flex flex-col gap-2 border-t border-uh-gray-200 pt-4">
                   <label className="text-[10px] font-black text-uh-gray-400 uppercase tracking-widest">Custom_Address</label>
                   <div className="flex gap-2">
@@ -1864,7 +1885,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
                                         partnerId: b.partnerId || b.partner_id || '',
                                         locationSource: b.address ? 'node' : 'partner', // Heuristic
                                         artist: b.artist || '',
-                                        booking_url: b.booking_url || ''
+                                        booking_url: b.booking_url || '',
+                                        sponsor_logo_url: b.sponsor_logo_url || ''
                                       });
                                       setBroadcastImageUrl(b.cover_url || b.imageUrl || '');
                                       setBroadcastAddress(b.address || '');
