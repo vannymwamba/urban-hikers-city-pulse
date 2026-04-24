@@ -16,6 +16,7 @@ import { runCivicIngestionEngine } from "./agents/visitCincyAgent.ts";
 import { runLibraryIngestionAgent } from "./agents/libraryAgent.ts";
 import { initializeScheduler } from "./src/cron/scheduler.ts";
 import { createRateLimiter } from "./rateLimiter.ts";
+import { createSponsorCheckoutRoute, handleSponsorWebhook } from "./src/services/onSponsorPaid.ts";
 
 dotenv.config();
 
@@ -35,6 +36,7 @@ const igniteRateLimiter = createRateLimiter({
 async function startServer() {
   const app = express();
   const PORT = 3000;
+  let db: any = null;
 
   // Enable CORS for all origins and methods
   app.use(cors({
@@ -49,30 +51,45 @@ async function startServer() {
     res.sendStatus(200);
   });
 
+  // Stripe Webhook MUST go before express.json() to get the raw body
+  app.post(
+    '/api/stripe-webhook',
+    express.raw({ type: 'application/json' }),
+    async (req, res) => {
+      const sig = req.headers['stripe-signature'];
+      let event;
+
+      try {
+        if (!stripe || !process.env.STRIPE_WEBHOOK_SECRET) {
+          throw new Error('Stripe or Webhook Secret missing');
+        }
+        event = stripe.webhooks.constructEvent(req.body, sig!, process.env.STRIPE_WEBHOOK_SECRET);
+      } catch (err: any) {
+        console.error(`Webhook Verification Error: ${err.message}`);
+        return res.status(400).send(`Webhook Error: ${err.message}`);
+      }
+
+      if (event.type === 'checkout.session.completed') {
+        const session = event.data.object as Stripe.Checkout.Session;
+        // Firebase might still be initializing, we'll check db existence inside or expect it's ready
+        // since webhook happens well after startup
+        if (db) {
+          await handleSponsorWebhook(session, db);
+        } else {
+          console.error("[STRIPE] Firestore not initialized for webhook processing");
+        }
+      }
+
+      res.json({ received: true });
+    }
+  );
+
   app.use(express.json());
 
   // Firebase initialization for server-side stats
-  let db: any = null;
   try {
-    // Load config to get database ID and project ID
-    const configPath = path.join(process.cwd(), 'firebase-applet-config.json');
-    let databaseId = '(default)';
-    let projectId = process.env.FIREBASE_PROJECT_ID;
-
-    if (fs.existsSync(configPath) && fs.statSync(configPath).size > 0) {
-      const content = fs.readFileSync(configPath, 'utf8');
-      if (content && content.trim()) {
-        const config = JSON.parse(content);
-        databaseId = config.firestoreDatabaseId || '(default)';
-        if (!projectId) {
-          projectId = config.projectId;
-        }
-      }
-    }
-
-    if (!projectId) {
-      projectId = "gen-lang-client-0752567409"; // Final fallback to known project
-    }
+    // Force explicit connection to the requested database ID
+    const projectId = "gen-lang-client-0752567409";
 
     if (!admin.apps.length) {
       console.log(`[FIREBASE] Initializing Admin SDK for Project: ${projectId}`);
@@ -81,23 +98,16 @@ async function startServer() {
       });
     }
 
-    // Harden database selection
-    const activeDbId = (databaseId && databaseId !== '(default)') ? databaseId : undefined;
-    console.log(`[FIREBASE] Requesting Firestore Instance: ${activeDbId || 'default'}`);
-    
-    db = getFirestore(activeDbId);
+    const databaseId = 'ai-studio-8d3a18ac-9f60-480e-8200-f9f5e01c389a';
+    console.log(`[FIREBASE] Connecting to Firestore Instance: ${databaseId}`);
+    db = getFirestore(databaseId);
     
     // Quick test to verify connectivity and permissions
     try {
       await db.collection('nodes').limit(1).get();
-      console.log(`[FIREBASE] Admin connectivity verified for DB: ${activeDbId || 'default'}`);
+      console.log(`[FIREBASE] Admin connectivity verified for DB: ${databaseId}`);
     } catch (testError) {
-      console.error(`[FIREBASE] Connection test failed for DB ${activeDbId || 'default'}:`, testError);
-      // Fallback to default if named instance fails connectivity test
-      if (activeDbId) {
-        console.warn(`[FIREBASE] Falling back to (default) database...`);
-        db = getFirestore();
-      }
+      console.error(`[FIREBASE] Connection test failed for DB ${databaseId}:`, testError);
     }
   } catch (error) {
     console.error("Firebase Admin init error in server:", error);
@@ -598,6 +608,8 @@ async function startServer() {
       res.status(500).json({ error: error.message });
     }
   });
+
+  app.post('/api/create-sponsor-checkout', createSponsorCheckoutRoute);
 
   app.get("/api/checkout/session/:sessionId", async (req, res) => {
     if (!stripe) return res.status(500).json({ error: "Stripe not configured" });

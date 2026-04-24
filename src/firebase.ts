@@ -20,12 +20,8 @@ const config = {
 
 const app = initializeApp(config);
 
-// Use standard Firestore initialization. 
-// Firebase will automatically handle persistence if possible, 
-// or fallback to memory cache if IndexedDB is restricted or failing.
-console.log("FIRESTORE_INIT: FULL_CONFIG =", config);
-// Using specific database ID as requested to match Kroger data location
-export const db = getFirestore(app, 'ai-studio-8d3a18ac-9f60-480e-8200-f9f5e01c389a');
+const finalDbId = 'ai-studio-8d3a18ac-9f60-480e-8200-f9f5e01c389a';
+export const db = getFirestore(app, finalDbId);
 
 export const storage = getStorage(app);
 export const auth = getAuth(app);

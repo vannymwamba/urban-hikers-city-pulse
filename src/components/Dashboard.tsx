@@ -1,18 +1,21 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
-import { db, functions, storage } from '../firebase';
+import { db, functions, storage, auth } from '../firebase';
 import { collection, addDoc, onSnapshot, query, where, doc, setDoc, getDocs, updateDoc, deleteDoc, serverTimestamp, limit, orderBy } from 'firebase/firestore';
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { httpsCallable } from 'firebase/functions';
 import { Node, Broadcast, UserProfile, Partner, BroadcastType, HubType, VibeReport, Tap, UserRole, Interaction, TabView } from '../types';
 import { BASE_URL } from '../constants';
-import { Plus, MapPin, Link as LinkIcon, Send, LayoutDashboard, LogOut, ChevronRight, Globe, ShieldCheck, RefreshCw, BarChart3, Image as ImageIcon, Trash2, RotateCcw, Palette, X } from 'lucide-react';
+import { isSuperAdmin } from '../utils/auth';
+import { Timestamp } from 'firebase/firestore';
+import { Plus, MapPin, Link as LinkIcon, Send, LayoutDashboard, LogOut, ChevronRight, Globe, ShieldCheck, RefreshCw, BarChart3, Image as ImageIcon, Trash2, RotateCcw, Palette, X, Zap, Loader2 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { handleFirestoreError, OperationType } from '../utils/firebaseErrors';
 import { LogoUpload } from './LogoUpload';
 import { SponsorBadge } from './SponsorBadge';
 import { LocalPulseLoader } from './LocalPulseLoader';
 import { AddressSearchInput } from './AddressSearchInput';
+import { BroadcastControlForm } from './BroadcastControlForm';
 
 interface DashboardProps {
   userProfile: UserProfile;
@@ -52,7 +55,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
     locationSource: 'node' as 'node' | 'partner',
     artist: '',
     booking_url: '',
-    sponsor_logo_url: ''
+    sponsor_logo_url: '',
+    is_sponsored: false,
+    sponsor_name: ''
   });
   const [newPartner, setNewPartner] = useState({ 
     name: '', 
@@ -82,7 +87,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
   const [broadcastCustomLat, setBroadcastCustomLat] = useState<number | null>(null);
   const [broadcastCustomLng, setBroadcastCustomLng] = useState<number | null>(null);
   const [isUploadingBroadcastImage, setIsUploadingBroadcastImage] = useState(false);
+  const [isSuperAdminUser, setIsSuperAdminUser] = useState(false);
+  const [publishSuccess, setPublishSuccess] = useState(false);
   const [isUploadingNodeImage, setIsUploadingNodeImage] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   
   const [activeTab, setActiveTab] = useState<'hubs' | 'broadcasts' | 'partners' | 'analytics' | 'profile'>(isAdmin ? 'hubs' : 'broadcasts');
   const [hudMessage, setHudMessage] = useState<{ text: string; type: 'info' | 'error' } | null>(null);
@@ -114,7 +122,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
           locationSource: b.address ? 'node' : 'partner',
           artist: b.artist || '',
           booking_url: b.booking_url || '',
-          sponsor_logo_url: b.sponsor_logo_url || ''
+          sponsor_logo_url: b.sponsor_logo_url || '',
+          is_sponsored: b.is_sponsored || false,
+          sponsor_name: b.sponsor_name || ''
         });
         setBroadcastImageUrl(b.cover_url || b.imageUrl || '');
         setBroadcastAddress(b.address || '');
@@ -552,6 +562,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
       }
     }
     
+    setSubmitting(true);
     try {
       const broadcastData = {
         title: newBroadcast.title,
@@ -575,7 +586,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
         cover_url: broadcastImageUrl,
         artist: newBroadcast.artist || null,
         booking_url: newBroadcast.booking_url || null,
-        sponsor_logo_url: newBroadcast.sponsor_logo_url || null
+        sponsor_logo_url: newBroadcast.sponsor_logo_url || null,
+        is_sponsored: newBroadcast.is_sponsored || false,
+        sponsor_name: newBroadcast.sponsor_name || null
       };
 
       if (editingBroadcastId) {
@@ -587,14 +600,79 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
       }
     } catch (err) {
       handleFirestoreError(err, editingBroadcastId ? OperationType.UPDATE : OperationType.CREATE, editingBroadcastId ? `broadcasts/${editingBroadcastId}` : 'broadcasts');
+    } finally {
+      setSubmitting(false);
     }
     
-    setNewBroadcast({ title: '', type: BroadcastType.LIVE_EVENT, nodeId: '', startTimeOffset: 0, duration: 60, partnerId: '', locationSource: 'node', artist: '', booking_url: '', sponsor_logo_url: '' });
+    setNewBroadcast({ title: '', type: BroadcastType.LIVE_EVENT, nodeId: '', startTimeOffset: 0, duration: 60, partnerId: '', locationSource: 'node', artist: '', booking_url: '', sponsor_logo_url: '', is_sponsored: false, sponsor_name: '' });
     setBroadcastImageUrl('');
     setBroadcastAddress('');
     setBroadcastCustomLat(null);
     setBroadcastCustomLng(null);
     setEditingBroadcastId(null);
+  };
+
+  useEffect(() => {
+    isSuperAdmin().then(setIsSuperAdminUser);
+  }, []);
+
+  const handleAdminDirectPublish = async () => {
+    if (!newBroadcast.title) {
+      setHudMessage({ text: 'ERROR: TITLE_REQUIRED', type: 'error' });
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const now = new Date();
+      const expiresAt = new Date(now.getTime() + newBroadcast.duration * 60000);
+
+      const broadcastDoc = {
+        title: newBroadcast.title,
+        type: 'flash_deal',
+        status: 'active',
+        scope: 'specific_node',
+        node_id: newBroadcast.nodeId || null,
+        latitude: broadcastCustomLat || 0,
+        longitude: broadcastCustomLng || 0,
+        starts_at: Timestamp.fromDate(now),
+        expires_at: Timestamp.fromDate(expiresAt),
+        cover_url: broadcastImageUrl || null,
+        description: null,
+        is_sponsored: newBroadcast.is_sponsored || false,
+        sponsor_name: newBroadcast.sponsor_name || null,
+        partner_id: 'urban-hikers-admin',
+        partner_email: userProfile.email,
+        published_by: auth.currentUser?.uid,
+        is_admin_post: true,
+        impressions: 0,
+        taps: 0,
+        payment_type: 'admin_bypass',
+        stripe_session_id: null,
+        created_at: Timestamp.now(),
+      };
+
+      await addDoc(collection(db, 'broadcasts'), broadcastDoc);
+      setPublishSuccess(true);
+      setHudMessage({ text: `ADMIN_SIGNAL_BROADCASTED: ${newBroadcast.title.toUpperCase()}`, type: 'info' });
+      
+      // Reset form
+      setNewBroadcast({ title: '', type: BroadcastType.LIVE_EVENT, nodeId: '', startTimeOffset: 0, duration: 60, partnerId: '', locationSource: 'node', artist: '', booking_url: '', sponsor_logo_url: '', is_sponsored: false, sponsor_name: '' });
+      setBroadcastImageUrl('');
+      setBroadcastAddress('');
+      setBroadcastCustomLat(null);
+      setBroadcastCustomLng(null);
+    } catch (err) {
+      console.error('Admin direct publish failed', err);
+      setHudMessage({ text: 'ERROR: PUBLISH_FAILED', type: 'error' });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleStripePublish = async (e: React.FormEvent) => {
+    if (e) e.preventDefault();
+    handleCreateBroadcast(e);
   };
 
   const handleRepublish = async (b: Broadcast) => {
@@ -1168,8 +1246,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
               </div>
 
               <div className="grid gap-4">
-                {nodes
-                  .filter(node => isAdmin || broadcasts.some(b => b.node_id === node.id))
+                {Array.isArray(nodes) && nodes
+                  .filter(node => node && (isAdmin || (Array.isArray(broadcasts) && broadcasts.some(b => b && (b.node_id === node.id || b.nodeId === node.id)))))
                   .map(node => (
                     <div key={node.id} className="bg-white border border-uh-gray-200 rounded-2xl p-6 flex justify-between items-center group hover:border-uh-yellow transition-all shadow-sm">
                       <div className="flex-1 flex items-center gap-4">
@@ -1470,68 +1548,71 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
 
               {/* Partners List */}
               <div className="grid gap-4">
-                {partners.map(partner => (
-                  <div key={partner.id} className="bg-white border border-uh-gray-200 rounded-2xl p-6 flex justify-between items-center group hover:border-uh-yellow transition-all shadow-sm">
-                    <div>
-                      <div className="flex items-center gap-4 mb-3">
-                        {(partner.logoUrl || partner.logo_url) && (
-                          <img src={partner.logoUrl || partner.logo_url} alt="" className="w-10 h-10 rounded-lg border border-uh-gray-200 object-contain bg-uh-gray-50" referrerPolicy="no-referrer" />
+                {Array.isArray(partners) && partners.map(partner => {
+                  if (!partner) return null;
+                  return (
+                    <div key={partner.id} className="bg-white border border-uh-gray-200 rounded-2xl p-6 flex justify-between items-center group hover:border-uh-yellow transition-all shadow-sm">
+                      <div>
+                        <div className="flex items-center gap-4 mb-3">
+                          {(partner.logoUrl || partner.logo_url) && (
+                            <img src={partner.logoUrl || partner.logo_url} alt="" className="w-10 h-10 rounded-lg border border-uh-gray-200 object-contain bg-uh-gray-50" referrerPolicy="no-referrer" />
+                          )}
+                          <div className="text-lg font-black text-uh-black">{partner.name}</div>
+                          {(partner.brandColor || partner.brand_color) && (
+                            <div className="w-4 h-4 rounded-full border border-uh-gray-200 shadow-sm" style={{ backgroundColor: partner.brandColor || partner.brand_color }} />
+                          )}
+                        </div>
+                        <div className="text-[10px] text-uh-gray-400 font-black tracking-widest uppercase">
+                          TIER: {partner.tier?.toUpperCase() || 'STANDARD'} // 
+                          OWNER: {partner.owner_email || partner.ownerEmail || 'UNASSIGNED'} //
+                          ZONES: {(partner.sponsorZones || partner.sponsor_zones)?.join(', ') || 'NONE'}
+                        </div>
+                        {(partner.dealText || partner.deal_text) && (
+                          <div className="text-[11px] text-uh-yellow font-bold mt-2 tracking-tight">DEAL: {partner.dealText || partner.deal_text}</div>
                         )}
-                        <div className="text-lg font-black text-uh-black">{partner.name}</div>
-                        {(partner.brandColor || partner.brand_color) && (
-                          <div className="w-4 h-4 rounded-full border border-uh-gray-200 shadow-sm" style={{ backgroundColor: partner.brandColor || partner.brand_color }} />
-                        )}
                       </div>
-                      <div className="text-[10px] text-uh-gray-400 font-black tracking-widest uppercase">
-                        TIER: {partner.tier?.toUpperCase() || 'STANDARD'} // 
-                        OWNER: {partner.owner_email || partner.ownerEmail || 'UNASSIGNED'} //
-                        ZONES: {(partner.sponsorZones || partner.sponsor_zones)?.join(', ') || 'NONE'}
-                      </div>
-                      {(partner.dealText || partner.deal_text) && (
-                        <div className="text-[11px] text-uh-yellow font-bold mt-2 tracking-tight">DEAL: {partner.dealText || partner.deal_text}</div>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-8">
-                      <div className="text-right">
-                        <div className="text-[10px] text-uh-gray-400 font-black tracking-widest uppercase mb-1">LOCATION</div>
-                        <div className="text-[11px] font-mono text-uh-gray-600 font-medium">{partner.latitude.toFixed(4)}, {partner.longitude.toFixed(4)}</div>
-                      </div>
-                      <div className="flex gap-2">
-                        <button 
-                          onClick={() => {
-                            setEditingPartnerId(partner.id);
-                            setNewPartner({
-                              name: partner.name,
-                              tier: partner.tier,
-                              address: partner.address || '',
-                              lat: partner.latitude,
-                              lng: partner.longitude,
-                              owner_email: partner.owner_email || partner.ownerEmail || '',
-                              role: partner.role || 'partner_admin',
-                              logoUrl: partner.logoUrl || partner.logo_url || '',
-                              logoUpdatedAt: partner.logoUpdatedAt || partner.logo_updated_at || null,
-                              brandColor: partner.brandColor || partner.brand_color || '#FFE01A',
-                              dealText: partner.dealText || partner.deal_text || '',
-                              sponsorZones: partner.sponsorZones || partner.sponsor_zones || []
-                            });
-                            window.scrollTo({ top: 0, behavior: 'smooth' });
-                          }}
-                          className="p-3 bg-uh-gray-50 text-uh-gray-600 rounded-xl border border-uh-gray-200 hover:border-uh-yellow hover:text-uh-black transition-all"
-                          title="Edit Partner Configuration"
-                        >
-                          <RefreshCw size={18} />
-                        </button>
-                        <button 
-                          onClick={() => handleDeletePartner(partner.id, partner.name)}
-                          className="p-3 bg-uh-gray-50 text-uh-gray-600 rounded-xl border border-uh-gray-200 hover:border-uh-magenta hover:text-white hover:bg-uh-magenta transition-all"
-                          title="Terminate Partnership"
-                        >
-                          <Trash2 size={18} />
-                        </button>
+                      <div className="flex items-center gap-8">
+                        <div className="text-right">
+                          <div className="text-[10px] text-uh-gray-400 font-black tracking-widest uppercase mb-1">LOCATION</div>
+                          <div className="text-[11px] font-mono text-uh-gray-600 font-medium">{(partner.latitude || 0).toFixed(4)}, {(partner.longitude || 0).toFixed(4)}</div>
+                        </div>
+                        <div className="flex gap-2">
+                          <button 
+                            onClick={() => {
+                              setEditingPartnerId(partner.id);
+                              setNewPartner({
+                                name: partner.name,
+                                tier: partner.tier,
+                                address: partner.address || '',
+                                lat: partner.latitude,
+                                lng: partner.longitude,
+                                owner_email: partner.owner_email || partner.ownerEmail || '',
+                                role: partner.role || 'partner_admin',
+                                logoUrl: partner.logoUrl || partner.logo_url || '',
+                                logoUpdatedAt: partner.logoUpdatedAt || partner.logo_updated_at || null,
+                                brandColor: partner.brandColor || partner.brand_color || '#FFE01A',
+                                dealText: partner.dealText || partner.deal_text || '',
+                                sponsorZones: partner.sponsorZones || partner.sponsor_zones || []
+                              });
+                              window.scrollTo({ top: 0, behavior: 'smooth' });
+                            }}
+                            className="p-3 bg-uh-gray-50 text-uh-gray-600 rounded-xl border border-uh-gray-200 hover:border-uh-yellow hover:text-uh-black transition-all"
+                            title="Edit Partner Configuration"
+                          >
+                            <RefreshCw size={18} />
+                          </button>
+                          <button 
+                            onClick={() => handleDeletePartner(partner.id, partner.name)}
+                            className="p-3 bg-uh-gray-50 text-uh-gray-600 rounded-xl border border-uh-gray-200 hover:border-uh-magenta hover:text-white hover:bg-uh-magenta transition-all"
+                            title="Terminate Partnership"
+                          >
+                            <Trash2 size={18} />
+                          </button>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}
@@ -1543,302 +1624,36 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
                 <div className="text-[10px] text-uh-gray-400 font-bold">ACTIVE_FEEDS: {broadcasts.length}</div>
               </div>
 
-              {/* Create Broadcast Form */}
-              <form onSubmit={handleCreateBroadcast} className="bg-uh-gray-50 border border-uh-gray-200 p-6 mb-8 rounded-2xl grid grid-cols-2 gap-4 shadow-sm">
-                <div className="col-span-2 flex justify-between items-center mb-2">
-                  <div className="text-[10px] text-uh-gray-500 font-bold tracking-widest uppercase">
-                    {editingBroadcastId ? 'Reconfigure_Broadcast' : 'Ignite_New_Broadcast'}
-                  </div>
-                  {editingBroadcastId && (
-                    <button 
-                      type="button"
-                      onClick={() => {
-                        setEditingBroadcastId(null);
-                        setNewBroadcast({ title: '', type: BroadcastType.LIVE_EVENT, nodeId: '', startTimeOffset: 0, duration: 60, partnerId: '', locationSource: 'node', artist: '', booking_url: '', sponsor_logo_url: '' });
-                        setBroadcastImageUrl('');
-                        setBroadcastAddress('');
-                        setBroadcastCustomLat(null);
-                        setBroadcastCustomLng(null);
-                      }}
-                      className="text-[10px] font-black text-uh-magenta uppercase tracking-widest hover:underline"
-                    >
-                      Cancel_Edit
-                    </button>
-                  )}
-                </div>
-                <div className="flex flex-col gap-1">
-                  <label className="text-[9px] text-uh-gray-400 font-bold uppercase tracking-widest ml-1">Broadcast_Title</label>
-                  <input 
-                    placeholder="e.g. Friday Night Live"
-                    className="bg-white border border-uh-gray-200 p-3 rounded-xl text-sm focus:border-uh-yellow focus:ring-2 focus:ring-uh-yellow/20 outline-none transition-all"
-                    value={newBroadcast.title}
-                    onChange={e => setNewBroadcast({...newBroadcast, title: e.target.value})}
-                    required
-                  />
-                </div>
-                <div className="flex flex-col gap-1">
-                  <label className="text-[9px] text-uh-gray-400 font-bold uppercase tracking-widest ml-1">Broadcast_Type</label>
-                  <select 
-                    className="bg-white border border-uh-gray-200 p-3 rounded-xl text-sm focus:border-uh-yellow focus:ring-2 focus:ring-uh-yellow/20 outline-none transition-all"
-                    value={newBroadcast.type}
-                    onChange={e => setNewBroadcast({...newBroadcast, type: e.target.value as BroadcastType})}
-                  >
-                    <option value={BroadcastType.LIVE_EVENT}>LIVE_EVENT</option>
-                    <option value={BroadcastType.FLASH_DEAL}>FLASH_DEAL</option>
-                    <option value={BroadcastType.FOOD_TRUCK}>FOOD_TRUCK</option>
-                    <option value={BroadcastType.WALKING_EVENT}>WALKING_EVENT</option>
-                    <option value={BroadcastType.MURAL}>MURAL</option>
-                    <option value={BroadcastType.STREET_ART}>STREET_ART</option>
-                    <option value={BroadcastType.POP_UP}>POP_UP</option>
-                    <option value={BroadcastType.CIVIC_EVENT}>CIVIC_EVENT</option>
-                  </select>
-                </div>
-
-                {newBroadcast.type === BroadcastType.WALKING_EVENT && (
-                  <div className="col-span-2 flex flex-col gap-1">
-                    <label className="text-[9px] text-uh-gray-400 font-bold uppercase tracking-widest ml-1">External_booking_url</label>
-                    <input 
-                      type="url"
-                      placeholder="https://eventbrite.com/your-walk"
-                      className="bg-uh-yellow/5 border border-uh-yellow/30 p-3 rounded-xl text-sm focus:border-uh-yellow outline-none transition-all"
-                      value={newBroadcast.booking_url}
-                      onChange={e => setNewBroadcast({...newBroadcast, booking_url: e.target.value})}
-                    />
-                    <p className="text-[8px] text-uh-gray-400 font-medium uppercase tracking-tight ml-1">
-                      Leave empty to use Local Pulse inline booking + Stripe. If set, Book button links directly to this URL.
-                    </p>
-                  </div>
-                )}
-
-                {newBroadcast.type === BroadcastType.MURAL && (
-                  <div className="col-span-2 flex flex-col gap-1">
-                    <label className="text-[9px] text-uh-gray-400 font-bold uppercase tracking-widest ml-1">Artist_name</label>
-                    <input 
-                      type="text"
-                      placeholder="e.g. Jenny Ustick"
-                      className="bg-white border border-uh-gray-200 p-3 rounded-xl text-sm focus:border-uh-yellow outline-none transition-all"
-                      value={newBroadcast.artist}
-                      onChange={e => setNewBroadcast({...newBroadcast, artist: e.target.value})}
-                    />
-                    <p className="text-[8px] text-uh-gray-400 font-medium uppercase tracking-tight ml-1">
-                      Displayed as byline below title on the signal card.
-                    </p>
-                  </div>
-                )}
-
-                <div className="col-span-2 flex flex-col gap-1">
-                  <label className="text-[9px] text-uh-gray-400 font-bold uppercase tracking-widest ml-1">Signal_Location_Source</label>
-                  <div className="flex gap-2 p-1 bg-uh-gray-100 rounded-xl">
-                    <button 
-                      type="button"
-                      onClick={() => setNewBroadcast({...newBroadcast, locationSource: 'node'})}
-                      className={`flex-1 py-2.5 text-[10px] font-bold rounded-lg transition-all ${newBroadcast.locationSource === 'node' ? 'bg-white text-uh-black shadow-sm' : 'text-uh-gray-500 hover:text-uh-black'}`}
-                    >
-                      SPECIFIC_HUB_LOCATION
-                    </button>
-                    <button 
-                      type="button"
-                      onClick={() => setNewBroadcast({...newBroadcast, locationSource: 'partner'})}
-                      className={`flex-1 py-2.5 text-[10px] font-bold rounded-lg transition-all ${newBroadcast.locationSource === 'partner' ? 'bg-white text-uh-black shadow-sm' : 'text-uh-gray-500 hover:text-uh-black'}`}
-                    >
-                      PARTNER_DEFAULT_LOCATION
-                    </button>
-                  </div>
-                </div>
-
-                {newBroadcast.locationSource === 'node' && (
-                  <div className="col-span-2 flex flex-col gap-1">
-                    <label className="text-[9px] text-uh-gray-400 font-bold uppercase tracking-widest ml-1">Target_Hub</label>
-                    <select 
-                      className="bg-white border border-uh-gray-200 p-3 rounded-xl text-sm focus:border-uh-yellow focus:ring-2 focus:ring-uh-yellow/20 outline-none transition-all"
-                      value={newBroadcast.nodeId}
-                      onChange={e => setNewBroadcast({...newBroadcast, nodeId: e.target.value})}
-                      required={newBroadcast.locationSource === 'node'}
-                    >
-                      <option value="">SELECT_TARGET_HUB</option>
-                      {nodes.map(n => <option key={n.id} value={n.id}>{n.name}</option>)}
-                    </select>
-                  </div>
-                )}
-
-                {isAdmin && (
-                  <div className="col-span-2 flex flex-col gap-1">
-                    <label className="text-[9px] text-uh-gray-400 font-bold uppercase tracking-widest ml-1">Broadcast_As</label>
-                    <select 
-                      className="bg-white border border-uh-gray-200 p-3 rounded-xl text-sm focus:border-uh-yellow focus:ring-2 focus:ring-uh-yellow/20 outline-none transition-all"
-                      value={newBroadcast.partnerId || ''}
-                      onChange={e => setNewBroadcast({...newBroadcast, partnerId: e.target.value})}
-                    >
-                      <option value="">BROADCAST_AS_SYSTEM</option>
-                      {partners.map(p => (
-                        <option key={p.id} value={p.id}>{p.name}</option>
-                      ))}
-                    </select>
-                  </div>
-                )}
-
-                <div className="flex flex-col gap-1">
-                  <label className="text-[9px] text-uh-gray-400 font-bold uppercase tracking-widest ml-1">Signal_Start (Delay)</label>
-                  <select 
-                    className="bg-white border border-uh-gray-200 p-3 rounded-xl text-sm focus:border-uh-yellow focus:ring-2 focus:ring-uh-yellow/20 outline-none transition-all"
-                    value={newBroadcast.startTimeOffset}
-                    onChange={e => setNewBroadcast({...newBroadcast, startTimeOffset: Number(e.target.value)})}
-                    required
-                  >
-                    <option value={0}>IMMEDIATE_START</option>
-                    <option value={15}>IN 15 MINUTES</option>
-                    <option value={30}>IN 30 MINUTES</option>
-                    <option value={60}>IN 1 HOUR</option>
-                    <option value={120}>IN 2 HOURS</option>
-                    <option value={180}>IN 3 HOURS</option>
-                    <option value={360}>IN 6 HOURS</option>
-                    <option value={720}>IN 12 HOURS</option>
-                    <option value={1440}>IN 24 HOURS</option>
-                  </select>
-                </div>
-
-                <div className="flex flex-col gap-1">
-                  <label className="text-[9px] text-uh-gray-400 font-bold uppercase tracking-widest ml-1">Signal_Duration (Live_Time)</label>
-                  <select 
-                    className="bg-white border border-uh-gray-200 p-3 rounded-xl text-sm focus:border-uh-yellow focus:ring-2 focus:ring-uh-yellow/20 outline-none transition-all"
-                    value={newBroadcast.duration}
-                    onChange={e => setNewBroadcast({...newBroadcast, duration: Number(e.target.value)})}
-                    required
-                  >
-                    <option value={30}>30 MINUTES</option>
-                    <option value={60}>1 HOUR</option>
-                    <option value={120}>2 HOURS</option>
-                    <option value={180}>3 HOURS</option>
-                    <option value={240}>4 HOURS</option>
-                    <option value={360}>6 HOURS</option>
-                    <option value={480}>8 HOURS</option>
-                    <option value={720}>12 HOURS</option>
-                    <option value={1440}>24 HOURS (MAX)</option>
-                  </select>
-                </div>
-
-                {/* New Broadcast Fields */}
-                <div className="col-span-2 flex flex-col gap-2 border-t border-uh-gray-200 pt-4 mt-2">
-                  <label className="text-[10px] font-black text-uh-gray-400 uppercase tracking-widest">Cover_Image</label>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="flex flex-col gap-1">
-                      <input 
-                        placeholder="https://example.com/image.jpg"
-                        className="bg-white border border-uh-gray-200 p-3 rounded-xl text-sm focus:border-uh-yellow outline-none transition-all"
-                        value={broadcastImageUrl}
-                        onChange={e => setBroadcastImageUrl(e.target.value)}
-                      />
-                    </div>
-                    <div className="flex flex-col gap-1">
-                      <label className="bg-uh-black text-white text-[10px] font-black p-3 rounded-xl hover:bg-uh-black/90 transition-all cursor-pointer flex items-center justify-center gap-2 min-h-[44px]">
-                        {isUploadingBroadcastImage ? (
-                          <LocalPulseLoader variant="dots" />
-                        ) : (
-                          <>
-                            <ImageIcon size={14} className="text-uh-yellow" />
-                            UPLOAD_IMAGE
-                          </>
-                        )}
-                        <input 
-                          type="file" 
-                          className="hidden" 
-                          onChange={handleBroadcastImageUpload}
-                          accept="image/*"
-                        />
-                      </label>
-                    </div>
-                  </div>
-                  {broadcastImageUrl && (
-                    <div className="mt-2 relative w-full h-32 rounded-xl overflow-hidden border border-uh-gray-200">
-                      <img src={broadcastImageUrl} alt="Preview" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                      <button 
-                        type="button"
-                        onClick={() => setBroadcastImageUrl('')}
-                        className="absolute top-2 right-2 p-1 bg-uh-magenta text-white rounded-full shadow-lg"
-                      >
-                        <X size={12} />
-                      </button>
-                    </div>
-                  )}
-                </div>
-
-                {newBroadcast.type === BroadcastType.WALKING_EVENT && (
-                  <>
-                    <div className="col-span-2 flex flex-col gap-1">
-                      <label className="text-[9px] text-uh-gray-400 font-bold uppercase tracking-widest ml-1">Sponsor_logo_url</label>
-                      <input 
-                        type="url"
-                        placeholder="https://... (sponsor logo image URL)"
-                        className="bg-white border border-uh-gray-200 p-3 rounded-xl text-sm focus:border-uh-yellow outline-none transition-all"
-                        value={newBroadcast.sponsor_logo_url}
-                        onChange={e => setNewBroadcast({...newBroadcast, sponsor_logo_url: e.target.value})}
-                      />
-                      <p className="text-[8px] text-uh-gray-400 font-medium uppercase tracking-tight ml-1">
-                        Replaces "Booking Open" pill with sponsor logo on card.
-                      </p>
-                    </div>
-                  </>
-                )}
-
-                <div className="col-span-2 flex flex-col gap-2 border-t border-uh-gray-200 pt-4">
-                  <label className="text-[10px] font-black text-uh-gray-400 uppercase tracking-widest">Custom_Address</label>
-                  <div className="flex gap-2">
-                    <AddressSearchInput 
-                      value={broadcastAddress}
-                      onSelect={async (addr) => {
-                        setBroadcastAddress(addr);
-                        // Auto-resolve when selected
-                        setIsGeocoding(true);
-                        try {
-                          const response = await fetch(`/api/geocode?address=${encodeURIComponent(addr)}`);
-                          if (response.ok) {
-                            const data = await response.json();
-                            if (data && data.lat && data.lon) {
-                              setBroadcastCustomLat(parseFloat(data.lat));
-                              setBroadcastCustomLng(parseFloat(data.lon));
-                              setHudMessage({ text: "COORDINATES_RESOLVED", type: 'info' });
-                            }
-                          }
-                        } catch (err) {
-                          console.error("Auto-geocode error:", err);
-                        } finally {
-                          setIsGeocoding(false);
-                        }
-                      }}
-                      placeholder="123 Main St, Cincinnati, OH"
-                    />
-                    <button 
-                      type="button"
-                      onClick={handleResolveBroadcastAddress}
-                      disabled={isGeocoding || !broadcastAddress}
-                      className="bg-uh-yellow text-uh-black text-[10px] font-black px-6 rounded-xl hover:bg-uh-yellow/80 transition-all disabled:opacity-50 flex items-center justify-center min-w-[100px]"
-                    >
-                      {isGeocoding ? <LocalPulseLoader variant="dots" /> : 'RESOLVE'}
-                    </button>
-                  </div>
-                  {broadcastCustomLat && broadcastCustomLng && (
-                    <div className="text-[10px] font-bold text-uh-green ml-1">
-                      RESOLVED_COORDS: {broadcastCustomLat.toFixed(4)}, {broadcastCustomLng.toFixed(4)}
-                    </div>
-                  )}
-                </div>
-
-                <button 
-                  type="submit" 
-                  disabled={!canWrite}
-                  className={`bg-uh-black text-white font-black p-4 rounded-xl hover:bg-uh-black/90 transition-all flex items-center justify-center gap-2 col-span-2 shadow-lg shadow-uh-black/10 ${!canWrite ? 'opacity-50 cursor-not-allowed' : ''}`}
-                >
-                  {editingBroadcastId ? <RefreshCw size={18} className="text-uh-yellow" /> : <Send size={18} className="text-uh-yellow" />} 
-                  {canWrite ? (editingBroadcastId ? 'UPDATE_SIGNAL' : 'TRANSMIT_SIGNAL') : 'READ_ONLY_ACCESS'}
-                </button>
-              </form>
+              {/* Transition to Advanced Tactical Controller */}
+              <div className="mb-12 overflow-hidden rounded-2xl border border-[#FFE01A] shadow-2xl bg-black">
+                <BroadcastControlForm 
+                  formData={newBroadcast}
+                  setFormData={setNewBroadcast as any}
+                  setError={(err) => setHudMessage({ text: err || 'PHASE_ERROR', type: 'error' })}
+                  setSubmitting={setSubmitting}
+                  setSuccess={(suc) => {
+                    if (suc) {
+                      setHudMessage({ text: 'SIGNAL_TRANSMITTED ✓', type: 'info' });
+                      setBroadcastImageUrl('');
+                      setBroadcastAddress('');
+                      setBroadcastCustomLat(null);
+                      setBroadcastCustomLng(null);
+                      setEditingBroadcastId(null);
+                    }
+                  }}
+                  nodes={nodes}
+                  isAdmin={isAdmin}
+                />
+              </div>
 
               {/* Broadcasts List */}
               <div className="grid gap-4">
-                {broadcasts.map(b => {
-                  const partner = partners.find(p => p.id === b.partner_id);
-                  const node = nodes.find(n => n.id === b.node_id);
+                {Array.isArray(broadcasts) && broadcasts.map(b => {
+                  if (!b) return null;
+                  const partner = (partners || []).find(p => p && (p.id === b.partner_id || p.id === b.partnerId));
+                  const node = (nodes || []).find(n => n && (n.id === b.node_id || n.id === b.nodeId));
                   
+                  try {
                     return (
                       <div key={b.id} className="bg-white border border-uh-gray-200 p-5 rounded-2xl flex justify-between items-center group hover:border-uh-yellow hover:shadow-md transition-all">
                         <div className="flex items-center gap-4">
@@ -1849,19 +1664,19 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
                           }`} />
                           <div>
                             <div className="flex items-center gap-2 mb-1">
-                              <div className="text-sm font-black text-uh-black tracking-tight">{b.title}</div>
+                              <div className="text-sm font-black text-uh-black tracking-tight">{b.title || 'UNTITLED_SIGNAL'}</div>
                               {partner && <SponsorBadge partner={partner} zone="A" compact />}
                             </div>
-                            {b.address && (
+                            {(b.address || b.venue) && (
                               <div className="text-[11px] text-uh-gray-500 mb-2 flex items-center gap-1">
                                 <MapPin size={12} className="text-uh-gray-400" />
-                                {b.address}
+                                {b.address || b.venue}
                               </div>
                             )}
                             <div className="flex gap-3 text-[10px] font-bold uppercase tracking-wider">
-                              <span className="text-uh-gray-400">Type: <span className="text-uh-black">{b.type?.replace('_', ' ') || 'UNKNOWN'}</span></span>
-                              <span className="text-uh-gray-400">Hub: <span className="text-uh-black">{node?.name || b.node_id || 'UNKNOWN'}</span></span>
-                              <span className="text-uh-gray-400">Vibe: <span className="text-uh-black">{b.current_vibe || 'UNKNOWN'}</span></span>
+                              <span className="text-uh-gray-400">Type: <span className="text-uh-black">{String(b.type || 'SIGNAL').replace('_', ' ')}</span></span>
+                              <span className="text-uh-gray-400">Hub: <span className="text-uh-black">{node?.name || b.nodeId || b.node_id || 'LOCAL_PULSE'}</span></span>
+                              <span className="text-uh-gray-400">Vibe: <span className="text-uh-black">{b.currentVibe || b.current_vibe || 'CHILL'}</span></span>
                             </div>
                           </div>
                         </div>
@@ -1886,7 +1701,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
                                         locationSource: b.address ? 'node' : 'partner', // Heuristic
                                         artist: b.artist || '',
                                         booking_url: b.booking_url || '',
-                                        sponsor_logo_url: b.sponsor_logo_url || ''
+                                        sponsor_logo_url: b.sponsor_logo_url || '',
+                                        is_sponsored: b.is_sponsored || false,
+                                        sponsor_name: b.sponsor_name || ''
                                       });
                                       setBroadcastImageUrl(b.cover_url || b.imageUrl || '');
                                       setBroadcastAddress(b.address || '');
@@ -1921,6 +1738,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
                           </div>
                       </div>
                     );
+                  } catch (e) {
+                    console.error("Render error for broadcast:", e, b);
+                    return null;
+                  }
                 })}
               </div>
             </div>
@@ -2473,8 +2294,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
                   <div className="bg-white border border-uh-gray-200 p-8 rounded-2xl shadow-sm">
                     <h3 className="text-sm font-black text-uh-black mb-6 tracking-widest uppercase">ACTIVE_SIGNAL_PERFORMANCE</h3>
                     <div className="space-y-6">
-                      {broadcasts.map(b => {
-                        const reports = vibeReports.filter(r => r.broadcast_id === b.id);
+                      {Array.isArray(broadcasts) && broadcasts.map(b => {
+                        if (!b) return null;
+                        const reports = (vibeReports || []).filter(r => r && (r.broadcast_id === b.id));
                         const packedCount = reports.filter(r => r.vibe === 'packed').length;
                         const buzzingCount = reports.filter(r => r.vibe === 'buzzing').length;
                         const chillCount = reports.filter(r => r.vibe === 'chill').length;
@@ -2506,9 +2328,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
                   <div className="bg-white border border-uh-gray-200 p-8 rounded-2xl shadow-sm">
                     <h3 className="text-sm font-black text-uh-black mb-6 tracking-widest uppercase">MY_ACTIVE_HUBS</h3>
                     <div className="space-y-6">
-                      {nodes.filter(n => broadcasts.some(b => b.node_id === n.id)).map(node => {
-                        const nodeTaps = taps.filter(t => t.node_id === node.id).length;
-                        const activeBroadcasts = broadcasts.filter(b => b.node_id === node.id);
+                      {Array.isArray(nodes) && Array.isArray(broadcasts) && nodes.filter(n => n && broadcasts.some(b => b && (b.node_id === n.id || b.nodeId === n.id))).map(node => {
+                        if (!node) return null;
+                        const nodeTaps = (taps || []).filter(t => t && (t.node_id === node.id)).length;
+                        const activeBroadcasts = broadcasts.filter(b => b && (b.node_id === node.id || b.nodeId === node.id));
                         
                         return (
                           <div key={node.id} className="border-l-4 border-uh-green/20 pl-6 py-2">

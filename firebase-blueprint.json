@@ -173,6 +173,38 @@
         "is_active": { "type": "boolean" }
       },
       "required": ["source", "source_id", "signal_title", "start_datetime", "end_datetime"]
+    },
+    "FlashRotation": {
+      "title": "Flash Rotation Slot",
+      "description": "Premium rotation slots for businesses and civic events.",
+      "type": "object",
+      "properties": {
+        "campaign_title": { "type": "string" },
+        "cover_url": { "type": "string" },
+        "cta_url": { "type": "string" },
+        "cta_label": { "type": "string" },
+        "location_label": { "type": "string" },
+        "tier": { "type": "string", "enum": ["civic", "standard", "premium"] },
+        "is_civic": { "type": "boolean" },
+        "slot_priority": { "type": "number" },
+        "status": { "type": "string", "enum": ["active", "expired", "cancelled"] },
+        "starts_at": { "type": "string", "format": "date-time" },
+        "expires_at": { "type": "string", "format": "date-time" }
+      },
+      "required": ["campaign_title", "cover_url", "cta_url", "status", "starts_at", "expires_at"]
+    },
+    "Impression": {
+      "title": "Banner Impression",
+      "description": "Analytics for flash rotation views and taps.",
+      "type": "object",
+      "properties": {
+        "slot_id": { "type": "string" },
+        "campaign_title": { "type": "string" },
+        "node_id": { "type": "string" },
+        "type": { "type": "string", "enum": ["view", "tap"] },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["slot_id", "type", "timestamp"]
     }
   },
   "firestore": {
@@ -215,6 +247,14 @@
     "/signals/{signalId}": {
       "schema": "Signal",
       "description": "Database of aggregated civic signals."
+    },
+    "/flash_rotation/{slotId}": {
+      "schema": "FlashRotation",
+      "description": "Dynamic flash rotation slots."
+    },
+    "/impressions/{impressionId}": {
+      "schema": "Impression",
+      "description": "Analytics for rotation system."
     }
   }
 }

@@ -4,6 +4,8 @@ import { BroadcastCard } from './BroadcastCard';
 import { motion } from 'motion/react';
 import { ArrowRight } from 'lucide-react';
 
+import { FlashRotation } from './FlashRotation';
+
 interface FeedProps {
   broadcasts: Broadcast[];
   currentNode: Node | null;
@@ -37,7 +39,7 @@ export const Feed: React.FC<FeedProps> = ({
     return false;
   };
 
-  const flashDeals = broadcasts.filter(b => b.type === BroadcastType.FLASH_DEAL);
+  const flashDeals = broadcasts.filter(b => b.type === BroadcastType.FLASH_DEAL || b.is_sponsored === true);
   const foodTrucks = broadcasts.filter(b => b.type === BroadcastType.FOOD_TRUCK);
   const walkingEvents = broadcasts.filter(b => b.type === BroadcastType.WALKING_EVENT);
   const murals = broadcasts.filter(b => [BroadcastType.MURAL, 'civic_mural', BroadcastType.STREET_ART].includes(b.type as any));
@@ -88,49 +90,44 @@ export const Feed: React.FC<FeedProps> = ({
 
   return (
     <div className="flex flex-col gap-10 py-6">
-      {/* Flash Deals Hero Carousel */}
-      {flashDeals.length > 0 && (
-        <div className="flex flex-col">
-          <SectionHeader title="Flash_Deals" status="LIVE_NOW" />
-          
-          <div 
-            ref={flashDealsRef}
-            onScroll={handleFlashScroll}
-            className="flex overflow-x-auto snap-x snap-mandatory no-scrollbar px-6 gap-4"
-          >
-            {flashDeals.map((deal, idx) => (
+      <div className="flex flex-col">
+        <SectionHeader title="Flash Deals" status="LIVE_NOW" />
+        {/* Flash rotation — high priority campaigns */}
+        <FlashRotation
+          nodeId={currentNode?.id}
+          intervalMs={3000}
+          maxSlots={5}
+          onCtaTap={(slot) => {
+            console.log('Flash CTA tapped:', slot.campaign_title)
+          }}
+        />
+        
+        {/* Carousel of sponsored/flash broadcasts if rotation is empty or as addition */}
+        {flashDeals.length > 0 && (
+          <div className="flex overflow-x-auto snap-x snap-mandatory no-scrollbar px-6 gap-4 mt-4">
+            {flashDeals.map((item, idx) => (
               <BroadcastCard 
-                key={deal.id}
-                item={deal}
+                key={item.id}
+                item={item}
                 idx={idx}
                 currentNode={currentNode}
                 onSelect={onSelect}
                 onConfirm={onConfirm}
                 onShareEvent={onShareEvent}
                 onManage={onManage}
-                partner={partnersMap[deal.partnerId || deal.partner_id || '']}
-                variant="hero"
-                canManage={canManageBroadcast(deal)}
+                partner={partnersMap[item.partnerId || item.partner_id || '']}
+                variant="peek"
+                canManage={canManageBroadcast(item)}
               />
             ))}
           </div>
-
-          {/* Snap Dots */}
-          <div className="flex justify-center gap-2 mt-6">
-            {flashDeals.map((_, i) => (
-              <div 
-                key={i} 
-                className={`h-1.5 rounded-full transition-all duration-500 ${i === activeFlashIndex ? 'bg-uh-yellow w-8' : 'bg-uh-gray-200 w-2'}`} 
-              />
-            ))}
-          </div>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* Food Trucks Carousel */}
       {foodTrucks.length > 0 && !hideOtherSections && (
         <div className="flex flex-col">
-          <SectionHeader title="Logistics_Units" count={foodTrucks.length} status="SCANNING" />
+          <SectionHeader title="Logistics Units" count={foodTrucks.length} status="SCANNING" />
           <div className="flex overflow-x-auto snap-x snap-mandatory no-scrollbar px-6 gap-4">
             {foodTrucks.map((truck, idx) => (
               <BroadcastCard 
@@ -155,7 +152,7 @@ export const Feed: React.FC<FeedProps> = ({
       {/* Walking Events Carousel */}
       {walkingEvents.length > 0 && !hideOtherSections && (
         <div className="flex flex-col">
-          <SectionHeader title="Protocol_Walks" count={walkingEvents.length} status="BOOKING_OPEN" />
+          <SectionHeader title="Guided Walks" count={walkingEvents.length} status="BOOKING_OPEN" />
           <div className="flex overflow-x-auto snap-x snap-mandatory no-scrollbar px-6 gap-4">
             {walkingEvents.map((walk, idx) => (
               <BroadcastCard 
@@ -180,7 +177,7 @@ export const Feed: React.FC<FeedProps> = ({
       {/* Events Carousel */}
       {events.length > 0 && !hideOtherSections && (
         <div className="flex flex-col">
-          <SectionHeader title="Urban_Transmission" count={events.length} />
+          <SectionHeader title="City Events" count={events.length} />
           <div className="flex overflow-x-auto snap-x snap-mandatory no-scrollbar px-6 gap-4">
             {events.map((event, idx) => (
               <BroadcastCard 
@@ -205,7 +202,7 @@ export const Feed: React.FC<FeedProps> = ({
       {/* Murals Carousel */}
       {murals.length > 0 && !hideOtherSections && (
         <div className="flex flex-col">
-          <SectionHeader title="CIVIC_ART" count={murals.length} status="PUBLIC_MURALS" />
+          <SectionHeader title="Public Art" count={murals.length} status="PUBLIC_MURALS" />
           <div className="flex overflow-x-auto snap-x snap-mandatory no-scrollbar px-6 gap-4">
             {murals.map((mural, idx) => (
               <BroadcastCard 

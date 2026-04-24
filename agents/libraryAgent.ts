@@ -32,31 +32,17 @@ const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 let db: admin.firestore.Firestore;
 
 function initDb() {
+  const projectId = "gen-lang-client-0752567409";
+  
   if (!admin.apps.length) {
     admin.initializeApp({
-      projectId: process.env.FIREBASE_PROJECT_ID || "gen-lang-client-0752567409"
+      projectId: projectId
     });
   }
   
-  // prioritising the config for the correct named database instance
-  let databaseId: string | undefined = undefined;
-  try {
-    const configPath = path.join(process.cwd(), 'firebase-applet-config.json');
-    if (fs.existsSync(configPath) && fs.statSync(configPath).size > 0) {
-      const content = fs.readFileSync(configPath, 'utf8');
-      if (content && content.trim()) {
-        const config = JSON.parse(content);
-        if (config.firestoreDatabaseId && config.firestoreDatabaseId !== '(default)') {
-          databaseId = config.firestoreDatabaseId;
-        }
-      }
-    }
-  } catch (e) {
-    console.warn("Library Agent: Failed to read database config", e);
-  }
-  
+  const databaseId = 'ai-studio-8d3a18ac-9f60-480e-8200-f9f5e01c389a';
   db = getFirestore(databaseId);
-  console.log(`Library Agent: Initialized with DB: ${databaseId || '(default)'}`);
+  console.log(`Library Agent: Initialized with DB: ${databaseId}`);
 }
 
 interface LibraryEvent {

@@ -61,6 +61,8 @@ export interface Broadcast {
   sourceUrl?: string | null;
   imageUrl?: string | null;
   cover_url?: string | null;
+  is_sponsored?: boolean;
+  sponsor_name?: string | null;
   ingestedAt?: any;
   active?: boolean;
   payment_type?: 'tip_jar' | 'stripe' | 'free';
@@ -78,6 +80,8 @@ export interface Broadcast {
   artist?: string;
   booking_url?: string;
   sponsor_logo_url?: string;
+  rotation_interval_seconds?: number;
+  cross_connection_id?: string | null;
 }
 
 export interface Partner {

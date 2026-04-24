@@ -5,7 +5,7 @@ import { doc, getDoc, collection, getDocs } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { Node, BroadcastType } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
-import { Music, Palette, Store, Clock, DollarSign, Zap, ChevronLeft, Loader2, CheckCircle2, AlertCircle, MapPin, Search, Globe, Truck, Navigation, Image as ImageIcon, Link as LinkIcon, Map as MapIcon, List as ListIcon, Share2, ArrowRight } from 'lucide-react';
+import { Music, Palette, Store, Clock, DollarSign, Zap, ChevronLeft, Loader2, CheckCircle2, AlertCircle, MapPin, Search, Globe, Truck, Navigation, Image as ImageIcon, Link as LinkIcon, Map as MapIcon, List as ListIcon, Share2, ArrowRight, Building2 } from 'lucide-react';
 import { AddressSearchInput } from './AddressSearchInput';
 import { LocalPulseLoader } from './LocalPulseLoader';
 
@@ -526,12 +526,13 @@ export const CreatorIntakeWindow: React.FC<CreatorIntakeWindowProps> = ({ nodeId
             </label>
             <div className="grid grid-cols-2 gap-3">
               {[
-                { id: BroadcastType.LIVE_EVENT, label: 'LIVE EVENT', icon: Music },
-                { id: BroadcastType.FOOD_TRUCK, label: 'FOOD TRUCK', icon: Truck },
-                { id: BroadcastType.WALKING_EVENT, label: 'WALKING EVENT', icon: Navigation },
-                { id: BroadcastType.POP_UP, label: 'POP-UP', icon: Store },
-                { id: BroadcastType.STREET_ART, label: 'STREET ART', icon: Palette },
-                { id: BroadcastType.FLASH_DEAL, label: 'FLASH DEAL', icon: Zap },
+                { id: BroadcastType.LIVE_EVENT,   label: 'Live Performance', icon: Music      },
+                { id: BroadcastType.FOOD_TRUCK,   label: 'Food Truck',       icon: Truck      },
+                { id: BroadcastType.WALKING_EVENT,label: 'Guided Walk',      icon: Navigation },
+                { id: BroadcastType.POP_UP,       label: 'Event',            icon: Store      },
+                { id: BroadcastType.STREET_ART,   label: 'Street Art',       icon: Palette    },
+                { id: BroadcastType.FLASH_DEAL,   label: 'Flash Deal',       icon: Zap        },
+                { id: BroadcastType.CIVIC_EVENT,  label: 'Civic Event',      icon: Building2  },
               ].map((type) => (
                 <button
                   key={type.id}

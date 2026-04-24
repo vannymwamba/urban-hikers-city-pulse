@@ -281,31 +281,17 @@ async function writeEventToFirestore(event: RawEvent, enriched: EnrichedEvent, n
 export async function runCivicIngestionEngine() {
   console.log("Civic Ingestion Engine: Starting...");
   
+  const projectId = "gen-lang-client-0752567409";
+
   if (!admin.apps.length) {
     admin.initializeApp({
-      projectId: process.env.FIREBASE_PROJECT_ID || "gen-lang-client-0752567409"
+      projectId: projectId
     });
   }
 
-  // Load config to get database ID
-  let databaseId: string | undefined = undefined;
-  try {
-    const configPath = './firebase-applet-config.json';
-    if (fs.existsSync(configPath) && fs.statSync(configPath).size > 0) {
-      const content = fs.readFileSync(configPath, 'utf8');
-      if (content && content.trim()) {
-        const config = JSON.parse(content);
-        if (config.firestoreDatabaseId && config.firestoreDatabaseId !== '(default)') {
-          databaseId = config.firestoreDatabaseId;
-        }
-      }
-    }
-  } catch (e) {
-    console.warn("Civic Ingestion: Could not read config, using default DB ID");
-  }
-
+  const databaseId = 'ai-studio-8d3a18ac-9f60-480e-8200-f9f5e01c389a';
   const db = getFirestore(databaseId);
-  console.log(`Civic Ingestion Engine: Using database ${databaseId || '(default)'}`);
+  console.log(`Civic Ingestion Engine: Using database ${databaseId}`);
   
   // CHPL sync is now handled by the shared module directly
   const [visitCincyRaw, chplResult] = await Promise.all([

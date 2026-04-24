@@ -429,6 +429,48 @@ const seedData = async () => {
       await addDoc(collection(db, 'tab_views'), view);
     }
 
+    // Seed Flash Rotation Slots
+    const flashSlots = [
+      {
+        tier: 'civic',
+        is_civic: true,
+        campaign_type: 'walk_sponsor',
+        campaign_title: 'TEDWALK — Book your spot',
+        cover_url: 'https://picsum.photos/seed/tedwalk/1200/800',
+        cta_label: 'Book spot',
+        cta_url: 'https://app.localpulses.com/walks/tedwalk',
+        location_label: 'Vine St · OTR',
+        distance_label: '0.3 mi',
+        slot_priority: 99,
+        status: 'active',
+        expires_at: addHours(new Date(), 8760).toISOString(),
+        starts_at: new Date().toISOString(),
+        impressions: 0,
+        taps: 0
+      },
+      {
+        tier: 'civic',
+        is_civic: true,
+        campaign_type: 'donation',
+        campaign_title: 'Support OTR murals — ArtWave',
+        cover_url: 'https://picsum.photos/seed/muralart/1200/800',
+        cta_label: 'Donate',
+        cta_url: 'https://4agc.com/donation_pages/0785fa30-9065-400b-b54d-74458f2c9eb0',
+        location_label: 'Over-the-Rhine',
+        slot_priority: 100,
+        status: 'active',
+        expires_at: addHours(new Date(), 8760).toISOString(),
+        starts_at: new Date().toISOString(),
+        impressions: 0,
+        taps: 0
+      }
+    ];
+
+    for (const slot of flashSlots) {
+      await addDoc(collection(db, 'flash_rotation'), slot);
+      console.log(`FLASH_SLOT_INITIALIZED: ${slot.campaign_title}`);
+    }
+
     // Seed Routes
     const routes = [
       {

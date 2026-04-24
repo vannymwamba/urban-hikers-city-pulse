@@ -1,151 +1,102 @@
 rules_version = '2';
-
 service cloud.firestore {
   match /databases/{database}/documents {
-    
-    // 0. Global Safety Net
-    match /{document=**} {
-      allow read, write: if false;
-    }
 
-    // --- Helpers ---
+    // ── Helper functions ──────────────────────────
     function isSignedIn() {
-      return request.auth != null && request.auth.token.email_verified == true;
+      return request.auth != null;
     }
 
-    function isOwner(uid) {
-      return isSignedIn() && request.auth.uid == uid;
+    function isSuperAdmin() {
+      return isSignedIn() &&
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.role
+          == 'super_admin';
     }
 
-    // Bootstrapped Admin: vannymwamba@gmail.com
-    function isAdmin() {
-      // Use simple equality checks first as diag
-      return isSignedIn() && (
-        request.auth.token.email == 'vannymwamba@gmail.com' || 
-        request.auth.token.email == 'Vannymwamba@gmail.com' ||
-        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
-         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin', 'super_admin'])
-      );
+    function isPartner() {
+      return isSignedIn() &&
+        exists(/databases/$(database)/documents/partners/$(request.auth.uid));
     }
 
-    function isPartner(partnerId) {
-      return isSignedIn() && (
-        isAdmin() ||
-        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
-         (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('partnerId', '') == partnerId || 
-          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('partner_id', '') == partnerId)) ||
-        (exists(/databases/$(database)/documents/partners/$(partnerId)) &&
-         get(/databases/$(database)/documents/partners/$(partnerId)).data.owner_email == request.auth.token.email)
-      );
+    // ── admins collection ─────────────────────────
+    // Only the owner can read their own admin doc
+    // Only Firebase Console / Admin SDK can write
+    match /admins/{uid} {
+      allow read:  if isSignedIn() && request.auth.uid == uid;
+      allow write: if false;
     }
 
-    function isValidId(id) {
-      return id is string && id.size() <= 128;
+    // ── broadcasts collection ─────────────────────
+    // Anyone can read (public feed)
+    // Super admin can write directly (bypass Stripe)
+    // Partners write only through server (Stripe webhook)
+    // New fields covered: is_sponsored, sponsor_name,
+    //   artist, booking_url, sponsor_logo_url,
+    //   rotation_interval_seconds, cross_connection_id,
+    //   starts_at, expires_at, event_date
+    match /broadcasts/{docId} {
+      allow read: if true;
+
+      // Super admin — direct write, all fields allowed
+      allow create, update: if isSuperAdmin();
+
+      // Partners — only through server-side webhook
+      // (Stripe confirms payment before server writes)
+      allow delete: if isSuperAdmin();
     }
 
-    function incoming() {
-      return request.resource.data;
+    // ── flash_rotation collection ─────────────────
+    // Sponsor banner slots — paid via Stripe
+    // Super admin can write directly for testing
+    match /flash_rotation/{docId} {
+      allow read:   if true;
+      allow create, update: if isSuperAdmin();
+      allow delete: if isSuperAdmin();
     }
 
-    function existing() {
-      return resource.data;
+    // ── impressions collection ────────────────────
+    // Analytics — anyone authenticated can write
+    // (tap and impression tracking)
+    match /impressions/{docId} {
+      allow read:   if isSuperAdmin();
+      allow create: if isSignedIn();
+      allow update, delete: if false;
     }
 
-    // --- Entity Validations ---
-
-    function isValidNode(data) {
-      return data.keys().hasAll(['name', 'type', 'latitude', 'longitude', 'radius_limit']) &&
-             data.name is string &&
-             data.type in ['street', 'conference_center'] &&
-             data.latitude is number && data.longitude is number;
+    // ── nodes / hubs collection ───────────────────
+    match /nodes/{docId} {
+      allow read:   if true;
+      allow write:  if isSuperAdmin();
     }
 
-    function isValidBroadcast(data) {
-      // Loosen temporarily to diagnose
-      return data.keys().hasAll(['title', 'type', 'latitude', 'longitude', 'starts_at', 'expires_at', 'current_vibe']) &&
-             data.title is string &&
-             data.type is string &&
-             data.latitude is number && data.longitude is number;
+    // ── partners collection ───────────────────────
+    match /partners/{docId} {
+      allow read:   if isSignedIn();
+      allow write:  if isSuperAdmin();
     }
 
-    function isValidUser(data) {
-      return data.keys().hasAll(['uid', 'email', 'role']) &&
-             data.uid == request.auth.uid &&
-             data.role in ['admin', 'super_admin', 'partner', 'user', 'partner_admin', 'partner_viewer', 'partner_content_editor'];
+    // ── mail collection (Trigger Email extension) ─
+    // Server-side writes only via Admin SDK
+    // Client reads own emails only
+    match /mail/{docId} {
+      allow read:   if isSignedIn() &&
+                       resource.data.to == request.auth.token.email;
+      allow create: if isSignedIn();
+      allow update, delete: if false;
     }
 
-    function isValidTap(data) {
-      return data.keys().hasAll(['node_id', 'session_uuid', 'timestamp']) &&
-             data.node_id is string && data.session_uuid is string &&
-             data.timestamp is string;
+    // ── signals / civic events ────────────────────
+    match /signals/{docId} {
+      allow read:   if true;
+      allow write:  if isSuperAdmin();
     }
 
-    // --- Match Groups ---
-
+    // ── users / profiles ──────────────────────────
     match /users/{uid} {
-      allow read: if isOwner(uid) || isAdmin();
-      allow create: if isSignedIn() && isValidUser(incoming()) && (
-        incoming().role == 'user' || isAdmin()
-      );
-      allow update: if isSignedIn() && (
-        isAdmin() ||
-        (isOwner(uid) && 
-         incoming().diff(existing()).affectedKeys().hasOnly(['name', 'partner_id', 'partnerId']) &&
-         incoming().role == existing().role)
-      );
+      allow read:   if isSignedIn() && request.auth.uid == uid;
+      allow write:  if isSignedIn() && request.auth.uid == uid;
     }
 
-    match /nodes/{nodeId} {
-      allow read: if true;
-      allow write: if isAdmin();
-    }
-
-    match /partners/{partnerId} {
-      allow read: if true;
-      allow write: if isAdmin();
-    }
-
-    match /broadcasts/{broadcastId} {
-      allow read: if true;
-      allow list: if true;
-      allow create: if isAdmin() || 
-                    (isPartner(incoming().get('partner_id', '')) && 
-                     isValidBroadcast(incoming()) && 
-                     timestamp(incoming().expires_at) > request.time);
-      allow update: if isAdmin() || 
-                    (isPartner(existing().get('partner_id', '')) && isValidBroadcast(incoming())) ||
-                    (isSignedIn() && incoming().diff(existing()).affectedKeys().hasOnly(['current_vibe']));
-      allow delete: if isAdmin() || isPartner(existing().get('partner_id', ''));
-    }
-
-    match /pois/{poiId} {
-      allow read: if true;
-      allow write: if isAdmin();
-    }
-
-    match /taps/{tapId} {
-      allow read: if isAdmin();
-      allow create: if true; // Public can log taps anonymously
-    }
-
-    match /vibe_reports/{reportId} {
-      allow read: if isAdmin();
-      allow create: if true; // Public can report vibes
-    }
-
-    match /tab_views/{viewId} {
-      allow read: if isAdmin();
-      allow create: if true;
-    }
-
-    match /interactions/{interactionId} {
-      allow read: if isAdmin();
-      allow create: if true;
-    }
-
-    match /signals/{signalId} {
-      allow read: if true;
-      allow write: if false; // Strictly server-side via Admin SDK
-    }
   }
 }

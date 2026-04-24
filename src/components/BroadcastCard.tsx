@@ -42,9 +42,12 @@ export const BroadcastCard: React.FC<BroadcastCardProps> = ({
   const [progress, setProgress] = useState(100);
   const [showBooking, setShowBooking] = useState(false);
   const [spots, setSpots] = useState(1);
+  const isSponsored = item.is_sponsored === true;
   const isFlashDeal = item.type === BroadcastType.FLASH_DEAL;
   const isWalkingEvent = item.type === BroadcastType.WALKING_EVENT;
-  const isMural = [BroadcastType.MURAL, 'civic_mural', BroadcastType.STREET_ART].includes(item.type as any);
+  const isMural =
+    item.type === BroadcastType.MURAL ||
+    item.type === BroadcastType.STREET_ART;
   const isAllNodes = item.scope === 'all_nodes';
   
   const distance = currentNode ? getDistance(
@@ -113,9 +116,7 @@ export const BroadcastCard: React.FC<BroadcastCardProps> = ({
     ? format(new Date(item.startsAt || item.starts_at || 0), 'h:mm a')
     : '7:00 PM';
 
-  const locationLabel = item.venue
-    || item.address?.split(',')[0]?.trim()
-    || 'Nearby';
+  const locationLabel = (item.venue || item.address?.split(',')[0])?.trim() || 'Nearby';
 
   return (
     <>
@@ -140,7 +141,35 @@ export const BroadcastCard: React.FC<BroadcastCardProps> = ({
         {/* Top Header */}
         <div className="absolute top-6 left-6 right-6 flex items-start justify-between z-10 pointer-events-none">
           {/* Status Pill / Sponsor Logo Slot */}
-          <div className="pointer-events-auto">
+          <div className="flex flex-row items-center gap-2 pointer-events-auto">
+            {/* Sponsored badge — shows on any type */}
+            {isSponsored && (
+              <div
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full backdrop-blur-sm shadow-sm"
+                style={{
+                  background: 'rgba(255,255,255,0.92)',
+                  border: '0.5px solid rgba(255,255,255,0.3)',
+                }}
+              >
+                <svg
+                  width="10" height="10" viewBox="0 0 24 24"
+                  fill="#0a0a0a" stroke="none"
+                >
+                  <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.86L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                </svg>
+                <span
+                  className="font-mono font-black uppercase"
+                  style={{
+                    fontSize: 8,
+                    letterSpacing: '0.12em',
+                    color: '#0a0a0a',
+                  }}
+                >
+                  Sponsored
+                </span>
+              </div>
+            )}
+
             {isWalkingEvent ? (
               item.sponsor_logo_url ? (
                 <div className="px-3 py-1.5 rounded-full bg-white/90 backdrop-blur-sm border border-white/20 flex items-center justify-center shadow-sm">
@@ -163,6 +192,7 @@ export const BroadcastCard: React.FC<BroadcastCardProps> = ({
               </div>
             ) : null}
           </div>
+
 
           <div className="flex items-center gap-4 pointer-events-auto">
             {isMural ? (
@@ -208,6 +238,20 @@ export const BroadcastCard: React.FC<BroadcastCardProps> = ({
              <h3 className="text-white text-lg font-black uppercase tracking-tight leading-tight line-clamp-2 break-words max-w-full">
               {item.title}
              </h3>
+
+             {isSponsored && item.sponsor_name && (
+               <span
+                 className="font-mono font-black uppercase block"
+                 style={{
+                   fontSize: 8,
+                   letterSpacing: '0.1em',
+                   color: 'rgba(255,255,255,0.35)',
+                   marginTop: 2,
+                 }}
+               >
+                 Sponsored by {item.sponsor_name}
+               </span>
+             )}
 
              {isMural && item.artist && (
                <span className="text-white/45 text-[9px] font-black tracking-[0.12em] uppercase font-mono block mt-1">

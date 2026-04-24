@@ -58,14 +58,47 @@ export const getEventStatus = (item: Broadcast) => {
 };
 
 export const getCategoryTag = (item: Broadcast) => {
-  const types: Record<string, { label: string, bg: string, text: string }> = {
-    [BroadcastType.LIVE_EVENT]: { label: 'LIVE EVENT', bg: 'bg-[#FF3B30]', text: 'text-white' },
-    [BroadcastType.FOOD_TRUCK]: { label: 'FOOD TRUCK', bg: 'bg-[#F97316]', text: 'text-white' },
-    [BroadcastType.WALKING_EVENT]: { label: 'WALKING EVENT', bg: 'bg-[#10B981]', text: 'text-white' },
-    [BroadcastType.FLASH_DEAL]: { label: 'FLASH DEAL', bg: 'bg-[#FFE01A]', text: 'text-[#1A1A1A]' },
-    [BroadcastType.MURAL]: { label: 'MURAL', bg: 'bg-[#8B5CF6]', text: 'text-white' },
-    [BroadcastType.STREET_ART]: { label: 'STREET ART', bg: 'bg-[#8B5CF6]', text: 'text-white' },
-    [BroadcastType.POP_UP]: { label: 'POP-UP', bg: 'bg-[#0EA5E9]', text: 'text-white' },
+  const types: Record<string, { label: string; bg: string; text: string }> = {
+    [BroadcastType.FLASH_DEAL]: {
+      label: 'Flash Deal',
+      bg: 'bg-[#FFE01A]',
+      text: 'text-[#1A1A1A]',
+    },
+    [BroadcastType.LIVE_EVENT]: {
+      label: 'Live Performance',
+      bg: 'bg-[#FF3B30]',
+      text: 'text-white',
+    },
+    [BroadcastType.FOOD_TRUCK]: {
+      label: 'Food Truck',
+      bg: 'bg-[#F97316]',
+      text: 'text-white',
+    },
+    [BroadcastType.WALKING_EVENT]: {
+      label: 'Guided Walk',
+      bg: 'bg-[#10B981]',
+      text: 'text-white',
+    },
+    [BroadcastType.POP_UP]: {
+      label: 'Event',
+      bg: 'bg-[#0EA5E9]',
+      text: 'text-white',
+    },
+    [BroadcastType.CIVIC_EVENT]: {
+      label: 'Civic Event',
+      bg: 'bg-[#378ADD]',
+      text: 'text-white',
+    },
+    [BroadcastType.MURAL]: {
+      label: 'Mural',
+      bg: 'bg-[#8B5CF6]',
+      text: 'text-white',
+    },
+    [BroadcastType.STREET_ART]: {
+      label: 'Street Art',
+      bg: 'bg-[#8B5CF6]',
+      text: 'text-white',
+    },
   };
   return types[item.type] || { label: String(item.type).toUpperCase(), bg: 'bg-gray-500', text: 'text-white' };
 };

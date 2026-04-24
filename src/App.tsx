@@ -16,6 +16,7 @@ import { WalletCard } from './components/WalletCard';
 import { CreatorIntakeWindow } from './components/CreatorIntakeWindow';
 import { CheckoutSuccess } from './components/CheckoutSuccess';
 import { CheckoutCancel } from './components/CheckoutCancel';
+import { SponsorForm, SponsorSuccess, SponsorCancelled } from './components/SponsorForm';
 import MuralNodeAdmin from './components/MuralNodeAdmin';
 import seedData from './seed';
 import { getDistance } from './utils/geo';
@@ -68,13 +69,19 @@ class ErrorBoundary extends React.Component<
 
     if (this.state.hasError) {
       let displayMessage = "A system error has occurred.";
+      let technicalDetails = this.state.errorInfo;
+      
       try {
-        const parsed = JSON.parse(this.state.errorInfo || '');
-        if (parsed.error && parsed.error.includes('permissions')) {
-          displayMessage = "Access Denied: You do not have permission to view this data.";
+        if (this.state.errorInfo && this.state.errorInfo.startsWith('{')) {
+          const parsed = JSON.parse(this.state.errorInfo);
+          if (parsed.error && (parsed.error.includes('permissions') || parsed.error.includes('PERMISSION_DENIED'))) {
+            displayMessage = "Access Denied: You do not have permission to view this data.";
+          } else if (parsed.error) {
+            displayMessage = parsed.error;
+          }
         }
       } catch (e) {
-        // Not JSON, use default
+        console.error("ErrorBoundary parse error:", e);
       }
 
       return (
@@ -181,7 +188,7 @@ export default function App() {
     });
   };
 
-  const isAdmin = user?.email === 'vannymwamba@gmail.com';
+  const isAdmin = user?.email === 'vannymwamba@gmail.com' || user?.email?.toLowerCase().endsWith('@urban-hikers.com');
 
   // Update current time every 10 seconds for precise expiry tracking
   useEffect(() => {
@@ -237,11 +244,12 @@ export default function App() {
 
       if (docSnap.exists()) {
         profile = docSnap.data() as UserProfile;
-        
+        const email = user.email?.toLowerCase().trim() || '';
+        const isInternal = email.endsWith('@urban-hikers.com');
+
         // If they are currently a 'user' or 'admin' without a partner link, check if they should be linked
         const currentPartnerId = profile.partnerId || profile.partner_id;
-        if (profile.role === 'user' || (profile.role === 'admin' && !currentPartnerId)) {
-          const email = user.email?.toLowerCase().trim();
+        if ((profile.role as string) === 'user' || (profile.role === 'admin' && !currentPartnerId) || (isInternal && (profile.role as string) === 'user')) {
           if (!email) return;
 
           const partnerQuery = query(collection(db, 'partners'), where('owner_email', '==', email));
@@ -260,16 +268,20 @@ export default function App() {
             const partnerId = partnerDoc.id;
             
             // Only update if partnerId is missing or role needs upgrading
-            const needsRoleUpgrade = profile.role === 'user' && partnerData.role && profile.role !== partnerData.role;
+            const needsRoleUpgrade = (profile.role as string) === 'user' && partnerData.role && profile.role !== partnerData.role;
             const needsPartnerLink = currentPartnerId !== partnerId;
 
-            if (needsPartnerLink || needsRoleUpgrade) {
-              const updates: any = {
-                partnerId: partnerId
-              };
-              if (needsRoleUpgrade) {
+            if (needsPartnerLink || needsRoleUpgrade || (isInternal && (profile.role as string) === 'user')) {
+              const updates: any = {};
+              if (needsPartnerLink) {
+                updates.partnerId = partnerId;
+              }
+              
+              if (isInternal && (profile.role as string) === 'user') {
+                updates.role = 'admin';
+              } else if (needsRoleUpgrade) {
                 updates.role = partnerData.role;
-              } else if (profile.role === 'user') {
+              } else if ((profile.role as string) === 'user' && !isInternal) {
                 updates.role = 'partner';
               }
               
@@ -290,6 +302,12 @@ export default function App() {
                 console.error("Error updating user profile:", err);
               }
               return;
+            }
+          } else if (isInternal && (profile.role as string) === 'user') {
+            try {
+              await updateDoc(profileRef, { role: 'admin' });
+            } catch (err) {
+              console.error("Error auto-upgrading internal user:", err);
             }
           }
         }
@@ -325,14 +343,15 @@ export default function App() {
           profile = {
             uid: user.uid,
             email: user.email!,
-            role: partnerData.role || 'partner',
+            role: (email.endsWith('@urban-hikers.com')) ? 'admin' : (partnerData.role || 'partner'),
             partnerId: partnerId
           };
         } else {
+          const isInternal = email.endsWith('@urban-hikers.com');
           profile = {
             uid: user.uid,
             email: user.email!,
-            role: user.email === 'vannymwamba@gmail.com' ? 'super_admin' : 'user'
+            role: (user.email === 'vannymwamba@gmail.com' || isInternal) ? 'admin' : 'user'
           };
         }
         try {
@@ -449,6 +468,9 @@ export default function App() {
   const isCreatorIgnite = creatorIndex !== -1 && pathParts[creatorIndex + 1] === 'ignite';
   const isCheckoutSuccess = pathParts.includes('checkout') && pathParts.includes('success');
   const isCheckoutCancel = pathParts.includes('checkout') && pathParts.includes('cancel');
+  const isSponsorIgnite = pathParts.includes('sponsor') && pathParts.includes('ignite');
+  const isSponsorSuccess = pathParts.includes('sponsor') && pathParts.includes('success');
+  const isSponsorCancelled = pathParts.includes('sponsor') && pathParts.includes('cancelled');
   const rawNodeId = tapIndex !== -1 && pathParts[tapIndex + 1] ? pathParts[tapIndex + 1] : 
                  (isCreatorIgnite && pathParts[creatorIndex + 2] ? pathParts[creatorIndex + 2] : null);
   
@@ -652,18 +674,15 @@ export default function App() {
   useEffect(() => {
     const testConnection = async (retries = 3) => {
       try {
-        console.log(`FIREBASE_CONNECTION_TEST: ATTEMPTING (REMAINING_RETRIES: ${retries})...`);
+        console.log(`FIREBASE_CONNECTION_TEST: ATTEMPTING...`);
         // Use getDocFromServer to bypass local cache and force a network request
         await getDocFromServer(doc(db, 'nodes', 'connection-test'));
         console.log("FIREBASE_CONNECTION_TEST: SUCCESS");
       } catch (err: any) {
-        console.error("FIREBASE_CONNECTION_TEST: ERROR", err);
-        if (retries > 0) {
-          console.log("FIREBASE_CONNECTION_TEST: RETRYING_IN_2S...");
-          setTimeout(() => testConnection(retries - 1), 2000);
-        } else if (err.message?.includes('offline') || err.code === 'unavailable') {
-          console.error("FIREBASE_OFFLINE: CHECK_CONFIG_OR_NETWORK");
-          setHudMessage({ text: "FIREBASE_OFFLINE: CHECK_CONFIG", type: 'error' });
+        // Silent fail for connection test - don't alarm the user unless real fetches fail
+        console.warn("FIREBASE_CONNECTION_TEST: BACKGROUND_WAIT", err.message);
+        if (retries > 0 && (err.message?.includes('offline') || err.code === 'unavailable')) {
+          setTimeout(() => testConnection(retries - 1), 3000);
         }
       }
     };
@@ -1057,7 +1076,7 @@ export default function App() {
       );
     }
     
-    if (userProfile.role === 'user') {
+    if ((userProfile.role as string) === 'user') {
       return (
         <div className="h-screen flex flex-col items-center justify-center bg-hud-bg text-hud-magenta p-8 text-center">
           <AlertTriangle className="mb-4" size={48} />
@@ -1075,7 +1094,11 @@ export default function App() {
       );
     }
 
-    return <Dashboard userProfile={userProfile} onLogout={() => auth.signOut()} />;
+    return (
+      <ErrorBoundary section="CONTROL_CENTER">
+        <Dashboard userProfile={userProfile} onLogout={() => auth.signOut()} />
+      </ErrorBoundary>
+    );
   }
 
   if (isCreatorIgnite) {
@@ -1098,6 +1121,30 @@ export default function App() {
     return (
       <ErrorBoundary>
         <CheckoutCancel />
+      </ErrorBoundary>
+    );
+  }
+
+  if (isSponsorIgnite) {
+    return (
+      <ErrorBoundary>
+        <SponsorForm />
+      </ErrorBoundary>
+    );
+  }
+
+  if (isSponsorSuccess) {
+    return (
+      <ErrorBoundary>
+        <SponsorSuccess />
+      </ErrorBoundary>
+    );
+  }
+
+  if (isSponsorCancelled) {
+    return (
+      <ErrorBoundary>
+        <SponsorCancelled />
       </ErrorBoundary>
     );
   }
