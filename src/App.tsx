@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { auth, db } from './firebase';
 import { signInWithPopup, GoogleAuthProvider, onAuthStateChanged, User } from 'firebase/auth';
 import { useLocation } from 'react-router-dom';
-import { collection, onSnapshot, query, where, addDoc, doc, getDoc, setDoc, getDocs, orderBy, getDocFromServer, updateDoc } from 'firebase/firestore';
+import { collection, onSnapshot, query, where, addDoc, doc, getDoc, setDoc, getDocs, orderBy, getDocFromServer, updateDoc, Timestamp } from 'firebase/firestore';
 import { Node, Broadcast, Vibe, UserProfile, UserRole, Partner, BroadcastType } from './types';
 import { BASE_URL } from './constants';
 import { DepartureBoard } from './components/DepartureBoard';
@@ -21,6 +21,7 @@ import MuralNodeAdmin from './components/MuralNodeAdmin';
 import seedData from './seed';
 import { getDistance } from './utils/geo';
 import { handleFirestoreError, OperationType } from './utils/firebaseErrors';
+import { toMs } from './utils/timeUtils';
 
 import { v4 as uuidv4 } from 'uuid';
 import { motion, AnimatePresence } from 'motion/react';
@@ -112,6 +113,38 @@ class ErrorBoundary extends React.Component<
 
     return this.props.children;
   }
+}
+
+function broadcastMatchesHub(
+  broadcast: Broadcast,
+  currentNodeId: string,
+  hubLat: number,
+  hubLng: number,
+  radiusMeters: number
+): boolean {
+  // 1. Scope all_nodes → show everywhere
+  if (broadcast.scope === 'all_nodes') return true;
+
+  // 2. Check node_ids array — multi-hub broadcasts
+  if (
+    broadcast.node_ids &&
+    broadcast.node_ids.length > 0 &&
+    broadcast.node_ids.includes(currentNodeId)
+  ) return true;
+
+  // 3. Check single node_id — legacy / single hub
+  if ((broadcast.node_id === currentNodeId) || (broadcast.nodeId === currentNodeId)) return true;
+
+  // 4. Geofence fallback — check coordinates
+  if (broadcast.latitude && broadcast.longitude) {
+    const dist = getDistance(
+      hubLat, hubLng,
+      broadcast.latitude, broadcast.longitude
+    );
+    return dist <= radiusMeters;
+  }
+
+  return false;
 }
 
 export default function App() {
@@ -700,8 +733,8 @@ export default function App() {
     // Real-time subscription to broadcasts
     // We use a stable query (broadcasts expiring after the app started)
     // and filter client-side to save quota.
-    const sessionStartTime = new Date(Date.now() - 3600000).toISOString(); // 1 hour ago for leniency
-    console.log(`FETCHING_BROADCASTS_AFTER: ${sessionStartTime} FOR_NODE: ${currentNode.id}`);
+    const sessionStartTime = Timestamp.fromDate(new Date(Date.now() - 3600000)); // 1 hour ago for leniency
+    console.log(`FETCHING_BROADCASTS_AFTER: ${sessionStartTime.toDate().toISOString()} FOR_NODE: ${currentNode.id}`);
     
     const q = query(
       collection(db, 'broadcasts'),
@@ -780,29 +813,40 @@ export default function App() {
 
     const allRaw = [...rawBroadcasts, ...rawPois];
 
+    const isNotExpired = (b: Broadcast): boolean => {
+      // Permanent types never expire
+      if (
+        b.type === BroadcastType.MURAL ||
+        b.type === BroadcastType.STREET_ART
+      ) return true;
+
+      const end = toMs(b.expires_at || b.expiresAt);
+      if (!end) return true;  // no expiry = keep
+      return end > Date.now();
+    };
+
     const filtered = allRaw.filter(b => {
-      const radiusLimit = currentNode.radius_limit || (currentNode as any).radiusLimit || 5000;
+      const radiusLimit = currentNode.radius_limit || (currentNode as any).radiusLimit || 4828;
       
-      const distance = getDistance(
-        currentNode.latitude, 
-        currentNode.longitude, 
-        b.latitude, 
-        b.longitude
+      const matched = broadcastMatchesHub(
+        b,
+        currentNode.id,
+        currentNode.latitude,
+        currentNode.longitude,
+        radiusLimit
       );
 
       const startsAt = b.starts_at || b.startsAt || '';
-      const expiresAt = b.expires_at || b.expiresAt || '';
       
-      const isWithinWindow = !startsAt || startsAt <= twentyFourHoursFromNow;
-      const isNotExpired = expiresAt > nowIso;
+      // Handle startsAt as Timestamp or string
+      const startsAtTime = (startsAt && typeof (startsAt as any).toDate === 'function') 
+        ? (startsAt as any).toDate().getTime() 
+        : (startsAt ? new Date(startsAt).getTime() : 0);
+      
+      const isWithinWindow = !startsAt || startsAtTime <= (now.getTime() + 24 * 60 * 60 * 1000);
+      const isStillValid = isNotExpired(b);
 
-      // 'all_nodes' scope broadcasts bypass distance filtering
-      const isGlobal = b.scope === 'all_nodes';
-      const passed = (isGlobal || distance <= radiusLimit) && isWithinWindow && isNotExpired;
-      if (!passed) {
-        // console.log(`BROADCAST_FILTERED: ${b.title} | dist: ${distance.toFixed(0)}m | limit: ${radiusLimit}m | window: ${isWithinWindow} | expired: ${!isNotExpired}`);
-      }
-      return passed;
+      return matched && isWithinWindow && isStillValid;
     });
 
     console.log(`FILTERED_BROADCASTS: ${filtered.length} FROM_RAW: ${rawBroadcasts.length}`);
@@ -814,9 +858,16 @@ export default function App() {
       
       if (aSponsored && !bSponsored) return -1;
       if (!aSponsored && bSponsored) return 1;
-      const aStart = new Date(a.starts_at || a.startsAt || 0).getTime();
-      const bStart = new Date(b.starts_at || b.startsAt || 0).getTime();
-      return aStart - bStart;
+      
+      const getStartTime = (b: Broadcast) => {
+        const startsAt = b.starts_at || b.startsAt || 0;
+        if (typeof (startsAt as any).toDate === 'function') {
+          return (startsAt as any).toDate().getTime();
+        }
+        return new Date(startsAt).getTime();
+      };
+
+      return getStartTime(a) - getStartTime(b);
     });
 
     setBroadcasts(sortedBroadcasts);

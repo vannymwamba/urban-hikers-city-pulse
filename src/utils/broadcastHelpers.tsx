@@ -24,38 +24,37 @@ export const getIconBg = (item: Broadcast) => {
   return 'bg-[#F0EEE8]';
 };
 
-export const getEventStatus = (item: Broadcast) => {
-  if (item.type === BroadcastType.MURAL) {
-    return { isLive: true, label: 'ALWAYS_ON', time: 'PERMANENT', countdownText: 'PERMANENT' };
-  }
-  const now = new Date();
-  const start = new Date(item.startsAt || item.starts_at || 0);
-  const end = new Date(item.expiresAt || item.expires_at || 0);
+import { getTimeState, toMs } from './timeUtils';
 
-  if (isNaN(start.getTime()) || isNaN(end.getTime())) {
-    return { isLive: false, label: 'DORMANT', time: 'TIME_UNKNOWN', countdownText: '00:00:00' };
+export function getEventStatus(item: Broadcast) {
+  // Walking events — always show booking status
+  if (item.type === BroadcastType.WALKING_EVENT) {
+    return { label: 'Booking Open', color: 'green' };
   }
 
-  if (now < start) {
-    return { 
-      isLive: false, 
-      label: 'UPCOMING', 
-      time: start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }),
-      countdownText: '00:00:00'
-    };
-  }
-  
-  if (now >= start && now < end) {
-    return { 
-      isLive: true, 
-      label: item.type === 'walking_event' ? 'BOOKING_OPEN' : 'LIVE_NOW', 
-      time: end.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }),
-      countdownText: '00:00:00'
-    };
+  // Permanent types — no status pill
+  if (
+    item.type === BroadcastType.MURAL ||
+    item.type === BroadcastType.STREET_ART
+  ) {
+    return null;
   }
 
-  return { isLive: false, label: 'EXPIRED', time: 'EXPIRED', countdownText: '00:00:00' };
-};
+  const state = getTimeState(item.starts_at, item.expires_at);
+
+  switch (state) {
+    case 'live':     return { label: 'Live Now',    color: 'red'    };
+    case 'imminent': {
+      const mins = Math.round(
+        ((toMs(item.starts_at) || 0) - Date.now()) / 60000
+      );
+      return { label: `Starts in ${mins}m`, color: 'yellow' };
+    }
+    case 'upcoming': return { label: 'Upcoming',   color: 'purple' };
+    case null:       return null;  // ended — hide card
+    default:         return { label: 'Upcoming',   color: 'purple' };
+  }
+}
 
 export const getCategoryTag = (item: Broadcast) => {
   const types: Record<string, { label: string; bg: string; text: string }> = {
@@ -105,19 +104,23 @@ export const getCategoryTag = (item: Broadcast) => {
 
 export const getStatusTag = (item: Broadcast) => {
   const status = getEventStatus(item);
+  if (!status) return { label: 'Expired', bg: 'bg-gray-700', text: 'text-white', color: 'gray' };
+
   const styles: Record<string, { bg: string, text: string }> = {
-    LIVE_NOW: { bg: 'bg-[#FF3B30]', text: 'text-white' },
-    UPCOMING: { bg: 'bg-[#7C3AED]', text: 'text-white' },
-    ALWAYS_ON: { bg: 'bg-[#FFE01A]', text: 'text-[#1A1A1A]' },
-    BOOKING_OPEN: { bg: 'bg-[#10B981]', text: 'text-white' },
-    DORMANT: { bg: 'bg-gray-500', text: 'text-white' },
-    EXPIRED: { bg: 'bg-gray-700', text: 'text-white' },
+    red:    { bg: 'bg-[#FF3B30]', text: 'text-white' },
+    yellow: { bg: 'bg-[#FFE01A]', text: 'text-[#0a0a0a]' },
+    purple: { bg: 'bg-[#8B5CF6]', text: 'text-white' },
+    green:  { bg: 'bg-[#10B981]', text: 'text-white' },
   };
-  return { label: status.label, ...styles[status.label] };
+  
+  const style = styles[status.color] || { bg: 'bg-gray-500', text: 'text-white' };
+  return { label: status.label, ...style, color: status.color };
 };
 
 export const getDotColor = (item: Broadcast) => {
   const status = getEventStatus(item);
-  if (status.label === 'LIVE_NOW') return 'bg-white shadow-[0_0_8px_#FFFFFF] animate-pulse';
-  return '';
+  if (!status) return 'hidden';
+  if (status.color === 'red') return 'bg-white shadow-[0_0_8px_#FFFFFF]';
+  if (status.color === 'yellow') return 'bg-black shadow-[0_0_4px_rgba(0,0,0,0.2)]';
+  return 'hidden';
 };

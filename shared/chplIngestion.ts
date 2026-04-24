@@ -1,4 +1,7 @@
 import * as admin from 'firebase-admin';
+import axios from 'axios';
+import * as cheerio from 'cheerio';
+import crypto from 'crypto';
 
 export const CHPL_BRANCHES: Record<string, { lat: number, lng: number }> = {
   'Main Library': { lat: 39.1064, lng: -84.5125 },
@@ -46,29 +49,81 @@ export const CHPL_BRANCHES: Record<string, { lat: number, lng: number }> = {
 };
 
 export async function fetchAndProcessCHPLEvents(db: admin.firestore.Firestore): Promise<{ count: number, errors: number }> {
-  const API_URL = 'https://cincinnatilibrary.bibliocommons.com/events/api/v1/events?limit=100';
+  // Try API first
+  const API_URL = 'https://cincinnatilibrary.bibliocommons.com/v2/events?locations=1&featured=true';
   let count = 0;
   let errors = 0;
+  const events: any[] = [];
 
   try {
     console.log(`FETCHING_CHPL_EVENTS: ${API_URL}`);
-    const response = await fetch(API_URL, {
+    const response = await axios.get(API_URL, {
       headers: {
         'User-Agent': 'UrbanHikers/1.0 (https://www.urbanhikers.org)',
-        'Accept': 'application/json'
-      }
+        'Accept': 'application/json',
+        'Referer': 'https://cincinnatilibrary.bibliocommons.com/events'
+      },
+      timeout: 10000
     });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`API_FETCH_FAILED: ${response.status} ${response.statusText}`, errorText);
-      throw new Error(`API_FETCH_FAILED: ${response.status} ${response.statusText}`);
+    if (response.headers['content-type']?.includes('application/json')) {
+      const data = response.data;
+      const rawEvents = data.entities?.events || {};
+      for (const id in rawEvents) {
+        const evt = rawEvents[id];
+        events.push({
+          id: String(evt.id),
+          title: evt.name,
+          description: evt.description?.replace(/<[^>]*>?/gm, '') || '',
+          start_datetime: evt.start_datetime,
+          end_datetime: evt.end_datetime,
+          location: { name: evt.location?.name || 'Main Library' }
+        });
+      }
+    } else {
+      throw new Error('API returned non-JSON response');
     }
+  } catch (error) {
+    console.warn('CHPL API failed, falling back to scraping:', error instanceof Error ? error.message : String(error));
+    try {
+      const fallbackUrl = 'https://chpl.org/events/';
+      const htmlResponse = await axios.get(fallbackUrl, {
+        headers: { 'User-Agent': 'UrbanHikers/1.0' }
+      });
+      const $ = cheerio.load(htmlResponse.data);
+      
+      $('.tribe-events-pro-photo__event').each((_, el) => {
+        const title = $(el).find('.tribe-events-pro-photo__event-title').text().trim();
+        const event_url = $(el).find('.tribe-events-pro-photo__event-title-link').attr('href') || fallbackUrl;
+        const description = $(el).find('.tribe-events-pro-photo__event-description').text().trim();
+        const dateStr = $(el).find('.tribe-events-pro-photo__event-datetime').text().trim();
+        
+        const id = crypto.createHash('md5').update(title + dateStr).digest('hex');
+        const now = new Date();
+        
+        if (title) {
+          events.push({
+            id,
+            title,
+            description,
+            start_datetime: now.toISOString(),
+            end_datetime: new Date(now.getTime() + 2 * 60 * 60 * 1000).toISOString(),
+            location: { name: 'CHPL Branch' }
+          });
+        }
+      });
+    } catch (fallbackError) {
+      console.error('CHPL_FALLBACK_SCRAPE_FAILED:', fallbackError);
+    }
+  }
 
-    const data = (await response.json()) as any;
-    const events = data.events || [];
-    console.log(`RECEIVED_${events.length}_EVENTS_FROM_CHPL_API`);
+  if (events.length === 0) {
+    console.log('NO_CHPL_EVENTS_FOUND_TO_PROCESS');
+    return { count: 0, errors: 0 };
+  }
 
+  try {
+    console.log(`PROCESSING_${events.length}_CHPL_EVENTS`);
     const batch = db.batch();
 
     for (const evt of events) {

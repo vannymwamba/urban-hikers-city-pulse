@@ -8,10 +8,11 @@ service cloud.firestore {
     }
 
     function isSuperAdmin() {
-      return isSignedIn() &&
-        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) &&
-        get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.role
-          == 'super_admin';
+      return isSignedIn() && (
+        (exists(/databases/$(database)/documents/admins/$(request.auth.uid)) &&
+         get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.role == 'super_admin') ||
+        request.auth.token.email == 'vannymwamba@gmail.com'
+      );
     }
 
     function isPartner() {
@@ -20,44 +21,58 @@ service cloud.firestore {
     }
 
     // ── admins collection ─────────────────────────
-    // Only the owner can read their own admin doc
-    // Only Firebase Console / Admin SDK can write
     match /admins/{uid} {
-      allow read:  if isSignedIn() && request.auth.uid == uid;
-      allow write: if false;
+      allow read:  if isSignedIn() && (request.auth.uid == uid || isSuperAdmin());
+      allow write: if isSuperAdmin();
     }
 
     // ── broadcasts collection ─────────────────────
-    // Anyone can read (public feed)
-    // Super admin can write directly (bypass Stripe)
-    // Partners write only through server (Stripe webhook)
-    // New fields covered: is_sponsored, sponsor_name,
-    //   artist, booking_url, sponsor_logo_url,
-    //   rotation_interval_seconds, cross_connection_id,
-    //   starts_at, expires_at, event_date
     match /broadcasts/{docId} {
       allow read: if true;
+      allow create, update, delete: if isSuperAdmin();
+    }
 
-      // Super admin — direct write, all fields allowed
-      allow create, update: if isSuperAdmin();
+    // ── pois collection (Public Art) ──────────────
+    match /pois/{docId} {
+      allow read: if true;
+      allow write: if isSuperAdmin();
+    }
 
-      // Partners — only through server-side webhook
-      // (Stripe confirms payment before server writes)
-      allow delete: if isSuperAdmin();
+    // ── vibe_reports collection ───────────────────
+    match /vibe_reports/{docId} {
+      allow read: if true;
+      allow create: if true; // Anonymous reports allowed
+      allow update, delete: if isSuperAdmin();
+    }
+
+    // ── taps collection ───────────────────────────
+    match /taps/{docId} {
+      allow read: if isSuperAdmin();
+      allow create: if true; // Anonymous taps allowed
+      allow update, delete: if isSuperAdmin();
+    }
+
+    // ── tab_views collection ──────────────────────
+    match /tab_views/{docId} {
+      allow read: if isSuperAdmin();
+      allow create: if true;
+      allow update, delete: if isSuperAdmin();
+    }
+
+    // ── interactions collection ───────────────────
+    match /interactions/{docId} {
+      allow read: if isSuperAdmin();
+      allow create: if true;
+      allow update, delete: if isSuperAdmin();
     }
 
     // ── flash_rotation collection ─────────────────
-    // Sponsor banner slots — paid via Stripe
-    // Super admin can write directly for testing
     match /flash_rotation/{docId} {
       allow read:   if true;
-      allow create, update: if isSuperAdmin();
-      allow delete: if isSuperAdmin();
+      allow write: if isSuperAdmin();
     }
 
     // ── impressions collection ────────────────────
-    // Analytics — anyone authenticated can write
-    // (tap and impression tracking)
     match /impressions/{docId} {
       allow read:   if isSuperAdmin();
       allow create: if isSignedIn();
@@ -72,8 +87,20 @@ service cloud.firestore {
 
     // ── partners collection ───────────────────────
     match /partners/{docId} {
-      allow read:   if isSignedIn();
+      allow read:   if true;
       allow write:  if isSuperAdmin();
+    }
+
+    // ── routes collection ─────────────────────────
+    match /routes/{docId} {
+      allow read: if true;
+      allow write: if isSuperAdmin();
+    }
+
+    // ── sync_logs collection ──────────────────────
+    match /sync_logs/{docId} {
+      allow read: if isSuperAdmin();
+      allow write: if isSuperAdmin();
     }
 
     // ── mail collection (Trigger Email extension) ─

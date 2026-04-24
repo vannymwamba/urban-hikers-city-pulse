@@ -1,4 +1,4 @@
-import { db } from './firebase';
+import { db, auth } from './firebase';
 import { collection, addDoc, setDoc, doc, getDocFromServer } from 'firebase/firestore';
 import { addHours } from 'date-fns';
 
@@ -29,6 +29,20 @@ const seedData = async () => {
     for (const node of nodes) {
       await setDoc(doc(db, 'nodes', node.id), node);
       console.log(`NODE_INITIALIZED: ${node.id}`);
+    }
+
+    // Seed Admins
+    const adminEmail = 'vannymwamba@gmail.com';
+    // We can't know the UID easily in a static seed, but we can set it when the user runs the seed if they are logged in
+    // However, for rules, we can just seed a dummy doc or use the email check we added.
+    // Better: If the user is logged in, we can get their UID.
+    if (auth.currentUser && auth.currentUser.email === adminEmail) {
+      await setDoc(doc(db, 'admins', auth.currentUser.uid), {
+        email: adminEmail,
+        role: 'super_admin',
+        assignedAt: new Date().toISOString()
+      });
+      console.log(`ADMIN_INITIALIZED: ${auth.currentUser.uid}`);
     }
 
     // Seed Partners
@@ -427,6 +441,55 @@ const seedData = async () => {
 
     for (const view of sampleViews) {
       await addDoc(collection(db, 'tab_views'), view);
+    }
+
+    // Seed POIs (Murals/Public Art)
+    const pois = [
+      {
+        id: 'mr-dynamite',
+        name: 'MR. DYNAMITE',
+        artist: 'JENNY USTICK',
+        address: 'Vine & 14th St, Cincinnati, OH',
+        latitude: 39.1105,
+        longitude: -84.5145,
+        description: 'A tribute to the Godfather of Soul, James Brown. This vibrant mural captures the legendary energy of Mr. Dynamite in the heart of OTR.',
+        imageUrl: 'https://picsum.photos/seed/dynamite/800/500',
+        type: 'civic_mural',
+        createdAt: new Date().toISOString(),
+        active: true
+      },
+      {
+        id: 'singing-mural',
+        name: 'THE_SINGING_MURAL',
+        artist: 'C.F. PAYNE',
+        address: '1223 Central Pkwy, Cincinnati, OH',
+        latitude: 39.1090,
+        longitude: -84.5190,
+        description: 'Featuring local icons and choir members, this mural celebrates Cincinnati\'s rich choral tradition.',
+        imageUrl: 'https://picsum.photos/seed/singing/800/500',
+        type: 'civic_mural',
+        createdAt: new Date().toISOString(),
+        active: true
+      },
+      {
+        id: 'say-their-names',
+        name: 'SAY_THEIR_NAMES',
+        artist: 'STREET_ART_DYNAMICS',
+        address: '1400 Vine St, Cincinnati, OH',
+        latitude: 39.1100,
+        longitude: -84.5150,
+        description: 'Powerful community art piece honoring social justice leaders and local activists.',
+        imageUrl: 'https://picsum.photos/seed/names/800/500',
+        type: 'civic_mural',
+        createdAt: new Date().toISOString(),
+        active: true
+      }
+    ];
+
+    console.log(`SEEDING: INITIALIZING_${pois.length}_POIS...`);
+    for (const poi of pois) {
+      await setDoc(doc(db, 'pois', poi.id), poi);
+      console.log(`POI_INITIALIZED: ${poi.id}`);
     }
 
     // Seed Flash Rotation Slots

@@ -1884,7 +1884,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
                 <div className="bg-white border border-uh-gray-200 p-6 rounded-2xl shadow-sm">
                   <div className="text-[9px] text-uh-gray-400 font-bold mb-2 tracking-widest uppercase">Active_Signals</div>
                   <div className="text-3xl font-black text-uh-black">
-                    {broadcasts.filter(b => new Date(b.expires_at) > new Date()).length}
+                    {broadcasts.filter(b => parseDate(b.expires_at || b.expiresAt) > now).length}
                   </div>
                 </div>
                 <div className="bg-white border border-uh-gray-200 p-6 rounded-2xl shadow-sm">
@@ -2116,7 +2116,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
                       {nodes.map(node => {
                         const nodeTaps = taps.filter(t => t.node_id === node.id);
                         const nodeUniqueTaps = new Set(nodeTaps.map(t => t.session_uuid)).size;
-                        const activeSignals = broadcasts.filter(b => b.node_id === node.id && new Date(b.expires_at) > new Date());
+                        const activeSignals = broadcasts.filter(b => (b.node_id === node.id || b.nodeId === node.id) && parseDate(b.expires_at || b.expiresAt) > now);
 
                         return (
                           <div key={node.id} className="bg-uh-gray-50 border border-uh-gray-100 p-6 rounded-xl hover:border-uh-yellow hover:bg-white hover:shadow-md transition-all">

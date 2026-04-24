@@ -78,7 +78,13 @@ export interface Broadcast {
   discount_value?: string;
   signal_location_source?: string;
   artist?: string;
+  artist_url?: string;
   booking_url?: string;
+  node_ids?: string[];
+  organizer_logo_url?: string;
+  year_created?: number;
+  deal_description?: string;
+  partner_name?: string;
   sponsor_logo_url?: string;
   rotation_interval_seconds?: number;
   cross_connection_id?: string | null;

@@ -5,6 +5,11 @@ import { format } from 'date-fns';
 import { Broadcast, Partner, Node, Sponsor, BroadcastType } from '../types';
 import { getDistance } from '../utils/geo';
 import { 
+  getTimeLabel,
+  getTimeState,
+  toMs
+} from '../utils/timeUtils';
+import { 
   getEventStatus, 
   getCategoryTag,
   getStatusTag,
@@ -42,6 +47,16 @@ export const BroadcastCard: React.FC<BroadcastCardProps> = ({
   const [progress, setProgress] = useState(100);
   const [showBooking, setShowBooking] = useState(false);
   const [spots, setSpots] = useState(1);
+  const [, forceUpdate] = useState(0);
+
+  useEffect(() => {
+    const t = setInterval(
+      () => forceUpdate(n => n + 1),
+      60000
+    );
+    return () => clearInterval(t);
+  }, []);
+
   const isSponsored = item.is_sponsored === true;
   const isFlashDeal = item.type === BroadcastType.FLASH_DEAL;
   const isWalkingEvent = item.type === BroadcastType.WALKING_EVENT;
@@ -112,11 +127,36 @@ export const BroadcastCard: React.FC<BroadcastCardProps> = ({
     window.open(`https://www.google.com/maps/dir/?api=1&destination=${destination}`, '_blank');
   };
 
-  const startTimeFormatted = item.startsAt || item.starts_at 
-    ? format(new Date(item.startsAt || item.starts_at || 0), 'h:mm a')
-    : '7:00 PM';
+  function getLocationLabel(item: Broadcast): string {
+    // Prefer explicit venue field
+    if (item.venue?.trim()) return item.venue.trim();
 
-  const locationLabel = (item.venue || item.address?.split(',')[0])?.trim() || 'Nearby';
+    // Parse address — take street only, drop city/state/zip
+    if (item.address) {
+      const street = item.address.split(',')[0]?.trim() || '';
+      // Drop leading house number
+      const words = street.split(' ');
+      const startsWithNumber = !isNaN(Number(words[0]));
+      const name = startsWithNumber
+        ? words.slice(1).join(' ')
+        : street;
+      // Cap at 20 chars
+      return name.length > 20 ? name.slice(0, 18) + '…' : name;
+    }
+
+    return 'Nearby';
+  }
+
+  const locationLabel = getLocationLabel(item);
+
+  const timeLabel = getTimeLabel(
+    item.starts_at,
+    item.expires_at,
+    item.type
+  );
+
+  const tState = getTimeState(item.starts_at, item.expires_at);
+  const isUrgent = tState === 'live' || tState === 'imminent';
 
   return (
     <>
@@ -142,6 +182,26 @@ export const BroadcastCard: React.FC<BroadcastCardProps> = ({
         <div className="absolute top-6 left-6 right-6 flex items-start justify-between z-10 pointer-events-none">
           {/* Status Pill / Sponsor Logo Slot */}
           <div className="flex flex-row items-center gap-2 pointer-events-auto">
+            {/* Organizer Logo for walk cards */}
+            {isWalkingEvent && (
+              item.organizer_logo_url ? (
+                <div className="px-2 py-1.5 rounded-full bg-white/92 backdrop-blur-sm border border-white/20 shadow-sm flex items-center justify-center">
+                  <img
+                    src={item.organizer_logo_url}
+                    alt={item.partner_name || 'Organizer'}
+                    className="h-5 w-auto object-contain max-w-[72px]"
+                    referrerPolicy="no-referrer"
+                  />
+                </div>
+              ) : item.partner_name ? (
+                <div className="px-3 py-1.5 rounded-full bg-white/92 backdrop-blur-sm border border-white/20 shadow-sm">
+                  <span className="text-[8px] font-black tracking-widest uppercase text-[#0a0a0a] font-mono">
+                    {item.partner_name}
+                  </span>
+                </div>
+              ) : null
+            )}
+
             {/* Sponsored badge — shows on any type */}
             {isSponsored && (
               <div
@@ -170,27 +230,14 @@ export const BroadcastCard: React.FC<BroadcastCardProps> = ({
               </div>
             )}
 
-            {isWalkingEvent ? (
-              item.sponsor_logo_url ? (
-                <div className="px-3 py-1.5 rounded-full bg-white/90 backdrop-blur-sm border border-white/20 flex items-center justify-center shadow-sm">
-                  <img src={item.sponsor_logo_url} alt="Sponsored by" className="h-5 w-auto object-contain max-w-[80px]" referrerPolicy="no-referrer" />
-                </div>
-              ) : (
-                <div className={`px-4 py-2 rounded-full flex items-center gap-2 backdrop-blur-md shadow-lg ${statusTag.bg} border border-white/10`}>
-                  <div className={`w-1.5 h-1.5 rounded-full ${getDotColor(item)} animate-pulse`} />
-                  <span className="text-[10px] font-black tracking-widest uppercase text-white font-mono">
-                    {statusTag.label}
-                  </span>
-                </div>
-              )
-            ) : !isMural ? (
+            {!isMural && (
               <div className={`px-4 py-2 rounded-full flex items-center gap-2 backdrop-blur-md shadow-lg ${statusTag.bg} border border-white/10`}>
                 <div className={`w-1.5 h-1.5 rounded-full ${getDotColor(item)} animate-pulse`} />
-                <span className="text-[10px] font-black tracking-widest uppercase text-white font-mono">
+                <span className={`text-[10px] font-black tracking-widest uppercase font-mono ${statusTag.text}`}>
                   {statusTag.label}
                 </span>
               </div>
-            ) : null}
+            )}
           </div>
 
 
@@ -211,15 +258,17 @@ export const BroadcastCard: React.FC<BroadcastCardProps> = ({
               </a>
             ) : (
               /* Share FAB - Minimal */
-              <button 
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onShareEvent(item);
-                }}
-                className="w-10 h-10 bg-white/90 backdrop-blur rounded-full flex items-center justify-center text-uh-black border border-black/5 hover:bg-white transition-all shadow-sm active:scale-90"
-              >
-                <Share2 size={16} strokeWidth={2.5} />
-              </button>
+              !isWalkingEvent && (
+                <button 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onShareEvent(item);
+                  }}
+                  className="w-10 h-10 bg-white/90 backdrop-blur rounded-full flex items-center justify-center text-uh-black border border-black/5 hover:bg-white transition-all shadow-sm active:scale-90"
+                >
+                  <Share2 size={16} strokeWidth={2.5} />
+                </button>
+              )
             )}
           </div>
         </div>
@@ -279,12 +328,37 @@ export const BroadcastCard: React.FC<BroadcastCardProps> = ({
               onClick={openMaps}
               className={`flex items-center gap-3 px-4 py-3 bg-uh-black rounded-2xl ${isWalkingEvent || isMural ? 'flex-1' : 'w-full'} overflow-hidden hover:bg-uh-black/90 active:scale-[0.98] transition-all shadow-lg border border-white/10`}
              >
-                <div className="w-5 h-5 rounded-full bg-uh-yellow flex items-center justify-center shrink-0">
-                  <MapPin size={10} className="text-uh-black fill-uh-black" strokeWidth={3} />
-                </div>
-                <span className="text-[11px] font-bold text-white uppercase tracking-tight truncate font-mono">
-                  {locationLabel} · {distanceMiles} mi · {walkMinutes} min
+                <MapPin size={11} className="text-uh-yellow shrink-0" />
+
+                <span className="text-[10px] font-black text-white uppercase tracking-tight truncate">
+                  {locationLabel}
                 </span>
+
+                {timeLabel && (
+                  <>
+                    <span className="text-white/25 shrink-0 text-[10px]">
+                      ·
+                    </span>
+                    <span className={`text-[10px] font-black shrink-0 uppercase tracking-tight ${
+                        isUrgent
+                          ? 'text-uh-yellow'   // yellow — urgent
+                          : 'text-white/55'    // muted  — calm
+                      }`}>
+                      {timeLabel}
+                    </span>
+                  </>
+                )}
+
+                {currentNode && distanceMiles && (
+                  <>
+                    <span className="text-white/25 shrink-0 text-[10px]">
+                      ·
+                    </span>
+                    <span className="text-[10px] font-black text-uh-yellow shrink-0 uppercase tracking-tight">
+                      {distanceMiles} mi
+                    </span>
+                  </>
+                )}
             </button>
             
             {/* CTA Buttons */}
@@ -293,8 +367,7 @@ export const BroadcastCard: React.FC<BroadcastCardProps> = ({
                 onClick={handleCTA}
                 className="px-5 py-3 bg-uh-yellow text-uh-black rounded-2xl flex flex-col items-center justify-center shadow-xl hover:scale-105 active:scale-95 transition-all whitespace-nowrap min-w-[100px]"
               >
-                <span className="text-[10px] font-black uppercase tracking-widest font-mono">Book Spot</span>
-                <span className="text-[10px] font-black uppercase tracking-wide font-mono opacity-80">— {item.price === 0 || !item.price ? 'Free' : `$${item.price}`}</span>
+                <span className="text-[10px] font-black uppercase tracking-widest font-mono">Book Now</span>
               </button>
             )}
 
