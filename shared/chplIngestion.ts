@@ -48,11 +48,22 @@ export const CHPL_BRANCHES: Record<string, { lat: number, lng: number }> = {
   'Symmes Township': { lat: 39.2667, lng: -84.3167 },
 };
 
-export async function fetchAndProcessCHPLEvents(db: admin.firestore.Firestore): Promise<{ count: number, errors: number }> {
+import { Timestamp } from 'firebase-admin/firestore';
+
+function toFirestoreTimestamp(
+  val: string | null | undefined,
+  fallback: Date
+): Timestamp {
+  if (!val) return Timestamp.fromDate(fallback);
+  const d = new Date(val);
+  return isNaN(d.getTime())
+    ? Timestamp.fromDate(fallback)
+    : Timestamp.fromDate(d);
+}
+
+export async function fetchAndProcessCHPLEvents(db: admin.firestore.Firestore): Promise<any[]> {
   // Try API first
   const API_URL = 'https://cincinnatilibrary.bibliocommons.com/v2/events?locations=1&featured=true';
-  let count = 0;
-  let errors = 0;
   const events: any[] = [];
 
   try {
@@ -71,13 +82,20 @@ export async function fetchAndProcessCHPLEvents(db: admin.firestore.Firestore): 
       const rawEvents = data.entities?.events || {};
       for (const id in rawEvents) {
         const evt = rawEvents[id];
+        const branchName = evt.location?.name || 'Main Library';
+        const coords = CHPL_BRANCHES[branchName] || CHPL_BRANCHES['Main Library'];
+        
         events.push({
-          id: String(evt.id),
           title: evt.name,
           description: evt.description?.replace(/<[^>]*>?/gm, '') || '',
-          start_datetime: evt.start_datetime,
-          end_datetime: evt.end_datetime,
-          location: { name: evt.location?.name || 'Main Library' }
+          starts_at: evt.start_datetime,
+          expires_at: evt.end_datetime,
+          venue: branchName,
+          latitude: coords.lat,
+          longitude: coords.lng,
+          source: 'chpl',
+          sourceHash: `chpl-${evt.id}`,
+          sourceUrl: `https://cincinnatilibrary.bibliocommons.com/events/${evt.id}`
         });
       }
     } else {
@@ -98,17 +116,22 @@ export async function fetchAndProcessCHPLEvents(db: admin.firestore.Firestore): 
         const description = $(el).find('.tribe-events-pro-photo__event-description').text().trim();
         const dateStr = $(el).find('.tribe-events-pro-photo__event-datetime').text().trim();
         
-        const id = crypto.createHash('md5').update(title + dateStr).digest('hex');
+        const sourceHash = crypto.createHash('md5').update(title + dateStr).digest('hex');
         const now = new Date();
+        const expires = new Date(now.getTime() + 2 * 60 * 60 * 1000);
         
         if (title) {
           events.push({
-            id,
             title,
             description,
-            start_datetime: now.toISOString(),
-            end_datetime: new Date(now.getTime() + 2 * 60 * 60 * 1000).toISOString(),
-            location: { name: 'CHPL Branch' }
+            starts_at: now.toISOString(),
+            expires_at: expires.toISOString(),
+            venue: 'Main Library',
+            latitude: CHPL_BRANCHES['Main Library'].lat,
+            longitude: CHPL_BRANCHES['Main Library'].lng,
+            source: 'chpl',
+            sourceHash: `chpl-${sourceHash}`,
+            sourceUrl: event_url
           });
         }
       });
@@ -117,74 +140,5 @@ export async function fetchAndProcessCHPLEvents(db: admin.firestore.Firestore): 
     }
   }
 
-  if (events.length === 0) {
-    console.log('NO_CHPL_EVENTS_FOUND_TO_PROCESS');
-    return { count: 0, errors: 0 };
-  }
-
-  try {
-    console.log(`PROCESSING_${events.length}_CHPL_EVENTS`);
-    const batch = db.batch();
-
-    for (const evt of events) {
-      try {
-        if (!evt.id || !evt.title || !evt.start_datetime || !evt.end_datetime) {
-          console.warn(`SKIPPING_INVALID_EVENT: ${evt.id || 'NO_ID'}`, evt.title);
-          errors++;
-          continue;
-        }
-
-        const startsAt = new Date(evt.start_datetime);
-        const expiresAt = new Date(evt.end_datetime);
-
-        if (isNaN(startsAt.getTime()) || isNaN(expiresAt.getTime())) {
-          console.warn(`SKIPPING_INVALID_DATES: ${evt.id}`);
-          errors++;
-          continue;
-        }
-
-        // Only ingest future or ongoing events
-        if (expiresAt.getTime() < Date.now()) {
-          continue;
-        }
-
-        const branchName = evt.location?.name || 'Main Library';
-        const coords = CHPL_BRANCHES[branchName] || CHPL_BRANCHES['Main Library'];
-        
-        const broadcastId = `chpl-${evt.id}`;
-        const broadcastRef = db.collection('broadcasts').doc(broadcastId);
-
-        batch.set(broadcastRef, {
-          title: evt.title,
-          description: evt.description || '',
-          starts_at: startsAt.toISOString(),
-          expires_at: expiresAt.toISOString(),
-          current_vibe: 'chill',
-          type: 'civic_free',
-          partner_id: 'chpl',
-          latitude: coords.lat,
-          longitude: coords.lng,
-          address: branchName,
-          active: true,
-          updatedAt: admin.firestore.FieldValue.serverTimestamp()
-        }, { merge: true });
-
-        count++;
-        if (count >= 500) break; // Firestore batch limit
-      } catch (innerErr) {
-        console.error(`ERROR_PROCESSING_EVENT: ${evt.id}`, innerErr);
-        errors++;
-      }
-    }
-
-    if (count > 0) {
-      await batch.commit();
-      console.log(`INGEST_SUCCESS: ${count} CHPL_EVENTS_SYNCED`);
-    }
-
-    return { count, errors };
-  } catch (error) {
-    console.error('CHPL_INGESTION_FAILURE:', error);
-    throw error;
-  }
+  return events;
 }

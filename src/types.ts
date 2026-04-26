@@ -8,7 +8,8 @@ export enum BroadcastType {
   MURAL = 'mural',
   STREET_ART = 'street_art',
   POP_UP = 'pop_up',
-  CIVIC_EVENT = 'civic_event'
+  CIVIC_EVENT = 'civic_event',
+  DONATION = 'donation'
 }
 export type UserRole = 'admin' | 'partner' | 'user' | 'partner_admin' | 'partner_viewer' | 'partner_content_editor' | 'super_admin' | 'hiker';
 
@@ -88,6 +89,8 @@ export interface Broadcast {
   sponsor_logo_url?: string;
   rotation_interval_seconds?: number;
   cross_connection_id?: string | null;
+  taps?: number;
+  impressions?: number;
 }
 
 export interface Partner {
@@ -106,6 +109,7 @@ export interface Partner {
   deal_text?: string;
   sponsor_zones?: string[];
   role?: UserRole;
+  is_verified?: boolean;
   // Backward compatibility
   ownerEmail?: string;
   logoUrl?: string;

@@ -517,6 +517,22 @@ async function startServer() {
     }
   });
 
+  // Manual Trigger: All Ingestion Sync
+  app.post('/api/admin/sync/all', async (req, res) => {
+    try {
+      console.log('AGENT: Manual sync triggered');
+      const result = await runCivicIngestionEngine();
+      res.json({
+        success: true,
+        message: 'Sync complete',
+        ...result
+      });
+    } catch (err) {
+      console.error('AGENT: Manual sync failed', err);
+      res.status(500).json({ success: false, error: String(err) });
+    }
+  });
+
   app.post("/api/create-checkout-session", async (req, res) => {
     if (!stripe) {
       return res.status(500).json({ error: "Stripe not configured" });
@@ -709,10 +725,13 @@ async function startServer() {
     let ogImageUrl = `${appUrl}/api/og`;
 
     const parsedUrl = new URL(req.url, appUrl);
-    const bId = parsedUrl.searchParams.get('broadcastId');
     const pathParts = req.originalUrl.split('/');
     const isTapRoute = pathParts.includes('tap');
+    const isSignalRoute = pathParts.includes('signal');
+    
     const nId = isTapRoute ? pathParts[pathParts.indexOf('tap') + 1]?.split('?')[0] : null;
+    const sId = isSignalRoute ? pathParts[pathParts.indexOf('signal') + 1]?.split('?')[0] : null;
+    const bId = parsedUrl.searchParams.get('broadcastId') || sId;
 
     if (bId && db) {
       ogImageUrl += `?broadcastId=${bId}`;

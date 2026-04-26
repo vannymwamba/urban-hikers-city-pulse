@@ -5,6 +5,9 @@ import { motion } from 'motion/react';
 import { ArrowRight } from 'lucide-react';
 
 import { FlashRotation } from './FlashRotation';
+import { FlashRotationInline } from './FlashRotationInline';
+
+const ROTATION_THRESHOLD = 5;
 
 interface FeedProps {
   broadcasts: Broadcast[];
@@ -57,7 +60,7 @@ export const Feed: React.FC<FeedProps> = ({
     }
   };
 
-  const SectionHeader = ({ title, count, status }: { title: string; count?: number; status?: string }) => (
+  const SectionHeader = ({ title, count, status, onSeeAll }: { title: string; count?: number; status?: string; onSeeAll?: () => void }) => (
     <div className="px-6 flex items-center justify-between mb-4">
       <div className="flex flex-col">
         <div className="flex items-center gap-2">
@@ -67,15 +70,28 @@ export const Feed: React.FC<FeedProps> = ({
           )}
         </div>
       </div>
-      {status && (
-        <span className={`text-[9px] font-black tracking-[0.14em] uppercase font-mono ${
-          status === 'PUBLIC_MURALS' ? 'text-purple-400' :
-          status.includes('LIVE') ? 'text-uh-magenta' : 
-          status.includes('BOOK') ? 'text-uh-teal' : 'text-uh-yellow'
-        }`}>
-          {status.replace('_', ' ')}
-        </span>
-      )}
+      <div className="flex items-center gap-4">
+        {onSeeAll && count && count > ROTATION_THRESHOLD && (
+          <button
+            onClick={onSeeAll}
+            className="text-[9px] font-black uppercase tracking-widest text-uh-gray-400 flex items-center gap-1 hover:text-uh-black transition-colors"
+          >
+            See all
+            <svg width="10" height="10" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+              <path d="M5 10h10M12 7l3 3-3 3"/>
+            </svg>
+          </button>
+        )}
+        {status && (
+          <span className={`text-[9px] font-black tracking-[0.14em] uppercase font-mono ${
+            status === 'PUBLIC_MURALS' ? 'text-purple-400' :
+            status.includes('LIVE') ? 'text-uh-magenta' : 
+            status.includes('BOOK') ? 'text-uh-teal' : 'text-uh-yellow'
+          }`}>
+            {status.replace('_', ' ')}
+          </span>
+        )}
+      </div>
     </div>
   );
 
@@ -91,7 +107,12 @@ export const Feed: React.FC<FeedProps> = ({
   return (
     <div className="flex flex-col gap-10 py-6">
       <div className="flex flex-col">
-        <SectionHeader title="Flash Deals" status="LIVE_NOW" />
+        <SectionHeader 
+          title="Flash Deals" 
+          status="LIVE_NOW" 
+          count={flashDeals.length}
+          onSeeAll={() => console.log('See all flash deals')}
+        />
         {/* Flash rotation — high priority campaigns */}
         <FlashRotation
           nodeId={currentNode?.id}
@@ -102,24 +123,42 @@ export const Feed: React.FC<FeedProps> = ({
           }}
         />
         
-        {/* Carousel of sponsored/flash broadcasts if rotation is empty or as addition */}
+        {/* Flash Deals Display Logic */}
         {flashDeals.length > 0 && (
-          <div className="flex overflow-x-auto snap-x snap-mandatory no-scrollbar px-6 gap-4 mt-4">
-            {flashDeals.map((item, idx) => (
-              <BroadcastCard 
-                key={item.id}
-                item={item}
-                idx={idx}
-                currentNode={currentNode}
-                onSelect={onSelect}
-                onConfirm={onConfirm}
-                onShareEvent={onShareEvent}
-                onManage={onManage}
-                partner={partnersMap[item.partnerId || item.partner_id || '']}
-                variant="peek"
-                canManage={canManageBroadcast(item)}
-              />
-            ))}
+          <div className="mt-4">
+            {flashDeals.length <= ROTATION_THRESHOLD ? (
+              <div className="flex overflow-x-auto snap-x snap-mandatory no-scrollbar px-6 gap-4">
+                {flashDeals.map((item, idx) => (
+                  <BroadcastCard 
+                    key={item.id}
+                    item={item}
+                    idx={idx}
+                    currentNode={currentNode}
+                    onSelect={onSelect}
+                    onConfirm={onConfirm}
+                    onShareEvent={onShareEvent}
+                    onManage={onManage}
+                    partner={partnersMap[item.partnerId || item.partner_id || '']}
+                    variant="peek"
+                    canManage={canManageBroadcast(item)}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="px-6">
+                <FlashRotationInline 
+                  broadcasts={flashDeals}
+                  currentNode={currentNode}
+                  intervalMs={3000}
+                  onSelect={onSelect}
+                  onConfirm={onConfirm}
+                  onShareEvent={onShareEvent}
+                  onManage={onManage}
+                  partnersMap={partnersMap}
+                  canManageBroadcast={canManageBroadcast}
+                />
+              </div>
+            )}
           </div>
         )}
       </div>

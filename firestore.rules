@@ -8,16 +8,28 @@ service cloud.firestore {
     }
 
     function isSuperAdmin() {
-      return isSignedIn() && (
+      return isSignedIn() && request.auth.token.email_verified == true && (
         (exists(/databases/$(database)/documents/admins/$(request.auth.uid)) &&
          get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.role == 'super_admin') ||
         request.auth.token.email == 'vannymwamba@gmail.com'
       );
     }
 
+    function isAdmin() {
+      return isSuperAdmin() || (
+        isSignedIn() && (
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+          request.auth.token.email.lower().endsWith('@urban-hikers.com')
+        )
+      );
+    }
+
     function isPartner() {
-      return isSignedIn() &&
-        exists(/databases/$(database)/documents/partners/$(request.auth.uid));
+      return isSignedIn() && (
+        exists(/databases/$(database)/documents/partners/$(request.auth.uid)) ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['partner', 'partner_admin', 'partner_content_editor', 'admin', 'super_admin'])
+      );
     }
 
     // ── admins collection ─────────────────────────
@@ -29,7 +41,16 @@ service cloud.firestore {
     // ── broadcasts collection ─────────────────────
     match /broadcasts/{docId} {
       allow read: if true;
-      allow create, update, delete: if isSuperAdmin();
+      allow create: if isSuperAdmin() || isPartner();
+      allow update: if isSuperAdmin() || (
+        isPartner() && 
+        (resource.data.published_by == request.auth.uid || 
+         resource.data.partner_id == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.partnerId ||
+         resource.data.partner_id == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.partner_id)
+      );
+      allow delete: if isSuperAdmin() || (
+        isPartner() && resource.data.published_by == request.auth.uid
+      );
     }
 
     // ── pois collection (Public Art) ──────────────

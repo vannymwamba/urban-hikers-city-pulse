@@ -71,7 +71,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
     logoUpdatedAt: null as string | null,
     brandColor: '#00FF00',
     dealText: '',
-    sponsorZones: [] as string[]
+    sponsorZones: [] as string[],
+    is_verified: false
   });
   const [isGeocoding, setIsGeocoding] = useState(false);
   const [isSeeding, setIsSeeding] = useState(false);
@@ -94,6 +95,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
   
   const [activeTab, setActiveTab] = useState<'hubs' | 'broadcasts' | 'partners' | 'analytics' | 'profile'>(isAdmin ? 'hubs' : 'broadcasts');
   const [hudMessage, setHudMessage] = useState<{ text: string; type: 'info' | 'error' } | null>(null);
+
+  // Partner filters
+  const [partnerTierFilter, setPartnerTierFilter] = useState<'all' | Partner['tier']>('all');
+  const [partnerVerificationFilter, setPartnerVerificationFilter] = useState<'all' | 'verified' | 'unverified'>('all');
+  const [partnerSearchQuery, setPartnerSearchQuery] = useState('');
 
   const [now, setNow] = useState(new Date());
   
@@ -146,6 +152,27 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
     const timer = setInterval(() => setNow(new Date()), 30000); // Update every 30s
     return () => clearInterval(timer);
   }, []);
+
+  const filteredPartners = partners.filter(p => {
+    if (!p) return false;
+    
+    // Tier filter
+    if (partnerTierFilter !== 'all' && p.tier !== partnerTierFilter) return false;
+    
+    // Verification filter
+    if (partnerVerificationFilter === 'verified' && !p.is_verified) return false;
+    if (partnerVerificationFilter === 'unverified' && p.is_verified) return false;
+    
+    // Search query
+    if (partnerSearchQuery) {
+      const q = partnerSearchQuery.toLowerCase();
+      const matchName = p.name?.toLowerCase().includes(q);
+      const matchEmail = (p.owner_email || p.ownerEmail || '').toLowerCase().includes(q);
+      if (!matchName && !matchEmail) return false;
+    }
+    
+    return true;
+  });
 
   const getRemainingTime = (b: Broadcast) => {
     if (!b.starts_at || !b.expires_at) return 'TIME_UNKNOWN';
@@ -763,6 +790,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
         brand_color: newPartner.brandColor || null,
         deal_text: newPartner.dealText || null,
         sponsor_zones: newPartner.sponsorZones,
+        is_verified: newPartner.is_verified,
         updatedAt: serverTimestamp(),
         ...(editingPartnerId ? {} : { createdAt: serverTimestamp() })
       };
@@ -830,7 +858,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
         logoUpdatedAt: null,
         brandColor: '#00FF00',
         dealText: '',
-        sponsorZones: []
+        sponsorZones: [],
+        is_verified: false
       });
       setEditingPartnerId(null);
     } catch (err) {
@@ -1325,7 +1354,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
             <div className="max-w-4xl mx-auto">
               <div className="flex justify-between items-end mb-8 border-b border-uh-gray-200 pb-6">
                 <h2 className="text-3xl font-black tracking-tighter text-uh-black">PARTNER_NETWORK_ADMIN</h2>
-                <div className="text-[10px] text-uh-gray-400 font-bold uppercase tracking-widest">ACTIVE_PARTNERS: {partners.length}</div>
+                <div className="text-[10px] text-uh-gray-400 font-bold uppercase tracking-widest">
+                  {filteredPartners.length < partners.length ? `MATCHING: ${filteredPartners.length} / TOTAL: ${partners.length}` : `ACTIVE_PARTNERS: ${partners.length}`}
+                </div>
               </div>
 
               {/* Create Partner Form */}
@@ -1351,7 +1382,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
                           logoUpdatedAt: null,
                           brandColor: '#FFE01A',
                           dealText: '',
-                          sponsorZones: []
+                          sponsorZones: [],
+                          is_verified: false
                         });
                       }}
                       className="text-[10px] text-uh-magenta font-bold hover:underline"
@@ -1514,6 +1546,19 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
                         onChange={e => setNewPartner({...newPartner, dealText: e.target.value})}
                       />
                     </div>
+                    
+                    <div className="col-span-2 flex items-center gap-3 bg-uh-black/5 p-4 rounded-xl border border-uh-gray-200">
+                      <input 
+                        type="checkbox"
+                        id="is_verified"
+                        className="w-5 h-5 accent-uh-yellow cursor-pointer"
+                        checked={newPartner.is_verified}
+                        onChange={e => setNewPartner({...newPartner, is_verified: e.target.checked})}
+                      />
+                      <label htmlFor="is_verified" className="text-[10px] font-black text-uh-black uppercase tracking-widest cursor-pointer select-none">
+                        Partner_Verified_Status (Network_Trust_Protocol)
+                      </label>
+                    </div>
                     <div className="col-span-2 flex flex-col gap-2">
                       <label className="text-[10px] font-black text-uh-gray-400 uppercase tracking-widest">Active_Sponsor_Zones</label>
                       <div className="flex gap-4">
@@ -1546,26 +1591,85 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
                 </button>
               </form>
 
+              {/* Partner Management Header & Filters */}
+              <div className="bg-uh-black text-uh-yellow p-6 rounded-2xl mb-8 flex flex-col gap-6 shadow-xl">
+                <div className="flex justify-between items-center">
+                  <div className="flex items-center gap-3">
+                    <ShieldCheck size={20} />
+                    <span className="text-sm font-black uppercase tracking-widest">Network_Registry_Filters</span>
+                  </div>
+                  <div className="text-[10px] font-bold text-white/50 uppercase tracking-widest">
+                    MATCHING_PARTNERS: {filteredPartners.length} / {partners.length}
+                  </div>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                  <div className="flex flex-col gap-2">
+                    <label className="text-[9px] font-black uppercase tracking-widest text-white/40">Tier_Filter</label>
+                    <select 
+                      className="bg-white/10 border border-white/20 rounded-lg p-2 text-xs font-bold text-white outline-none focus:border-uh-yellow transition-all"
+                      value={partnerTierFilter}
+                      onChange={e => setPartnerTierFilter(e.target.value as any)}
+                    >
+                      <option value="all" className="bg-uh-black">ALL_TIERS</option>
+                      <option value="standard" className="bg-uh-black">STANDARD</option>
+                      <option value="premium" className="bg-uh-black">PREMIUM</option>
+                      <option value="anchor" className="bg-uh-black">ANCHOR</option>
+                    </select>
+                  </div>
+                  
+                  <div className="flex flex-col gap-2">
+                    <label className="text-[9px] font-black uppercase tracking-widest text-white/40">Trust_Status</label>
+                    <select 
+                      className="bg-white/10 border border-white/20 rounded-lg p-2 text-xs font-bold text-white outline-none focus:border-uh-yellow transition-all"
+                      value={partnerVerificationFilter}
+                      onChange={e => setPartnerVerificationFilter(e.target.value as any)}
+                    >
+                      <option value="all" className="bg-uh-black">ALL_STATUS</option>
+                      <option value="verified" className="bg-uh-black">VERIFIED_ONLY</option>
+                      <option value="unverified" className="bg-uh-black">UNVERIFIED_ONLY</option>
+                    </select>
+                  </div>
+
+                  <div className="col-span-2 flex flex-col gap-2">
+                    <label className="text-[9px] font-black uppercase tracking-widest text-white/40">Universal_Search</label>
+                    <input 
+                      placeholder="SEARCH_BY_NAME_OR_EMAIL..."
+                      className="bg-white/10 border border-white/20 rounded-lg p-2 text-xs font-bold text-white outline-none focus:border-uh-yellow transition-all w-full"
+                      value={partnerSearchQuery}
+                      onChange={e => setPartnerSearchQuery(e.target.value)}
+                    />
+                  </div>
+                </div>
+              </div>
+
               {/* Partners List */}
               <div className="grid gap-4">
-                {Array.isArray(partners) && partners.map(partner => {
+                {Array.isArray(filteredPartners) && filteredPartners.length > 0 ? filteredPartners.map(partner => {
                   if (!partner) return null;
                   return (
                     <div key={partner.id} className="bg-white border border-uh-gray-200 rounded-2xl p-6 flex justify-between items-center group hover:border-uh-yellow transition-all shadow-sm">
-                      <div>
+                      <div className="flex-1">
                         <div className="flex items-center gap-4 mb-3">
                           {(partner.logoUrl || partner.logo_url) && (
                             <img src={partner.logoUrl || partner.logo_url} alt="" className="w-10 h-10 rounded-lg border border-uh-gray-200 object-contain bg-uh-gray-50" referrerPolicy="no-referrer" />
                           )}
-                          <div className="text-lg font-black text-uh-black">{partner.name}</div>
+                          <div className="flex items-center gap-2">
+                            <div className="text-lg font-black text-uh-black">{partner.name}</div>
+                            {partner.is_verified && (
+                              <div className="bg-uh-yellow text-uh-black px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-tighter flex items-center gap-1">
+                                <ShieldCheck size={8} /> VERIFIED
+                              </div>
+                            )}
+                          </div>
                           {(partner.brandColor || partner.brand_color) && (
                             <div className="w-4 h-4 rounded-full border border-uh-gray-200 shadow-sm" style={{ backgroundColor: partner.brandColor || partner.brand_color }} />
                           )}
                         </div>
                         <div className="text-[10px] text-uh-gray-400 font-black tracking-widest uppercase">
-                          TIER: {partner.tier?.toUpperCase() || 'STANDARD'} // 
-                          OWNER: {partner.owner_email || partner.ownerEmail || 'UNASSIGNED'} //
-                          ZONES: {(partner.sponsorZones || partner.sponsor_zones)?.join(', ') || 'NONE'}
+                          TIER: <span className="text-uh-black">{partner.tier?.toUpperCase() || 'STANDARD'}</span> // 
+                          OWNER: <span className="text-uh-black">{partner.owner_email || partner.ownerEmail || 'UNASSIGNED'}</span> //
+                          ZONES: <span className="text-uh-black">{(partner.sponsorZones || partner.sponsor_zones)?.join(', ') || 'NONE'}</span>
                         </div>
                         {(partner.dealText || partner.deal_text) && (
                           <div className="text-[11px] text-uh-yellow font-bold mt-2 tracking-tight">DEAL: {partner.dealText || partner.deal_text}</div>
@@ -1592,7 +1696,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
                                 logoUpdatedAt: partner.logoUpdatedAt || partner.logo_updated_at || null,
                                 brandColor: partner.brandColor || partner.brand_color || '#FFE01A',
                                 dealText: partner.dealText || partner.deal_text || '',
-                                sponsorZones: partner.sponsorZones || partner.sponsor_zones || []
+                                sponsorZones: partner.sponsorZones || partner.sponsor_zones || [],
+                                is_verified: partner.is_verified || false
                               });
                               window.scrollTo({ top: 0, behavior: 'smooth' });
                             }}
@@ -1612,7 +1717,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
                       </div>
                     </div>
                   );
-                })}
+                }) : (
+                  <div className="py-12 text-center border-2 border-dashed border-uh-gray-200 rounded-2xl bg-uh-gray-50">
+                    <div className="text-uh-gray-400 font-black uppercase tracking-widest">
+                      NO_PARTNERS_MATCH_CRITERIA
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -1628,6 +1739,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ userProfile, onLogout }) =
               <div className="mb-12 overflow-hidden rounded-2xl border border-[#FFE01A] shadow-2xl bg-black">
                 <BroadcastControlForm 
                   formData={newBroadcast}
+                  userProfile={userProfile}
                   setFormData={setNewBroadcast as any}
                   setError={(err) => setHudMessage({ text: err || 'PHASE_ERROR', type: 'error' })}
                   setSubmitting={setSubmitting}

@@ -31,7 +31,8 @@
         "brand_color": { "type": "string" },
         "deal_text": { "type": "string" },
         "sponsor_zones": { "type": "array", "items": { "type": "string" } },
-        "logo_updated_at": { "type": "string", "format": "date-time" }
+        "logo_updated_at": { "type": "string", "format": "date-time" },
+        "is_verified": { "type": "boolean" }
       },
       "required": ["id", "name", "tier", "latitude", "longitude"]
     },

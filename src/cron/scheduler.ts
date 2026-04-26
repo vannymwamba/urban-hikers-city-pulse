@@ -22,18 +22,42 @@ export function initializeScheduler() {
     timezone: "America/New_York"
   });
 
-  // 2. Civic Ingestion Engine (Visit Cincy): Run daily at 3:00 AM EST
-  cron.schedule('0 3 * * *', async () => {
-    console.log("SCHEDULER: RUNNING_CIVIC_INGESTION_3AM...");
-    await runCivicIngestionEngine();
+  // 2. Civic Ingestion Engine: Run at specific intervals
+  // RUN 1: Every morning at 6AM (timezone: America/New_York)
+  cron.schedule('0 6 * * *', async () => {
+    console.log("AGENT: Morning sync — 6:00 AM");
+    try {
+      const result = await runCivicIngestionEngine();
+      console.log("AGENT: Morning sync complete", result);
+    } catch (error) {
+      console.error("AGENT: Morning sync failed", error);
+    }
   }, {
     timezone: "America/New_York"
   });
 
-  // 3. Civic Ingestion Engine: Run every 6 hours for high-frequency updates
-  cron.schedule('0 */6 * * *', async () => {
-    console.log("SCHEDULER: RUNNING_CIVIC_INGESTION_6HR...");
-    await runCivicIngestionEngine();
+  // RUN 2: Every afternoon at 1PM
+  cron.schedule('0 13 * * *', async () => {
+    console.log("AGENT: Afternoon sync — 1:00 PM");
+    try {
+      await runCivicIngestionEngine();
+      console.log("AGENT: Afternoon sync complete");
+    } catch (error) {
+      console.error("AGENT: Afternoon sync failed", error);
+    }
+  }, {
+    timezone: "America/New_York"
+  });
+
+  // RUN 3: Every Sunday at 8AM (Weekly refresh)
+  cron.schedule('0 8 * * 0', async () => {
+    console.log("AGENT: Weekly full refresh — Sunday 8AM");
+    try {
+      await runCivicIngestionEngine();
+      console.log("AGENT: Weekly refresh complete");
+    } catch (error) {
+      console.error("AGENT: Weekly refresh failed", error);
+    }
   }, {
     timezone: "America/New_York"
   });

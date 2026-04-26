@@ -21,6 +21,30 @@ const mapsClient = new Client({});
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
+import { Timestamp } from 'firebase-admin/firestore';
+
+function parseCivicDate(dateStr: string | null): Date | null {
+  if (!dateStr) return null;
+
+  // Try direct parse first
+  const direct = new Date(dateStr);
+  if (!isNaN(direct.getTime())) return direct;
+
+  // Handle "April 24, 2026 @ 10:00 AM" format
+  const cleaned = dateStr
+    .replace('@', '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const parsed = new Date(cleaned);
+  if (!isNaN(parsed.getTime())) return parsed;
+
+  // Handle "April 24, 2026" with no time → default noon
+  const dateOnly = new Date(dateStr + ' 12:00:00');
+  if (!isNaN(dateOnly.getTime())) return dateOnly;
+
+  return null;
+}
+
 const RawEvent: any = null; // Placeholder as CHPL_BRANCHES was removed
 
 interface RawEvent {
@@ -227,55 +251,132 @@ Return JSON only with these fields:
   }
 }
 
-async function matchAddressToNode(lat: number, lng: number, db: admin.firestore.Firestore): Promise<string | null> {
-  if (!cachedNodes) {
-    const nodesSnap = await db.collection('nodes').get();
-    cachedNodes = nodesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-  }
-
-  let closestNodeId: string | null = null;
-  let minDistance = Infinity;
-
-  for (const node of cachedNodes) {
-    const distanceMeters = getDistanceMiles(lat, lng, node.latitude, node.longitude) * 1609.34; // Convert miles to meters
-    const radiusLimit = node.radius_limit || 500;
-    
-    if (distanceMeters <= radiusLimit) {
-      if (distanceMeters < minDistance) {
-        minDistance = distanceMeters;
-        closestNodeId = node.id;
-      }
-    }
-  }
-
-  return closestNodeId;
+function haversineMeters(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371000; // Earth radius in meters
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+            Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
 }
 
-async function writeEventToFirestore(event: RawEvent, enriched: EnrichedEvent, nodeId: string | null, db: admin.firestore.Firestore, batch: admin.firestore.WriteBatch) {
-  const broadcastRef = db.collection('broadcasts').doc(event.sourceHash);
-  
-  const data = {
-    title: event.title,
-    description: enriched.short_description,
-    original_description: event.description,
-    type: event.source === 'chpl' ? 'civic_free' : 'civic_event',
-    partner_id: event.source,
-    source: event.source,
-    sourceHash: event.sourceHash,
-    sourceUrl: event.sourceUrl,
-    imageUrl: event.imageUrl,
-    latitude: event.latitude,
-    longitude: event.longitude,
-    node_id: nodeId,
-    starts_at: event.starts_at,
-    expires_at: event.expires_at,
-    current_vibe: enriched.vibe_estimate,
-    taxonomy_tags: enriched.taxonomy_tags,
-    active: true,
-    ingestedAt: FieldValue.serverTimestamp()
-  };
+async function findAllHubsInRadius(
+  lat: number,
+  lng: number,
+  db: admin.firestore.Firestore,
+  maxMeters = 4828  // 3 miles
+): Promise<{ node_id: string | null; node_ids: string[] }> {
+  if (!lat || !lng) return { node_id: null, node_ids: [] }
 
-  batch.set(broadcastRef, data, { merge: true });
+  // Use cached nodes if available
+  if (!cachedNodes) {
+    const snap = await db.collection('nodes').get()
+    cachedNodes = snap.docs.map(d => ({
+      id: d.id,
+      ...d.data()
+    }))
+  }
+
+  const matches = (cachedNodes || [])
+    .filter(node => {
+      if (!node.latitude || !node.longitude) return false
+      const dist = haversineMeters(
+        lat, lng, node.latitude, node.longitude
+      )
+      return dist <= maxMeters
+    })
+    .sort((a, b) => {
+      const dA = haversineMeters(lat, lng, a.latitude, a.longitude)
+      const dB = haversineMeters(lat, lng, b.latitude, b.longitude)
+      return dA - dB
+    })
+
+  return {
+    node_id:  matches[0]?.id || null,
+    node_ids: matches.map(m => m.id),
+  }
+}
+
+function toFirestoreTimestamp(val: string | null, fallback: Date): Timestamp {
+  if (!val) return Timestamp.fromDate(fallback)
+  const d = new Date(val)
+  return isNaN(d.getTime()) ? Timestamp.fromDate(fallback) : Timestamp.fromDate(d)
+}
+
+async function writeEventToFirestore(event: RawEvent, enriched: EnrichedEvent, hubMatch: { node_id: string | null, node_ids: string[] }, db: admin.firestore.Firestore, batch: admin.firestore.WriteBatch) {
+  // Skip if event has already ended
+  const expiresMs = new Date(event.expires_at).getTime()
+  if (expiresMs < Date.now()) {
+    console.log('AGENT: Skipping past event:', event.title)
+    return
+  }
+
+  const now      = new Date()
+  const midnight = new Date()
+  midnight.setHours(23, 59, 0, 0)
+
+  const eventData: any = {
+    // ── Core identity ────────────────────────
+    title:                event.title,
+    type:                 event.source === 'chpl' ? 'civic_free' : 'civic_event',
+    status:               'active',
+    source:               event.source,      // 'chpl' | 'visit-cincy'
+    partner_id:           event.source,
+    sourceHash:           event.sourceHash,
+    sourceUrl:            event.sourceUrl || null,
+
+    // ── Content ──────────────────────────────
+    description:          enriched.short_description || event.description,
+    original_description: event.description || null,
+    cover_url:            event.imageUrl || null,
+    taxonomy_tags:        enriched.taxonomy_tags || [],
+    current_vibe:         enriched.vibe_estimate || 'chill',
+
+    // ── Pricing — civic events always free ───
+    price:                0,
+    is_sponsored:         false,
+
+    // ── Location ─────────────────────────────
+    latitude:             event.latitude  || null,
+    longitude:            event.longitude || null,
+    address:              event.venue     || null,
+    venue:                event.venue     || null,
+
+    // ── Hub assignment ────────────────────────
+    node_id:  hubMatch.node_id,
+    node_ids: hubMatch.node_ids,
+    scope:    hubMatch.node_ids.length > 0 ? 'multi_node' :
+              hubMatch.node_id             ? 'specific_node' :
+                                           'all_nodes',
+
+    // ── Timing — always Firestore Timestamp ───
+    starts_at:  toFirestoreTimestamp(event.starts_at, now),
+    expires_at: toFirestoreTimestamp(event.expires_at, midnight),
+
+    // Legacy ISO string copies for backward compat
+    startsAt:  event.starts_at  || now.toISOString(),
+    expiresAt: event.expires_at || midnight.toISOString(),
+
+    // ── Flags ────────────────────────────────
+    active:               true,
+    is_admin_post:        false,
+    payment_type:         'free',
+    expiry_warning_sent:  false,
+
+    // ── Analytics ────────────────────────────
+    impressions:          0,
+    taps:                 0,
+
+    // ── Metadata ─────────────────────────────
+    ingestedAt:           FieldValue.serverTimestamp(),
+    updatedAt:            FieldValue.serverTimestamp(),
+  }
+
+  // Doc ID = sourceHash (MD5 of title + date + source)
+  // merge:true → update if exists, create if new
+  batch.set(db.collection('broadcasts').doc(event.sourceHash), eventData, { merge: true })
 }
 
 export async function runCivicIngestionEngine() {
@@ -293,18 +394,17 @@ export async function runCivicIngestionEngine() {
   const db = getFirestore(databaseId);
   console.log(`Civic Ingestion Engine: Using database ${databaseId}`);
   
-  // CHPL sync is now handled by the shared module directly
-  const [visitCincyRaw, chplResult] = await Promise.all([
+  const [visitCincyRaw, chplRaw] = await Promise.all([
     fetchVisitCincyEvents(),
     fetchAndProcessCHPLEvents(db)
   ]);
 
-  const allRawEvents = [...visitCincyRaw];
-  console.log(`Civic Ingestion Engine: Found ${allRawEvents.length} raw visitCincy events. CHPL: ${chplResult.count} processed.`);
+  const allRawEvents = [...visitCincyRaw, ...chplRaw];
+  console.log(`Civic Ingestion Engine: Found ${visitCincyRaw.length} raw visitCincy events and ${chplRaw.length} raw CHPL events.`);
 
   let visitCincyCount = 0;
-  let chplCount = chplResult.count;
-  let errorCount = chplResult.errors;
+  let chplCount = 0;
+  let errorCount = 0;
   let batch = db.batch();
   let batchCount = 0;
 
@@ -339,11 +439,11 @@ export async function runCivicIngestionEngine() {
       await new Promise(resolve => setTimeout(resolve, 200)); // Rate limit
 
       // 3. Node Matching
-      const nodeId = await matchAddressToNode(event.latitude, event.longitude, db);
+      const hubMatch = await findAllHubsInRadius(event.latitude, event.longitude, db);
 
       // 4. Write to Firestore
-      console.log(`Civic Ingestion: Writing event: ${event.title} (Source: ${event.source}, Node: ${nodeId || 'None'})`);
-      await writeEventToFirestore(event, enriched, nodeId, db, batch);
+      console.log(`Civic Ingestion: Writing event: ${event.title} (Source: ${event.source}, Hubs: ${hubMatch.node_ids.length})`);
+      await writeEventToFirestore(event, enriched, hubMatch, db, batch);
       
       batchCount++;
       if (event.source === 'visit-cincy') visitCincyCount++;

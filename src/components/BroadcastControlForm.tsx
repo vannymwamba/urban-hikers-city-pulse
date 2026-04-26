@@ -3,7 +3,7 @@ import { collection, addDoc, Timestamp, query, where, getDocs, doc, getDoc } fro
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { auth, db, storage } from '../firebase';
 import { isSuperAdmin } from '../utils/auth';
-import { Broadcast, BroadcastType, Node } from '../types';
+import { Broadcast, BroadcastType, Node, UserProfile } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
 import { format, addHours, differenceInMinutes } from 'date-fns';
 import { geocodeAddress, findHubsInRadius, HubMatch } from '../utils/geoUtils';
@@ -23,6 +23,8 @@ interface BroadcastControlFormProps {
   setSubmitting: (loading: boolean) => void;
   setSuccess: (success: boolean) => void;
   nodes?: Node[];
+  isAdmin?: boolean;
+  userProfile?: UserProfile | null;
 }
 
 const StationDivider: React.FC<{ id: string; name: string }> = ({ id, name }) => (
@@ -33,15 +35,132 @@ const StationDivider: React.FC<{ id: string; name: string }> = ({ id, name }) =>
   </div>
 );
 
-export const BroadcastControlForm: React.FC<BroadcastControlFormProps & { isAdmin?: boolean }> = ({
+const initialFormState = {
+  title:                '',
+  type:                 BroadcastType.LIVE_EVENT,
+  cover_url:            '',
+  custom_address:       '',
+  node_id:              null as string | null,
+  node_ids:             [] as string[],
+  latitude:             null as number | null,
+  longitude:            null as number | null,
+  event_date:           '',
+  start_time:           '',
+  end_time:             '',
+  is_sponsored:         false,
+  sponsor_name:         '',
+  booking_url:          '',
+  organizer_logo_url:   '',
+  partner_name:         '',
+  artist:               '',
+  artist_url:           '',
+  deal_description:     '',
+  year_created:         null as number | null,
+  price:                0,
+  spots_remaining:      null as number | null,
+  rotation_interval_seconds: 3,
+  cross_connection_id:  null as string | null,
+  scope:                'specific_node' as 'specific_node' | 'all_nodes' | 'multi_node',
+};
+
+interface ValidationResult {
+  valid:  boolean
+  errors: Record<string, string>
+}
+
+function validateBroadcast(
+  formData: any,
+  traceLocked: boolean
+): ValidationResult {
+  const errors: Record<string, string> = {}
+
+  // ── STATION 01 — THE SIGNAL ──────────────────
+  if (!formData.title?.trim()) {
+    errors.title = 'Signal title is required'
+  }
+  if (!formData.type) {
+    errors.type = 'Broadcast type is required'
+  }
+
+  // ── STATION 02 — THE TERMINAL ────────────────
+  if (!traceLocked) {
+    errors.address =
+      'Address must be resolved — click RESOLVE first'
+  }
+  if (!formData.latitude || !formData.longitude) {
+    if (!errors.address) {
+      errors.address = 'Location coordinates missing — resolve address again'
+    }
+  }
+
+  // ── STATION 03 — THE SCHEDULE ────────────────
+  if (!formData.event_date) {
+    errors.event_date = 'Event date is required'
+  }
+  if (!formData.start_time) {
+    errors.start_time = 'Start time is required'
+  }
+
+  // End time must be after start time
+  if (formData.event_date && formData.start_time && formData.end_time) {
+    const start = new Date(`${formData.event_date}T${formData.start_time}`)
+    const end   = new Date(`${formData.event_date}T${formData.end_time}`)
+    if (end <= start) {
+      errors.end_time = 'End time must be after start time'
+    }
+  }
+
+  // Start time must not be in the past (allow 5 min buffer)
+  if (formData.event_date && formData.start_time) {
+    const start = new Date(
+      `${formData.event_date}T${formData.start_time}`
+    )
+    if (start.getTime() < Date.now() - 5 * 60 * 1000) {
+      errors.start_time =
+        'Start time is in the past — update the schedule'
+    }
+  }
+
+  // ── TYPE-SPECIFIC CHECKS ─────────────────────
+  if (formData.type === BroadcastType.WALKING_EVENT) {
+    if (!formData.booking_url?.trim()) {
+      errors.booking_url =
+        'Booking URL required for walks — add external link'
+    }
+  }
+
+  if (
+    formData.type === BroadcastType.MURAL ||
+    formData.type === BroadcastType.STREET_ART
+  ) {
+    if (!formData.artist?.trim()) {
+      errors.artist = 'Artist name recommended for murals'
+    }
+  }
+
+  // ── COVER IMAGE ──────────────────────────────
+  if (!formData.cover_url?.trim()) {
+    errors.cover_url =
+      'Cover image required — upload or paste URL'
+  }
+
+  return {
+    valid:  Object.keys(errors).length === 0,
+    errors,
+  }
+}
+
+export const BroadcastControlForm: React.FC<BroadcastControlFormProps> = ({
   formData,
   setFormData,
   setError,
   setSubmitting,
   setSuccess,
   nodes = [],
-  isAdmin: isAdminProp
+  isAdmin: isAdminProp,
+  userProfile
 }) => {
+  const [submitting, setInternalSubmitting] = useState(false); // Used to lock double submits
   const [isAdmin, setIsAdmin] = useState(isAdminProp || false);
   const [activeBroadcasts, setActiveBroadcasts] = useState<Broadcast[]>([]);
   const [resolving, setResolving] = useState(false);
@@ -54,6 +173,61 @@ export const BroadcastControlForm: React.FC<BroadcastControlFormProps & { isAdmi
   const [localSuccess, setLocalSuccess] = useState(false);
   const [localPreview, setLocalPreview] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [touched, setTouched] = useState<Record<string, boolean>>({});
+  const [syncing, setSyncing] = useState(false);
+  const [syncResult, setSyncResult] = useState<any>(null);
+
+  const handleManualSync = async () => {
+    setSyncing(true);
+    setSyncResult(null);
+    try {
+      const res = await fetch('/api/admin/sync/all', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      const data = await res.json();
+      setSyncResult(data);
+    } catch (err) {
+      setSyncResult({ success: false, error: String(err) });
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  useEffect(() => {
+    const result = validateBroadcast(formData, traceLocked)
+    setErrors(result.errors)
+  }, [formData, traceLocked]);
+
+  const touch = (field: string) =>
+    setTouched(t => ({ ...t, [field]: true }));
+
+  const showError = (field: string) =>
+    touched[field] && !!errors[field];
+
+  const ErrorLine: React.FC<{ field: string }> = ({ field }) => {
+    if (!showError(field)) return null;
+    return (
+      <div style={{
+        fontSize: 8,
+        color: '#E24B4A',
+        letterSpacing: '0.1em',
+        textTransform: 'uppercase',
+        marginTop: 4,
+        display: 'flex',
+        alignItems: 'center',
+        gap: 5,
+        fontFamily: 'monospace',
+      }}>
+        <svg width="10" height="10" viewBox="0 0 20 20" fill="#E24B4A">
+          <path d="M10 2a8 8 0 100 16A8 8 0 0010 2zm0 4v4m0 4v.01" stroke="#E24B4A"
+            strokeWidth="2" strokeLinecap="round" fill="none"/>
+        </svg>
+        {errors[field]}
+      </div>
+    );
+  };
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -160,19 +334,56 @@ export const BroadcastControlForm: React.FC<BroadcastControlFormProps & { isAdmi
   }
 
   const handleTransmit = async () => {
+    // Mark everything touched — show all errors
+    const allFields = [
+      'title', 'type', 'address', 'event_date',
+      'start_time', 'end_time', 'cover_url',
+      'booking_url', 'artist'
+    ];
+    setTouched(
+      Object.fromEntries(allFields.map(f => [f, true]))
+    );
+
+    const validationResult = validateBroadcast(formData, traceLocked);
+    if (!validationResult.valid) return;   // hard stop
+
+    if (submitting) return; // Prevent double submit
+
     if (!formData.title) {
       setError('SIGNAL_TITLE_REQUIRED');
       return;
     }
 
+    // Build Date objects from form inputs
+    function buildDate(date: string, time: string): Date | null {
+      if (!date || !time) return null;
+      const d = new Date(`${date}T${time}`);
+      return isNaN(d.getTime()) ? null : d;
+    }
+
+    const startsDate  = buildDate(formData.event_date, formData.start_time);
+    const expiresDate = buildDate(formData.event_date, formData.end_time);
+
+    // Validation
+    if (expiresDate && startsDate && expiresDate <= startsDate) {
+      setError('End time must be after start time');
+      return;
+    }
+    if (startsDate && startsDate < new Date()) {
+      setError('Start time cannot be in the past');
+      return;
+    }
+
+    setInternalSubmitting(true);
     setSubmitting(true);
     setLocalSubmitting(true);
     setError(null);
 
     try {
       const now = new Date();
-      const durationMs = parseDuration(formData.signal_duration || '2 HOURS');
-      const expiresAt = new Date(now.getTime() + durationMs);
+      // Default fallbacks if times were not specified in form (though they should be)
+      const defaultStart = startsDate || now;
+      const defaultExpires = expiresDate || new Date(defaultStart.getTime() + 4 * 60 * 60 * 1000);
 
       console.log('WRITING_NODE_ID:', formData.node_id);
 
@@ -193,11 +404,11 @@ export const BroadcastControlForm: React.FC<BroadcastControlFormProps & { isAdmi
         address:       formData.custom_address || null,
         venue:         formData.custom_address || null,
 
-        starts_at:     Timestamp.fromDate(now),
-        expires_at:    Timestamp.fromDate(expiresAt),
+        starts_at:     Timestamp.fromDate(defaultStart),
+        expires_at:    Timestamp.fromDate(defaultExpires),
         // ISO string fallbacks for legacy components
-        startsAt:      now.toISOString(),
-        expiresAt:     expiresAt.toISOString(),
+        startsAt:      defaultStart.toISOString(),
+        expiresAt:     defaultExpires.toISOString(),
         
         expiry_warning_sent: false,
 
@@ -210,15 +421,15 @@ export const BroadcastControlForm: React.FC<BroadcastControlFormProps & { isAdmi
         partner_name:  formData.partner_name  || null,
         deal_description: formData.deal_description || null,
         year_created:  formData.year_created  || null,
-        price:         formData.price ?? 0,
+        price:         formData.type === BroadcastType.CIVIC_EVENT ? 0 : (formData.price ?? 0),
         spots_remaining: formData.spots_remaining || null,
         sponsor_logo_url: formData.sponsor_logo_url || null,
 
-        partner_id:    formData.partner_id || 'urban-hikers-admin',
-        partnerId:     formData.partner_id || 'urban-hikers-admin',
-        partner_email: formData.partner_email || null,
+        partner_id:    formData.partner_id || userProfile?.partner_id || userProfile?.partnerId || 'urban-hikers-admin',
+        partnerId:     formData.partner_id || userProfile?.partner_id || userProfile?.partnerId || 'urban-hikers-admin',
+        partner_email: formData.partner_email || userProfile?.email || null,
         published_by:  auth.currentUser?.uid,
-        is_admin_post: true,
+        is_admin_post: isAdmin || (userProfile?.role === 'admin' || userProfile?.role === 'super_admin'),
 
         impressions:   0,
         taps:          0,
@@ -235,18 +446,24 @@ export const BroadcastControlForm: React.FC<BroadcastControlFormProps & { isAdmi
       setShowSuccessFlash(true);
       setTimeout(() => setShowSuccessFlash(false), 400);
       
+      // Reset form AFTER successful write
+      setFormData?.(initialFormState);
+      setTraceLocked(false);
+      setMatchedHubs([]);
       setSuccess(true);
       setLocalSuccess(true);
       setLocalPreview(null);
+
       setTimeout(() => {
         setSuccess(false);
         setLocalSuccess(false);
-      }, 2000);
-      setSubmitting(false);
-      setLocalSubmitting(false);
+      }, 3000);
+
     } catch (err) {
       console.error('Transmission failed', err);
       setError('SIGNAL_PHASE_FAILURE');
+    } finally {
+      setInternalSubmitting(false);
       setSubmitting(false);
       setLocalSubmitting(false);
     }
@@ -270,11 +487,60 @@ export const BroadcastControlForm: React.FC<BroadcastControlFormProps & { isAdmi
       {/* Admin Status Bar */}
       {isAdmin && (
         <div className="flex justify-between items-center px-6 py-2 bg-[#0a2e1a] border-b border-[#1D9E75] z-20">
-          <div className="flex items-center gap-2">
-            <div className="w-1.5 h-1.5 rounded-full bg-[#1D9E75] animate-pulse" />
-            <span className="text-[8px] text-[#1D9E75] tracking-[0.16em] font-bold">SUPER_ADMIN_MODE</span>
+          <div className="flex flex-col">
+            <div className="flex items-center gap-2">
+              <div className="w-1.5 h-1.5 rounded-full bg-[#1D9E75] animate-pulse" />
+              <span className="text-[8px] text-[#1D9E75] tracking-[0.16em] font-bold">SUPER_ADMIN_MODE · PAYMENT_BYPASS</span>
+            </div>
+            {syncResult && (
+              <div style={{
+                fontSize: 8,
+                color: syncResult.success ? '#1D9E75' : '#E24B4A',
+                letterSpacing: '0.1em',
+                textTransform: 'uppercase',
+                fontFamily: 'monospace',
+                marginTop: 2,
+              }}>
+                {syncResult.success
+                  ? `↑ ${syncResult.total} events synced —
+                     CHPL: ${syncResult.chpl}
+                     Visit Cincy: ${syncResult.visitCincy}`
+                  : `SYNC_FAILED: ${syncResult.error}`
+                }
+              </div>
+            )}
           </div>
-          <span className="text-[8px] text-[#1D9E75] tracking-[0.12em] font-bold">PAYMENT_BYPASS · ACTIVE</span>
+          
+          <button
+            onClick={handleManualSync}
+            disabled={syncing}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              padding: '6px 14px',
+              background: 'transparent',
+              border: '0.5px solid #1D9E75',
+              borderRadius: 6,
+              color: '#1D9E75',
+              fontFamily: 'monospace',
+              fontSize: 9,
+              fontWeight: 700,
+              letterSpacing: '0.14em',
+              textTransform: 'uppercase',
+              cursor: syncing ? 'not-allowed' : 'pointer',
+              opacity: syncing ? 0.6 : 1,
+            }}
+          >
+            {syncing ? (
+              <>
+                <span style={{ animation: 'spin 1s linear infinite' }}>↻</span>
+                SYNCING...
+              </>
+            ) : (
+              <>↻ SYNC_FEEDS</>
+            )}
+          </button>
         </div>
       )}
 
@@ -305,9 +571,14 @@ export const BroadcastControlForm: React.FC<BroadcastControlFormProps & { isAdmi
                 type="text"
                 value={formData.title || ''}
                 onChange={e => setFormData?.(f => ({ ...f, title: e.target.value }))}
+                onBlur={() => touch('title')}
                 placeholder="ENTER_SIGNAL_IDENTIFIER"
-                className="bg-white border-[0.5px] border-[#e0e0e0] rounded-[10px] p-[14px_16px] text-[12px] text-[#1a1a1a] font-bold uppercase focus:border-[1px] focus:border-[#FFE01A] outline-none transition-all placeholder:text-[#cccccc] placeholder:font-normal"
+                style={{
+                  border: showError('title') ? '1px solid #E24B4A' : '0.5px solid #e0e0e0',
+                }}
+                className="bg-white rounded-[10px] p-[14px_16px] text-[12px] text-[#1a1a1a] font-bold uppercase focus:border-[1px] focus:border-[#FFE01A] outline-none transition-all placeholder:text-[#cccccc] placeholder:font-normal"
               />
+              <ErrorLine field="title" />
             </div>
 
             <div className="flex flex-col gap-2">
@@ -315,7 +586,11 @@ export const BroadcastControlForm: React.FC<BroadcastControlFormProps & { isAdmi
               <select
                 value={formData.type || ''}
                 onChange={e => setFormData?.(f => ({ ...f, type: e.target.value }))}
-                className="bg-white border-[0.5px] border-[#e0e0e0] rounded-[10px] p-[14px_16px] text-[12px] text-[#1a1a1a] font-bold uppercase focus:border-[1px] focus:border-[#FFE01A] outline-none transition-all appearance-none cursor-pointer"
+                onBlur={() => touch('type')}
+                style={{
+                  border: showError('type') ? '1px solid #E24B4A' : '0.5px solid #e0e0e0',
+                }}
+                className="bg-white rounded-[10px] p-[14px_16px] text-[12px] text-[#1a1a1a] font-bold uppercase focus:border-[1px] focus:border-[#FFE01A] outline-none transition-all appearance-none cursor-pointer"
               >
                 {Object.values(BroadcastType).map(type => (
                   <option key={type} value={type} className="bg-white">{type.toUpperCase()}</option>
@@ -399,9 +674,14 @@ export const BroadcastControlForm: React.FC<BroadcastControlFormProps & { isAdmi
                   type="text"
                   value={formData.cover_url || ''}
                   onChange={e => setFormData?.(f => ({ ...f, cover_url: e.target.value }))}
+                  onBlur={() => touch('cover_url')}
                   placeholder="EXTERNAL_SIGNAL_URL"
-                  className="flex-1 bg-white border-[0.5px] border-[#e0e0e0] rounded-[10px] p-[14px_16px] text-[12px] text-[#1a1a1a] font-bold focus:border-[1px] focus:border-[#FFE01A] outline-none transition-all placeholder:text-[#cccccc] placeholder:font-normal"
+                  style={{
+                    border: showError('cover_url') ? '1px solid #E24B4A' : '0.5px solid #e0e0e0',
+                  }}
+                  className="flex-1 bg-white rounded-[10px] p-[14px_16px] text-[12px] text-[#1a1a1a] font-bold focus:border-[1px] focus:border-[#FFE01A] outline-none transition-all placeholder:text-[#cccccc] placeholder:font-normal"
                 />
+                <ErrorLine field="cover_url" />
                 
                 <input 
                   type="file" 
@@ -488,25 +768,69 @@ export const BroadcastControlForm: React.FC<BroadcastControlFormProps & { isAdmi
                       type="text" 
                       value={formData.booking_url || ''} 
                       onChange={e => setFormData?.(f => ({ ...f, booking_url: e.target.value }))}
+                      onBlur={() => touch('booking_url')}
                       placeholder="https://eventbrite.com/... or lu.ma/..."
-                      className="bg-white border-[0.5px] border-[#e0e0e0] rounded-[10px] p-[10px_14px] text-[12px] font-bold focus:border-[#FFE01A] outline-none"
+                      style={{
+                        border: showError('booking_url') ? '1px solid #E24B4A' : '0.5px solid #e0e0e0',
+                      }}
+                      className="bg-white rounded-[10px] p-[10px_14px] text-[12px] font-bold focus:border-[#FFE01A] outline-none"
                     />
+                    <ErrorLine field="booking_url" />
                     <p className="text-[8px] text-[#bbbbbb]">Book Now button links here. Leave empty for inline booking sheet.</p>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 gap-6">
                     <div className="flex flex-col gap-2">
-                      <label className="text-[9px] text-[#999] tracking-widest uppercase">PRICE</label>
-                      <input 
-                        type="number" 
-                        min="0"
-                        value={formData.price ?? ''} 
-                        onChange={e => setFormData?.(f => ({ ...f, price: parseFloat(e.target.value) || 0 }))}
-                        placeholder="0"
-                        className="bg-white border-[0.5px] border-[#e0e0e0] rounded-[10px] p-[10px_14px] text-[12px] font-bold focus:border-[#FFE01A] outline-none"
-                      />
-                      <p className="text-[8px] text-[#bbbbbb]">0 = Free. Shown in booking sheet.</p>
+                      <label className="text-[9px] text-[#999] tracking-widest uppercase">Admission</label>
+                      <div className="flex gap-0 border-[0.5px] border-[#e0e0e0] rounded-[10px] overflow-hidden">
+                        <button
+                          type="button"
+                          onClick={() => setFormData?.(f => ({ ...f, price: 0 }))}
+                          style={{
+                            flex: 1, padding: '11px',
+                            background: formData.price === 0 ? '#FFE01A' : '#fff',
+                            color:      formData.price === 0 ? '#0a0a0a' : '#999',
+                            border: 'none', cursor: 'pointer',
+                            fontFamily: 'inherit', fontSize: 10,
+                            fontWeight: 700, letterSpacing: '0.14em',
+                            textTransform: 'uppercase',
+                          }}
+                        >
+                          Free
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setFormData?.(f => ({ ...f, price: f.price || 10 }))}
+                          style={{
+                            flex: 1, padding: '11px',
+                            background: formData.price > 0 ? '#FFE01A' : '#fff',
+                            color:      formData.price > 0 ? '#0a0a0a' : '#999',
+                            border: 'none', cursor: 'pointer',
+                            borderLeft: '0.5px solid #e0e0e0',
+                            fontFamily: 'inherit', fontSize: 10,
+                            fontWeight: 700, letterSpacing: '0.14em',
+                            textTransform: 'uppercase',
+                          }}
+                        >
+                          Paid
+                        </button>
+                      </div>
                     </div>
+
+                    {formData.price > 0 && (
+                      <div className="flex flex-col gap-2 animate-in fade-in zoom-in-95 duration-200">
+                        <label className="text-[9px] text-[#999] tracking-widest uppercase">Price ($)</label>
+                        <input 
+                          type="number" 
+                          min="1"
+                          value={formData.price ?? ''} 
+                          onChange={e => setFormData?.(f => ({ ...f, price: parseFloat(e.target.value) || 0 }))}
+                          placeholder="15"
+                          className="bg-white border-[0.5px] border-[#e0e0e0] rounded-[10px] p-[10px_14px] text-[12px] font-bold focus:border-[#FFE01A] outline-none"
+                        />
+                      </div>
+                    )}
+                    
                     <div className="flex flex-col gap-2">
                       <label className="text-[9px] text-[#999] tracking-widest uppercase">SPOTS_AVAILABLE</label>
                       <input 
@@ -530,9 +854,14 @@ export const BroadcastControlForm: React.FC<BroadcastControlFormProps & { isAdmi
                       type="text" 
                       value={formData.artist || ''} 
                       onChange={e => setFormData?.(f => ({ ...f, artist: e.target.value }))}
+                      onBlur={() => touch('artist')}
                       placeholder="e.g. Jenny Ustick"
-                      className="bg-white border-[0.5px] border-[#e0e0e0] rounded-[10px] p-[10px_14px] text-[12px] font-bold focus:border-[#FFE01A] outline-none"
+                      style={{
+                        border: showError('artist') ? '1px solid #E24B4A' : '0.5px solid #e0e0e0',
+                      }}
+                      className="bg-white rounded-[10px] p-[10px_14px] text-[12px] font-bold focus:border-[#FFE01A] outline-none"
                     />
+                    <ErrorLine field="artist" />
                     <p className="text-[8px] text-[#bbbbbb]">Shown as byline below the title on the card</p>
                   </div>
                   <div className="flex flex-col gap-2">
@@ -594,9 +923,14 @@ export const BroadcastControlForm: React.FC<BroadcastControlFormProps & { isAdmi
                       type="text" 
                       value={formData.artist || ''} 
                       onChange={e => setFormData?.(f => ({ ...f, artist: e.target.value }))}
+                      onBlur={() => touch('artist')}
                       placeholder="e.g. Marcus Miller Quartet"
-                      className="bg-white border-[0.5px] border-[#e0e0e0] rounded-[10px] p-[10px_14px] text-[12px] font-bold focus:border-[#FFE01A] outline-none"
+                      style={{
+                        border: showError('artist') ? '1px solid #E24B4A' : '0.5px solid #e0e0e0',
+                      }}
+                      className="bg-white rounded-[10px] p-[10px_14px] text-[12px] font-bold focus:border-[#FFE01A] outline-none"
                     />
+                    <ErrorLine field="artist" />
                     <p className="text-[8px] text-[#bbbbbb]">Shown on the card as performer name</p>
                   </div>
                   <div className="flex flex-col gap-2">
@@ -615,6 +949,21 @@ export const BroadcastControlForm: React.FC<BroadcastControlFormProps & { isAdmi
 
               {formData.type === BroadcastType.CIVIC_EVENT && (
                 <div className="flex flex-col gap-6 animate-in fade-in slide-in-from-left-2 duration-300">
+                  <div className="field">
+                    <div style={{
+                      padding: '10px 14px',
+                      background: '#0a2e1a',
+                      border: '0.5px solid #1D9E75',
+                      borderRadius: 8,
+                      fontSize: 9,
+                      color: '#7dd3a8',
+                      letterSpacing: '0.1em',
+                      fontFamily: 'monospace',
+                      textTransform: 'uppercase',
+                    }}>
+                      ✓ Civic events are always free and open to the public
+                    </div>
+                  </div>
                   <div className="flex flex-col gap-2">
                     <label className="text-[9px] text-[#999] tracking-widest uppercase">ORGANIZATION</label>
                     <input 
@@ -679,10 +1028,12 @@ export const BroadcastControlForm: React.FC<BroadcastControlFormProps & { isAdmi
                     value={formData.custom_address || ''}
                     onSelect={(addr) => {
                       setFormData?.(f => ({ ...f, custom_address: addr }));
+                      touch('address');
                     }}
                     placeholder="Enter event address e.g. 1215 Elm St, Cincinnati, OH"
                     className="!rounded-[10px] !border-[#e0e0e0] !p-0"
                   />
+                  <ErrorLine field="address" />
                 </div>
                 <button 
                   type="button"
@@ -786,17 +1137,44 @@ export const BroadcastControlForm: React.FC<BroadcastControlFormProps & { isAdmi
                 <label className="text-[9px] text-[#999] tracking-[0.15em] uppercase">EVENT_DATE</label>
                 <input 
                   type="date"
-                  className="bg-white border-[0.5px] border-[#e0e0e0] rounded-[10px] p-[14px_16px] text-[12px] text-[#1a1a1a] font-bold uppercase focus:border-[1px] focus:border-[#FFE01A] outline-none"
+                  value={formData.event_date || ''}
+                  onChange={e => setFormData?.(f => ({ ...f, event_date: e.target.value }))}
+                  onBlur={() => touch('event_date')}
+                  style={{
+                    border: showError('event_date') ? '1px solid #E24B4A' : '0.5px solid #e0e0e0',
+                  }}
+                  className="bg-white rounded-[10px] p-[14px_16px] text-[12px] text-[#1a1a1a] font-bold uppercase focus:border-[1px] focus:border-[#FFE01A] outline-none"
                 />
+                <ErrorLine field="event_date" />
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <div className="flex flex-col gap-2">
                   <label className="text-[9px] text-[#999] tracking-[0.15em] uppercase">START</label>
-                  <input type="time" className="bg-white border-[0.5px] border-[#e0e0e0] rounded-[10px] p-[14px_16px] text-[12px] text-[#1a1a1a] font-bold uppercase focus:border-[1px] focus:border-[#FFE01A] outline-none" />
+                  <input 
+                    type="time" 
+                    value={formData.start_time || ''}
+                    onChange={e => setFormData?.(f => ({ ...f, start_time: e.target.value }))}
+                    onBlur={() => touch('start_time')}
+                    style={{
+                      border: showError('start_time') ? '1px solid #E24B4A' : '0.5px solid #e0e0e0',
+                    }}
+                    className="bg-white rounded-[10px] p-[14px_16px] text-[12px] text-[#1a1a1a] font-bold uppercase focus:border-[1px] focus:border-[#FFE01A] outline-none" 
+                  />
+                  <ErrorLine field="start_time" />
                 </div>
                 <div className="flex flex-col gap-2">
                   <label className="text-[9px] text-[#999] tracking-[0.15em] uppercase">END</label>
-                  <input type="time" className="bg-white border-[0.5px] border-[#e0e0e0] rounded-[10px] p-[14px_16px] text-[12px] text-[#1a1a1a] font-bold uppercase focus:border-[1px] focus:border-[#FFE01A] outline-none" />
+                  <input 
+                    type="time" 
+                    value={formData.end_time || ''}
+                    onChange={e => setFormData?.(f => ({ ...f, end_time: e.target.value }))}
+                    onBlur={() => touch('end_time')}
+                    style={{
+                      border: showError('end_time') ? '1px solid #E24B4A' : '0.5px solid #e0e0e0',
+                    }}
+                    className="bg-white rounded-[10px] p-[14px_16px] text-[12px] text-[#1a1a1a] font-bold uppercase focus:border-[1px] focus:border-[#FFE01A] outline-none" 
+                  />
+                  <ErrorLine field="end_time" />
                 </div>
               </div>
             </div>
@@ -893,17 +1271,80 @@ export const BroadcastControlForm: React.FC<BroadcastControlFormProps & { isAdmi
 
           {/* TRANSMIT_SIGNAL */}
           <div className="mt-16">
+            {(() => {
+              const result = validateBroadcast(formData, traceLocked);
+              const errorCount = Object.keys(result.errors).length;
+
+              if (result.valid) {
+                return (
+                  <div style={{
+                    padding: '12px 16px',
+                    background: '#0a2e1a',
+                    border: '0.5px solid #1D9E75',
+                    borderRadius: 10,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 10,
+                    marginBottom: 8,
+                  }}>
+                    <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="#1D9E75" strokeWidth="2.5" strokeLinecap="round">
+                      <path d="M4 10l4 4 8-8"/>
+                    </svg>
+                    <span style={{ fontSize: 9, color: '#7dd3a8', letterSpacing: '0.14em', textTransform: 'uppercase', fontFamily: 'monospace' }}>
+                      Signal ready — all checks passed
+                    </span>
+                  </div>
+                );
+              }
+
+              return (
+                <div style={{
+                  padding: '12px 16px',
+                  background: '#2e0a0a',
+                  border: '0.5px solid #E24B4A',
+                  borderRadius: 10,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 6,
+                  marginBottom: 8,
+                }}>
+                  <div style={{ fontSize: 9, color: '#E24B4A', letterSpacing: '0.14em', textTransform: 'uppercase', fontFamily: 'monospace', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="#E24B4A" strokeWidth="2.5" strokeLinecap="round">
+                      <path d="M10 2a8 8 0 100 16A8 8 0 0010 2z"/>
+                      <path d="M10 7v4m0 3v.01"/>
+                    </svg>
+                    {errorCount} issue{errorCount > 1 ? 's' : ''} blocking transmission
+                  </div>
+                  {Object.values(result.errors).map((err, i) => (
+                    <div key={i} style={{ fontSize: 8, color: '#ff9d9d', letterSpacing: '0.08em', fontFamily: 'monospace', paddingLeft: 20 }}>
+                      · {err}
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
+
             <button
               type="button"
               onClick={handleTransmit}
+              disabled={!validateBroadcast(formData, traceLocked).valid || submitting}
+              style={{
+                opacity: (!validateBroadcast(formData, traceLocked).valid || submitting) ? 0.4 : 1,
+                cursor: (!validateBroadcast(formData, traceLocked).valid || submitting) ? 'not-allowed' : 'pointer',
+                border: validateBroadcast(formData, traceLocked).valid ? '1px solid #FFE01A' : '1px solid #444',
+                color: validateBroadcast(formData, traceLocked).valid ? '#FFE01A' : '#555',
+              }}
               className={`w-full p-5 text-[13px] font-bold tracking-[0.2em] uppercase flex items-center justify-center gap-4 transition-all duration-300 rounded-[10px] ${
                 localSuccess
                 ? 'bg-[#1D9E75] text-[#0a0a0a]'
-                : 'bg-[#0a0a0a] text-[#FFE01A] hover:bg-[#FFE01A] hover:text-[#0a0a0a]'
+                : !validateBroadcast(formData, traceLocked).valid 
+                  ? 'bg-[#1a1a1a] text-[#555]'
+                  : 'bg-[#0a0a0a] text-[#FFE01A] hover:bg-[#FFE01A] hover:text-[#0a0a0a]'
               }`}
             >
-              {localSubmitting ? (
+              {submitting ? (
                 <span className="flex items-center gap-3 animate-pulse">
+                  <span className="animate-pulse">◉</span>
                   TRANSMITTING...
                 </span>
               ) : (

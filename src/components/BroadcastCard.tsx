@@ -47,7 +47,29 @@ export const BroadcastCard: React.FC<BroadcastCardProps> = ({
   const [progress, setProgress] = useState(100);
   const [showBooking, setShowBooking] = useState(false);
   const [spots, setSpots] = useState(1);
+  const [copied, setCopied] = useState(false);
   const [, forceUpdate] = useState(0);
+
+  const handleShare = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const url = `${window.location.origin}/signal/${item.id}`;
+
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: item.title || 'Local Pulse Signal',
+          text:  `Check this out: ${item.title}`,
+          url,
+        });
+      } catch (err) {
+        // Silently handle share cancellation
+      }
+    } else {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
 
   useEffect(() => {
     const t = setInterval(
@@ -60,6 +82,7 @@ export const BroadcastCard: React.FC<BroadcastCardProps> = ({
   const isSponsored = item.is_sponsored === true;
   const isFlashDeal = item.type === BroadcastType.FLASH_DEAL;
   const isWalkingEvent = item.type === BroadcastType.WALKING_EVENT;
+  const isCivic = item.type === BroadcastType.CIVIC_EVENT;
   const isMural =
     item.type === BroadcastType.MURAL ||
     item.type === BroadcastType.STREET_ART;
@@ -80,10 +103,10 @@ export const BroadcastCard: React.FC<BroadcastCardProps> = ({
   useEffect(() => {
     if (!isFlashDeal) return;
     
-    const start = new Date(item.startsAt || item.starts_at || 0).getTime();
-    const end = new Date(item.expiresAt || item.expires_at || 0).getTime();
+    const start = toMs(item.startsAt || item.starts_at || 0) || 0;
+    const end   = toMs(item.expiresAt || item.expires_at || 0) || 0;
     
-    if (isNaN(start) || isNaN(end)) return;
+    if (!start || !end) return;
 
     const updateProgress = () => {
       const now = Date.now();
@@ -104,11 +127,14 @@ export const BroadcastCard: React.FC<BroadcastCardProps> = ({
   const handleCTA = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (isWalkingEvent) {
-      if (item.booking_url) {
-        window.open(item.booking_url, '_blank', 'noopener,noreferrer');
-        return;
+      // Always use external link for walks if set
+      const url = item.booking_url;
+      if (url) {
+        window.open(url, '_blank', 'noopener,noreferrer');
+      } else {
+        // Fallback only if no URL — show inline sheet
+        setShowBooking(true);
       }
-      setShowBooking(true); // open inline sheet instead of Stripe
       return;
     }
     if (item.payment_type === 'tip_jar' && item.tip_url) {
@@ -260,13 +286,14 @@ export const BroadcastCard: React.FC<BroadcastCardProps> = ({
               /* Share FAB - Minimal */
               !isWalkingEvent && (
                 <button 
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onShareEvent(item);
-                  }}
-                  className="w-10 h-10 bg-white/90 backdrop-blur rounded-full flex items-center justify-center text-uh-black border border-black/5 hover:bg-white transition-all shadow-sm active:scale-90"
+                  onClick={handleShare}
+                  className="w-10 h-10 bg-white/90 backdrop-blur rounded-full flex items-center justify-center text-uh-black border border-black/5 hover:bg-white transition-all shadow-sm active:scale-90 relative"
                 >
-                  <Share2 size={16} strokeWidth={2.5} />
+                  {copied ? (
+                    <span className="text-[8px] font-bold text-uh-magenta">COPIED!</span>
+                  ) : (
+                    <Share2 size={16} strokeWidth={2.5} />
+                  )}
                 </button>
               )
             )}
@@ -275,6 +302,38 @@ export const BroadcastCard: React.FC<BroadcastCardProps> = ({
 
         {/* Content Overlay */}
         <div className="absolute inset-x-0 bottom-0 p-4 flex flex-col justify-end gap-2 overflow-hidden">
+          {/* Civic Badge */}
+          {isCivic && (
+            <div
+              style={{
+                position: 'absolute',
+                bottom: 52,      // above location pill
+                left: 14,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                zIndex: 20
+              }}
+            >
+              <span
+                style={{
+                  fontSize: 8,
+                  fontWeight: 700,
+                  letterSpacing: '0.14em',
+                  textTransform: 'uppercase',
+                  padding: '3px 10px',
+                  borderRadius: 20,
+                  background: 'rgba(29,158,117,0.15)',
+                  border: '0.5px solid #1D9E75',
+                  color: '#1D9E75',
+                  fontFamily: "'Space Mono', monospace",
+                }}
+              >
+                Free · Open to all
+              </span>
+            </div>
+          )}
+
           {/* Meta Info */}
           <div className="mb-1 relative z-10">
              {isWalkingEvent && partner?.name && (
@@ -383,13 +442,14 @@ export const BroadcastCard: React.FC<BroadcastCardProps> = ({
                   VIEW
                 </button>
                 <button 
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onShareEvent(item);
-                  }}
-                  className="w-11 h-11 bg-white/10 backdrop-blur rounded-2xl flex items-center justify-center text-white border border-white/10 hover:bg-white/20 transition-all shadow-sm active:scale-90"
+                  onClick={handleShare}
+                  className="w-11 h-11 bg-white/10 backdrop-blur rounded-2xl flex items-center justify-center text-white border border-white/10 hover:bg-white/20 transition-all shadow-sm active:scale-90 relative"
                 >
-                  <Share2 size={16} strokeWidth={2.5} />
+                  {copied ? (
+                    <span className="text-[8px] font-bold text-uh-magenta">COPIED!</span>
+                  ) : (
+                    <Share2 size={16} strokeWidth={2.5} />
+                  )}
                 </button>
               </div>
             )}

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { auth, db } from './firebase';
 import { signInWithPopup, GoogleAuthProvider, onAuthStateChanged, User } from 'firebase/auth';
-import { useLocation } from 'react-router-dom';
+import { useLocation, Routes, Route } from 'react-router-dom';
 import { collection, onSnapshot, query, where, addDoc, doc, getDoc, setDoc, getDocs, orderBy, getDocFromServer, updateDoc, Timestamp } from 'firebase/firestore';
 import { Node, Broadcast, Vibe, UserProfile, UserRole, Partner, BroadcastType } from './types';
 import { BASE_URL } from './constants';
@@ -17,11 +17,12 @@ import { CreatorIntakeWindow } from './components/CreatorIntakeWindow';
 import { CheckoutSuccess } from './components/CheckoutSuccess';
 import { CheckoutCancel } from './components/CheckoutCancel';
 import { SponsorForm, SponsorSuccess, SponsorCancelled } from './components/SponsorForm';
+import { SignalPage } from './pages/SignalPage';
 import MuralNodeAdmin from './components/MuralNodeAdmin';
 import seedData from './seed';
 import { getDistance } from './utils/geo';
 import { handleFirestoreError, OperationType } from './utils/firebaseErrors';
-import { toMs } from './utils/timeUtils';
+import { toMs, isNotExpired } from './utils/timeUtils';
 
 import { v4 as uuidv4 } from 'uuid';
 import { motion, AnimatePresence } from 'motion/react';
@@ -496,6 +497,8 @@ export default function App() {
   const isDashboard = pathParts.includes('dashboard');
   const isLogin = pathParts.includes('login');
   const isMuralAdmin = pathParts.includes('admin') && pathParts.includes('mural');
+  const isSignal = pathParts[0] === 'signal' && pathParts[1];
+  const broadcastIdFromSignal = isSignal ? pathParts[1] : null;
   const tapIndex = pathParts.indexOf('tap');
   const creatorIndex = pathParts.indexOf('creator');
   const isCreatorIgnite = creatorIndex !== -1 && pathParts[creatorIndex + 1] === 'ignite';
@@ -812,18 +815,6 @@ export default function App() {
     const nowIso = now.toISOString();
 
     const allRaw = [...rawBroadcasts, ...rawPois];
-
-    const isNotExpired = (b: Broadcast): boolean => {
-      // Permanent types never expire
-      if (
-        b.type === BroadcastType.MURAL ||
-        b.type === BroadcastType.STREET_ART
-      ) return true;
-
-      const end = toMs(b.expires_at || b.expiresAt);
-      if (!end) return true;  // no expiry = keep
-      return end > Date.now();
-    };
 
     const filtered = allRaw.filter(b => {
       const radiusLimit = currentNode.radius_limit || (currentNode as any).radiusLimit || 4828;
@@ -1204,6 +1195,16 @@ export default function App() {
     return (
       <ErrorBoundary>
         <MuralNodeAdmin />
+      </ErrorBoundary>
+    );
+  }
+
+  if (isSignal) {
+    return (
+      <ErrorBoundary>
+        <Routes>
+          <Route path="/signal/:broadcastId" element={<SignalPage />} />
+        </Routes>
       </ErrorBoundary>
     );
   }
