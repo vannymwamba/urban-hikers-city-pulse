@@ -196,6 +196,12 @@ export const BroadcastControlForm: React.FC<BroadcastControlFormProps> = ({
   };
 
   useEffect(() => {
+    if (formData.latitude && formData.longitude && !traceLocked) {
+      setTraceLocked(true);
+    }
+  }, [formData.latitude, formData.longitude]);
+
+  useEffect(() => {
     const result = validateBroadcast(formData, traceLocked)
     setErrors(result.errors)
   }, [formData, traceLocked]);
@@ -1010,6 +1016,32 @@ export const BroadcastControlForm: React.FC<BroadcastControlFormProps> = ({
                       className="bg-white border-[0.5px] border-[#e0e0e0] rounded-[10px] p-[10px_14px] text-[12px] font-bold focus:border-[#FFE01A] outline-none"
                     />
                     <p className="text-[8px] text-[#bbbbbb]">View button links here</p>
+                  </div>
+                </div>
+              )}
+
+              {formData.type === BroadcastType.DONATION && (
+                <div className="flex flex-col gap-6 animate-in fade-in slide-in-from-left-2 duration-300">
+                  <div className="flex flex-col gap-2">
+                    <label className="text-[9px] text-[#999] tracking-widest uppercase">CAUSE / ORGANIZATION</label>
+                    <input 
+                      type="text" 
+                      value={formData.partner_name || ''} 
+                      onChange={e => setFormData?.(f => ({ ...f, partner_name: e.target.value }))}
+                      placeholder="e.g. Cincinnati Parks Foundation"
+                      className="bg-white border-[0.5px] border-[#e0e0e0] rounded-[10px] p-[10px_14px] text-[12px] font-bold focus:border-[#FFE01A] outline-none"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <label className="text-[9px] text-[#999] tracking-widest uppercase">DONATION_URL</label>
+                    <input 
+                      type="text" 
+                      value={formData.booking_url || ''} 
+                      onChange={e => setFormData?.(f => ({ ...f, booking_url: e.target.value }))}
+                      placeholder="https://... secure donation link"
+                      className="bg-white border-[0.5px] border-[#e0e0e0] rounded-[10px] p-[10px_14px] text-[12px] font-bold focus:border-[#FFE01A] outline-none"
+                    />
+                    <p className="text-[8px] text-[#bbbbbb]">Donate button links here</p>
                   </div>
                 </div>
               )}

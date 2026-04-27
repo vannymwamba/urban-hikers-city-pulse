@@ -83,6 +83,7 @@ export const BroadcastCard: React.FC<BroadcastCardProps> = ({
   const isFlashDeal = item.type === BroadcastType.FLASH_DEAL;
   const isWalkingEvent = item.type === BroadcastType.WALKING_EVENT;
   const isCivic = item.type === BroadcastType.CIVIC_EVENT;
+  const isDonation = item.type === BroadcastType.DONATION;
   const isMural =
     item.type === BroadcastType.MURAL ||
     item.type === BroadcastType.STREET_ART;
@@ -126,14 +127,14 @@ export const BroadcastCard: React.FC<BroadcastCardProps> = ({
 
   const handleCTA = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (isWalkingEvent) {
-      // Always use external link for walks if set
+    if (isWalkingEvent || isDonation) {
       const url = item.booking_url;
       if (url) {
         window.open(url, '_blank', 'noopener,noreferrer');
-      } else {
-        // Fallback only if no URL — show inline sheet
+      } else if (isWalkingEvent) {
         setShowBooking(true);
+      } else {
+        onSelect(item);
       }
       return;
     }
@@ -270,18 +271,28 @@ export const BroadcastCard: React.FC<BroadcastCardProps> = ({
           <div className="flex items-center gap-4 pointer-events-auto">
             {isMural ? (
               <a
-                href={ARTWAVE_DONATION_URL}
+                href={item.booking_url || ARTWAVE_DONATION_URL}
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={(e) => e.stopPropagation()}
-                title="Support this artist via ArtWave"
+                title="Support this artist"
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-black/55 backdrop-blur-sm border border-white/12 hover:bg-black/75 transition-all z-10"
               >
-                <svg width="13" height="8" viewBox="0 0 24 14" fill="none">
-                  <path d="M1 7 C3 3 5 3 7 7 C9 11 11 11 13 7 C15 3 17 3 19 7 C20 9 21 9 23 7" stroke="#FFE01A" strokeWidth="2.2" strokeLinecap="round" fill="none"/>
-                </svg>
+                <Heart size={12} className="text-uh-yellow" fill="currentColor" />
                 <span className="text-[8px] font-black tracking-widest uppercase text-white/70 font-mono">Donate</span>
               </a>
+            ) : isDonation ? (
+              <button 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (item.booking_url) window.open(item.booking_url, '_blank');
+                  else onSelect(item);
+                }}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-uh-yellow text-uh-black border border-uh-yellow/20 hover:scale-105 transition-all z-10"
+              >
+                <Heart size={12} fill="currentColor" />
+                <span className="text-[8px] font-black tracking-widest uppercase font-mono">Donate</span>
+              </button>
             ) : (
               /* Share FAB - Minimal */
               !isWalkingEvent && (
@@ -421,12 +432,14 @@ export const BroadcastCard: React.FC<BroadcastCardProps> = ({
             </button>
             
             {/* CTA Buttons */}
-            {isWalkingEvent && (
+            {(isWalkingEvent || isDonation) && (
               <button 
                 onClick={handleCTA}
                 className="px-5 py-3 bg-uh-yellow text-uh-black rounded-2xl flex flex-col items-center justify-center shadow-xl hover:scale-105 active:scale-95 transition-all whitespace-nowrap min-w-[100px]"
               >
-                <span className="text-[10px] font-black uppercase tracking-widest font-mono">Book Now</span>
+                <span className="text-[10px] font-black uppercase tracking-widest font-mono">
+                  {isDonation ? 'Donate ♥' : 'Book Now'}
+                </span>
               </button>
             )}
 

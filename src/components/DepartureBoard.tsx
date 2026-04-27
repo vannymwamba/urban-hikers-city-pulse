@@ -1,19 +1,23 @@
 import React, { useState, useEffect } from 'react';
 import { Broadcast, Node, UserProfile, Partner, Route, Guide, Sponsor } from '../types';
+import { LocalHub } from './LocalHubCard';
 import { MapView } from './MapView';
 import { BroadcastCard } from './BroadcastCard';
 import { FlashDealCard } from './FlashDealCard';
 import { Feed } from './Feed';
 import { RouteCard } from './RouteCard';
-import { Clock, ShieldCheck, MapPin, Home, LayoutGrid, Share2, Ticket, Map as MapIcon, ArrowRight, AlertCircle, Lock, Navigation, Users } from 'lucide-react';
+import { Clock, ShieldCheck, MapPin, Home, LayoutGrid, Share2, Ticket, Map as MapIcon, ArrowRight, AlertCircle, Lock, Navigation, Users, Plus } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { getDistance } from '../utils/geo';
 import { WalletCard } from './WalletCard';
 import { getEventStatus } from '../utils/broadcastHelpers';
+import { BroadcastControlForm } from './BroadcastControlForm';
+import { BroadcastType } from '../types';
 
 interface DepartureBoardProps {
   nodeName: string;
   currentNode: Node | null;
+  nodes: Node[];
   broadcasts: Broadcast[];
   onSelect: (broadcast: Broadcast) => void;
   onConfirm?: (id: string) => void;
@@ -38,11 +42,13 @@ interface DepartureBoardProps {
   onStartRoute?: (route: Route) => void;
   onBookRoute?: (route: Route) => void;
   nfcStatus?: 'idle' | 'scanning' | 'error' | 'unsupported';
+  localHubs?: LocalHub[];
 }
 
 export const DepartureBoard: React.FC<DepartureBoardProps> = ({ 
   nodeName, 
   currentNode, 
+  nodes = [],
   broadcasts, 
   onSelect, 
   onConfirm,
@@ -66,7 +72,8 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
   sponsorsMap = {},
   onStartRoute = () => {},
   onBookRoute = () => {},
-  nfcStatus = 'idle'
+  nfcStatus = 'idle',
+  localHubs = [],
 }) => {
   const [time, setTime] = useState(new Date());
   const [headerTheme, setHeaderTheme] = useState<'yellow' | 'dark' | 'photo' | 'white'>(() => {
@@ -93,6 +100,28 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
   const [uptime, setUptime] = useState(99.9);
   const [showLogin, setShowLogin] = useState(false);
   const [scrollProgress, setScrollProgress] = useState(0);
+  const [showBroadcastForm, setShowBroadcastForm] = useState(false);
+  
+  const [formState, setFormState] = useState({ 
+    title: '', 
+    type: BroadcastType.LIVE_EVENT, 
+    node_id: currentNode?.id || '',
+    node_ids: [] as string[],
+    custom_address: currentNode?.address || '',
+    event_date: new Date().toISOString().split('T')[0],
+    start_time: '12:00',
+    end_time: '14:00',
+    partner_id: userProfile?.partnerId || userProfile?.partner_id || '',
+    cover_url: '',
+    artist: '',
+    booking_url: '',
+    sponsor_logo_url: '',
+    is_sponsored: false,
+    partner_name: '',
+    sponsor_name: '',
+    latitude: currentNode?.latitude || null,
+    longitude: currentNode?.longitude || null
+  });
 
   useEffect(() => {
     localStorage.setItem('uh_header_theme', headerTheme);
@@ -231,6 +260,8 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
                 partnersMap={partnersMap}
                 sponsorsMap={sponsorsMap}
                 userProfile={userProfile}
+                localHubs={localHubs}
+                onRedeemHub={(hub) => hub.cta_url && window.open(hub.cta_url, '_blank')}
               />
             ) : activeTab === 'explore' ? (
               // keep your existing explore view but ensure light background compatibility if needed
@@ -259,6 +290,12 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
               <div className="flex flex-col text-center">
                 <span className="text-[10px] font-black text-uh-gray-400 uppercase tracking-widest font-mono mb-1">Radius</span>
                 <span className="text-xl font-black text-uh-black tracking-tight">{radiusInMiles}mi</span>
+              </div>
+              <div className="flex flex-col text-center">
+                <span className="text-[10px] font-black text-uh-gray-400 uppercase tracking-widest font-mono mb-1">Stations</span>
+                <span className="text-xl font-black" style={{ color: '#FFE01A' }}>
+                  {localHubs.filter(h => h.tier !== 'free').length.toString().padStart(2, '0')}
+                </span>
               </div>
               <div className="flex flex-col text-right">
                 <span className="text-[10px] font-black text-uh-gray-400 uppercase tracking-widest font-mono mb-1">Uptime</span>
@@ -317,6 +354,47 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
 
 
       <AnimatePresence>
+        {showBroadcastForm && (
+          <div className="fixed inset-0 z-[300] bg-white overflow-y-auto no-scrollbar">
+            <div className="sticky top-0 z-50 bg-white border-b border-uh-gray-100 p-4 flex items-center justify-between">
+              <span className="text-[10px] font-black uppercase tracking-[0.3em] font-mono">Channel_Override</span>
+              <button 
+                onClick={() => setShowBroadcastForm(false)}
+                className="p-2 rounded-full hover:bg-uh-gray-50"
+              >
+                <Plus size={20} className="rotate-45 text-uh-black" />
+              </button>
+            </div>
+            <div className="pb-20">
+              <BroadcastControlForm 
+                formData={formState}
+                setFormData={setFormState as any}
+                userProfile={userProfile}
+                nodes={nodes}
+                isAdmin={userProfile?.role === 'admin' || userProfile?.role === 'super_admin'}
+                setError={(err) => console.error(err)}
+                setSubmitting={() => {}}
+                setSuccess={(suc) => {
+                  if (suc) setShowBroadcastForm(false);
+                }}
+              />
+            </div>
+          </div>
+        )}
+
+        {(userProfile?.role === 'admin' || userProfile?.role === 'partner' || userProfile?.role === 'hiker') && !showBroadcastForm && (
+          <motion.button
+            initial={{ scale: 0, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => setShowBroadcastForm(true)}
+            className="fixed bottom-24 right-6 w-14 h-14 bg-uh-yellow text-uh-black rounded-full flex items-center justify-center shadow-2xl z-50 border-4 border-white pointer-events-auto"
+          >
+            <Plus size={24} strokeWidth={3} />
+          </motion.button>
+        )}
+
         {tapConfirmAction && (
           <motion.div
             initial={{ opacity: 0 }}

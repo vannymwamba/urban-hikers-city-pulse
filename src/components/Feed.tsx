@@ -1,6 +1,7 @@
 import React, { useRef, useState } from 'react';
 import { Broadcast, Partner, Node, Sponsor, BroadcastType, UserProfile } from '../types';
 import { BroadcastCard } from './BroadcastCard';
+import { LocalHubCard, LocalHub } from './LocalHubCard';
 import { motion } from 'motion/react';
 import { ArrowRight } from 'lucide-react';
 
@@ -20,6 +21,8 @@ interface FeedProps {
   sponsorsMap: Record<string, Sponsor>;
   hideOtherSections?: boolean;
   userProfile?: UserProfile | null;
+  localHubs?: LocalHub[];
+  onRedeemHub?: (hub: LocalHub) => void;
 }
 
 export const Feed: React.FC<FeedProps> = ({
@@ -31,7 +34,9 @@ export const Feed: React.FC<FeedProps> = ({
   onManage,
   partnersMap,
   hideOtherSections = false,
-  userProfile = null
+  userProfile = null,
+  localHubs = [],
+  onRedeemHub,
 }) => {
   const isAdmin = userProfile?.role === 'admin' || userProfile?.role === 'super_admin' || userProfile?.email === 'vannymwamba@gmail.com';
   const isPartner = userProfile?.role === 'partner' || userProfile?.role === 'partner_admin' || userProfile?.role === 'partner_content_editor';
@@ -45,6 +50,7 @@ export const Feed: React.FC<FeedProps> = ({
   const flashDeals = broadcasts.filter(b => b.type === BroadcastType.FLASH_DEAL || b.is_sponsored === true);
   const foodTrucks = broadcasts.filter(b => b.type === BroadcastType.FOOD_TRUCK);
   const walkingEvents = broadcasts.filter(b => b.type === BroadcastType.WALKING_EVENT);
+  const donations = broadcasts.filter(b => b.type === BroadcastType.DONATION);
   const murals = broadcasts.filter(b => [BroadcastType.MURAL, 'civic_mural', BroadcastType.STREET_ART].includes(b.type as any));
   const events = broadcasts.filter(b => [BroadcastType.LIVE_EVENT, BroadcastType.POP_UP, 'event', 'conference_panel', BroadcastType.CIVIC_EVENT, 'live_performance'].includes(b.type as any));
   
@@ -163,6 +169,28 @@ export const Feed: React.FC<FeedProps> = ({
         )}
       </div>
 
+      {localHubs.length > 0 && !hideOtherSections && (
+        <div className="flex flex-col">
+          <SectionHeader
+            title="Local_Hubs"
+            count={localHubs.length}
+            status="⚡ Refuel_Stations"
+          />
+          <div className="flex overflow-x-auto snap-x snap-mandatory no-scrollbar px-6 gap-4">
+            {[...localHubs]
+              .sort((a, b) => (a.distance_mi ?? 99) - (b.distance_mi ?? 99))
+              .map((hub, idx) => (
+                <LocalHubCard
+                  key={hub.id}
+                  hub={hub}
+                  idx={idx}
+                  onRedeem={onRedeemHub}
+                />
+              ))}
+          </div>
+        </div>
+      )}
+
       {/* Food Trucks Carousel */}
       {foodTrucks.length > 0 && !hideOtherSections && (
         <div className="flex flex-col">
@@ -184,6 +212,30 @@ export const Feed: React.FC<FeedProps> = ({
               />
             ))}
             <MoreCard label="EXPLORE_ALL" />
+          </div>
+        </div>
+      )}
+
+      {/* Donations Carousel */}
+      {donations.length > 0 && !hideOtherSections && (
+        <div className="flex flex-col">
+          <SectionHeader title="Community_Support" count={donations.length} status="♥ Local Impact" />
+          <div className="flex overflow-x-auto snap-x snap-mandatory no-scrollbar px-6 gap-4">
+            {donations.map((b, idx) => (
+              <BroadcastCard 
+                key={b.id}
+                item={b}
+                idx={idx}
+                currentNode={currentNode}
+                onSelect={onSelect}
+                onConfirm={onConfirm}
+                onShareEvent={onShareEvent}
+                onManage={onManage}
+                partner={partnersMap[b.partnerId || b.partner_id || '']}
+                variant="peek"
+                canManage={canManageBroadcast(b)}
+              />
+            ))}
           </div>
         </div>
       )}

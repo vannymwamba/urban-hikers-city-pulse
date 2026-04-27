@@ -4,6 +4,7 @@ import { signInWithPopup, GoogleAuthProvider, onAuthStateChanged, User } from 'f
 import { useLocation, Routes, Route } from 'react-router-dom';
 import { collection, onSnapshot, query, where, addDoc, doc, getDoc, setDoc, getDocs, orderBy, getDocFromServer, updateDoc, Timestamp } from 'firebase/firestore';
 import { Node, Broadcast, Vibe, UserProfile, UserRole, Partner, BroadcastType } from './types';
+import { LocalHub } from './components/LocalHubCard';
 import { BASE_URL } from './constants';
 import { DepartureBoard } from './components/DepartureBoard';
 import { BroadcastModal } from './components/BroadcastModal';
@@ -221,6 +222,29 @@ export default function App() {
       }
     });
   };
+
+  const [localHubs, setLocalHubs] = useState<LocalHub[]>([]);
+  const [nodes, setNodes] = useState<Node[]>([]);
+
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db, 'nodes'), (snap) => {
+      setNodes(snap.docs.map(doc => ({ id: doc.id, ...doc.data() }) as Node));
+    });
+    return () => unsub();
+  }, []);
+
+  useEffect(() => {
+    const unsub = onSnapshot(
+      query(collection(db, 'local_hubs'), where('is_active', '==', true)),
+      (snap) => {
+        const hubs = snap.docs.map(d => ({ id: d.id, ...d.data() } as LocalHub));
+        // Sort: premium → paid → free
+        const tierOrder: Record<string, number> = { premium: 0, paid: 1, free: 2 };
+        setLocalHubs(hubs.sort((a, b) => tierOrder[a.tier] - tierOrder[b.tier]));
+      }
+    );
+    return () => unsub();
+  }, []);
 
   const isAdmin = user?.email === 'vannymwamba@gmail.com' || user?.email?.toLowerCase().endsWith('@urban-hikers.com');
 
@@ -1138,7 +1162,7 @@ export default function App() {
 
     return (
       <ErrorBoundary section="CONTROL_CENTER">
-        <Dashboard userProfile={userProfile} onLogout={() => auth.signOut()} />
+        <Dashboard user={user} userProfile={userProfile} nodes={nodes} onLogout={() => auth.signOut()} />
       </ErrorBoundary>
     );
   }
@@ -1219,6 +1243,7 @@ export default function App() {
           <DepartureBoard 
             nodeName={currentNode?.name || 'UNKNOWN_SECTOR'} 
             currentNode={currentNode}
+            nodes={nodes}
             broadcasts={broadcasts}
             onSelect={setSelectedBroadcast}
             onConfirm={(id) => setConfirmedBroadcastId(id)}
@@ -1249,6 +1274,7 @@ export default function App() {
             savedHubs={savedHubs}
             partnersMap={partnersMap}
             nfcStatus={nfcStatus}
+            localHubs={localHubs}
           />
         </ErrorBoundary>
 

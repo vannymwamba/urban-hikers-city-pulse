@@ -140,6 +140,12 @@ service cloud.firestore {
       allow write:  if isSuperAdmin();
     }
 
+    // ── local_hubs collection ─────────────────────
+    match /local_hubs/{docId} {
+      allow read:   if true;
+      allow write:  if isSuperAdmin();
+    }
+
     // ── users / profiles ──────────────────────────
     match /users/{uid} {
       allow read:   if isSignedIn() && request.auth.uid == uid;

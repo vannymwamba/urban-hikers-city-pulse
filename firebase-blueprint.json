@@ -206,6 +206,24 @@
         "timestamp": { "type": "string", "format": "date-time" }
       },
       "required": ["slot_id", "type", "timestamp"]
+    },
+    "LocalHub": {
+      "title": "Local Hub Station",
+      "description": "Premium businesses or refuel stations near hubs.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "offer": { "type": "string" },
+        "address": { "type": "string" },
+        "distance_mi": { "type": "number" },
+        "tier": { "type": "string", "enum": ["free", "paid", "premium"] },
+        "cover_url": { "type": "string" },
+        "cta_url": { "type": "string" },
+        "is_open": { "type": "boolean" },
+        "is_live_deal": { "type": "boolean" },
+        "is_active": { "type": "boolean" }
+      },
+      "required": ["name", "address", "tier", "is_active"]
     }
   },
   "firestore": {
@@ -256,6 +274,10 @@
     "/impressions/{impressionId}": {
       "schema": "Impression",
       "description": "Analytics for rotation system."
+    },
+    "/local_hubs/{hubId}": {
+      "schema": "LocalHub",
+      "description": "Collection of local refuel stations."
     }
   }
 }

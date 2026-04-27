@@ -66,7 +66,7 @@ export interface Broadcast {
   sponsor_name?: string | null;
   ingestedAt?: any;
   active?: boolean;
-  payment_type?: 'tip_jar' | 'stripe' | 'free';
+  payment_type?: 'tip_jar' | 'stripe' | 'free' | 'admin_bypass';
   tip_url?: string | null;
   price?: number;
   stripe_price_id?: string;
@@ -75,7 +75,7 @@ export interface Broadcast {
   departure_time?: string;
   meeting_point?: string;
   guide_name?: string;
-  scope?: 'single_hub' | 'all_nodes';
+  scope?: 'single_hub' | 'all_nodes' | 'specific_node' | 'multi_node';
   discount_value?: string;
   signal_location_source?: string;
   artist?: string;
@@ -91,6 +91,7 @@ export interface Broadcast {
   cross_connection_id?: string | null;
   taps?: number;
   impressions?: number;
+  created_at?: any;
 }
 
 export interface Partner {
@@ -220,4 +221,19 @@ export interface Poi {
   type: 'civic_mural';
   createdAt: string;
   active: boolean;
+}
+
+export interface LocalHub {
+  id: string;
+  name: string;
+  offer?: string;
+  address: string;
+  distance_mi?: number;
+  tier: 'free' | 'paid' | 'premium';
+  cover_url?: string;
+  cta_url?: string;
+  is_open?: boolean;
+  is_live_deal?: boolean;
+  is_active: boolean;
+  created_at?: any;
 }

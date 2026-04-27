@@ -144,12 +144,15 @@ export const BroadcastModal: React.FC<BroadcastModalProps> = ({
                   <div>
                     <h3 className="text-[10px] font-black text-uh-gray-400 uppercase tracking-widest font-mono mb-4">Actions</h3>
                     <div className="flex flex-col gap-3">
-                      {broadcast.sourceUrl && (
+                      {(broadcast.booking_url || broadcast.sourceUrl) && (
                         <button 
-                          onClick={() => window.open(broadcast.sourceUrl!, '_blank')}
+                          onClick={() => window.open((broadcast.booking_url || broadcast.sourceUrl)!, '_blank')}
                           className="w-full bg-uh-yellow text-uh-black py-4 rounded-2xl text-[11px] font-black uppercase tracking-widest hover:scale-[1.02] transition-transform shadow-lg shadow-uh-yellow/10"
                         >
-                          Execute_Source
+                          {broadcast.type === 'donation' ? 'Donate ♥' : 
+                           broadcast.type === 'walking_event' ? 'Book Now ↗' : 
+                           broadcast.type === 'flash_deal' ? 'Claim Deal ↗' : 
+                           'Execute_Source'}
                         </button>
                       )}
 
