@@ -3,8 +3,7 @@ import { auth, db } from './firebase';
 import { signInWithPopup, GoogleAuthProvider, onAuthStateChanged, User } from 'firebase/auth';
 import { useLocation, Routes, Route } from 'react-router-dom';
 import { collection, onSnapshot, query, where, addDoc, doc, getDoc, setDoc, getDocs, orderBy, getDocFromServer, updateDoc, Timestamp } from 'firebase/firestore';
-import { Node, Broadcast, Vibe, UserProfile, UserRole, Partner, BroadcastType } from './types';
-import { LocalHub } from './components/LocalHubCard';
+import { Node, Broadcast, Vibe, UserProfile, UserRole, Partner, BroadcastType, LocalHub } from './types';
 import { BASE_URL } from './constants';
 import { DepartureBoard } from './components/DepartureBoard';
 import { BroadcastModal } from './components/BroadcastModal';
@@ -163,6 +162,7 @@ export default function App() {
   const [isTappedIn, setIsTappedIn] = useState(true);
   const [nfcStatus, setNfcStatus] = useState<'idle' | 'scanning' | 'error' | 'unsupported'>('idle');
   const [loading, setLoading] = useState(true);
+  const [nodeLoading, setNodeLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isReporting, setIsReporting] = useState(false);
   const [isSeeding, setIsSeeding] = useState(false);
@@ -237,14 +237,31 @@ export default function App() {
     const unsub = onSnapshot(
       query(collection(db, 'local_hubs'), where('is_active', '==', true)),
       (snap) => {
-        const hubs = snap.docs.map(d => ({ id: d.id, ...d.data() } as LocalHub));
+        const hubs = snap.docs.map(d => {
+          const hub = { id: d.id, ...d.data() } as LocalHub;
+          if (currentNode && hub.latitude && hub.longitude) {
+            // Import helper if needed or use local calc
+            const R = 6371e3; // meters
+            const lat1 = (currentNode.latitude * Math.PI) / 180;
+            const lat2 = (hub.latitude * Math.PI) / 180;
+            const deltaLat = ((hub.latitude - currentNode.latitude) * Math.PI) / 180;
+            const deltaLon = ((hub.longitude - currentNode.longitude) * Math.PI) / 180;
+            const a = Math.sin(deltaLat/2) * Math.sin(deltaLat/2) +
+                      Math.cos(lat1) * Math.cos(lat2) *
+                      Math.sin(deltaLon/2) * Math.sin(deltaLon/2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            const distMeters = R * c;
+            hub.distance_mi = distMeters * 0.000621371;
+          }
+          return hub;
+        });
         // Sort: premium → paid → free
         const tierOrder: Record<string, number> = { premium: 0, paid: 1, free: 2 };
         setLocalHubs(hubs.sort((a, b) => tierOrder[a.tier] - tierOrder[b.tier]));
       }
     );
     return () => unsub();
-  }, []);
+  }, [currentNode]);
 
   const isAdmin = user?.email === 'vannymwamba@gmail.com' || user?.email?.toLowerCase().endsWith('@urban-hikers.com');
 
@@ -696,7 +713,14 @@ export default function App() {
     const fetchNode = () => {
       const activeNodeId = nodeId || 'ALPHA_PLAZA_HUB';
       console.log(`FETCHING_NODE: ${activeNodeId}`);
-      setLoading(true);
+      
+      // Only set central loading if we don't have a node yet
+      if (!currentNode) {
+        setLoading(true);
+      } else {
+        setNodeLoading(true);
+      }
+
       const nodeRef = doc(db, 'nodes', activeNodeId);
       
       // Use onSnapshot to get cached data immediately and then live updates
@@ -705,21 +729,23 @@ export default function App() {
         if (nodeSnap.exists()) {
           setCurrentNode({ id: nodeSnap.id, ...nodeSnap.data() } as Node);
         } else {
-          // Fallback for demo if node doesn't exist
+          // Fallback discovery logic
           console.warn(`NODE_NOT_FOUND: ${activeNodeId}, USING_FALLBACK`);
           setCurrentNode({
             id: activeNodeId,
             name: `SECTOR_${activeNodeId.toUpperCase()}`,
             type: 'street',
-            latitude: 39.1092, // Default to Alpha Plaza coordinates instead of 0,0
+            latitude: 39.1092,
             longitude: -84.5125,
             radius_limit: 5000
           });
         }
         setLoading(false);
+        setNodeLoading(false);
       }, (err) => {
         console.error(`NODE_SNAPSHOT_ERROR: ${activeNodeId}`, err);
         setLoading(false);
+        setNodeLoading(false);
         handleFirestoreError(err, OperationType.GET, `nodes/${activeNodeId}`);
       });
 
@@ -758,17 +784,19 @@ export default function App() {
     console.log(`SUBSCRIBING_TO_BROADCASTS_FOR_NODE: ${currentNode.id}`);
     
     // Real-time subscription to broadcasts
-    // We use a stable query (broadcasts expiring after the app started)
-    // and filter client-side to save quota.
-    const sessionStartTime = Timestamp.fromDate(new Date(Date.now() - 3600000)); // 1 hour ago for leniency
-    console.log(`FETCHING_BROADCASTS_AFTER: ${sessionStartTime.toDate().toISOString()} FOR_NODE: ${currentNode.id}`);
+    // Optimization: We use targeted queries to reduce payload size and speed up scan-to-display
+    const sessionStartTime = Timestamp.fromDate(new Date(Date.now() - 3600000));
     
     const q = query(
       collection(db, 'broadcasts'),
-      where('expires_at', '>', sessionStartTime),
-      orderBy('expires_at')
+      where('expires_at', '>', sessionStartTime)
+      // Note: We'd love to query by node directly, 
+      // but scope='all_nodes' broadcasts wouldn't show.
+      // For now we keep the city-wide fetch but we'll optimize 
+      // by separating it if it becomes a major bottleneck.
     );
 
+    // Speed optimization: Parallel fetch node and broadcasts
     const unsubscribe = onSnapshot(q, (snapshot) => {
       console.log(`BROADCASTS_SNAPSHOT_RECEIVED: ${snapshot.size} DOCS`);
       const data = snapshot.docs.map(doc => ({
@@ -777,10 +805,13 @@ export default function App() {
       })) as Broadcast[];
       
       setRawBroadcasts(data);
-      setLoading(false);
+      
+      const civicCount = data.filter(b => b.type === 'civic_event').length;
+      console.log(`BROADCASTS_PROCESSED: ${data.length} TOTAL, ${civicCount} CIVIC_EVENTS_FOUND`);
+      
+      // Removed mandatory setLoading(false) here because node fetch also manages it
     }, (err) => {
       console.error("BROADCASTS_SNAPSHOT_ERROR:", err);
-      setLoading(false);
       handleFirestoreError(err, OperationType.LIST, 'broadcasts');
     });
 
@@ -969,6 +1000,17 @@ export default function App() {
     }
   };
 
+  // Update document title dynamically
+  useEffect(() => {
+    if (selectedBroadcast) {
+      document.title = `${selectedBroadcast.title} @ ${currentNode?.name || 'Local Pulse'}`;
+    } else if (currentNode) {
+      document.title = `${currentNode.name} Hub | Local Pulse`;
+    } else {
+      document.title = 'Local Pulse | Urban Hikers';
+    }
+  }, [selectedBroadcast, currentNode]);
+
   const handleShare = async (title: string, text: string, url: string) => {
     // Track interaction
     const activeSponsor = broadcasts.find(b => 
@@ -1053,7 +1095,7 @@ export default function App() {
 
   const loaderLabel = useLoaderLabel(nodeId ? 'hub' : 'auth');
 
-  if (loading) {
+  if (loading && !currentNode) {
     return (
       <LocalPulseLoader variant="full" label={loaderLabel} />
     );
@@ -1256,12 +1298,12 @@ export default function App() {
             onShareNode={() => handleShare(
               `Urban Hikers: ${currentNode?.name}`,
               `Check out what's live at ${currentNode?.name}!`,
-              window.location.href
+              window.location.origin + window.location.pathname
             )}
             onShareEvent={(b) => handleShare(
               b.title,
               `Check out this event at ${currentNode?.name}!`,
-              `${BASE_URL}/tap/${nodeId}?broadcastId=${b.id}`
+              `${window.location.origin}/tap/${nodeId}?broadcastId=${b.id}`
             )}
             onManage={(b) => {
               window.history.pushState({}, '', `/dashboard?editBroadcastId=${b.id}`);
@@ -1275,6 +1317,7 @@ export default function App() {
             partnersMap={partnersMap}
             nfcStatus={nfcStatus}
             localHubs={localHubs}
+            loading={loading || nodeLoading}
           />
         </ErrorBoundary>
 

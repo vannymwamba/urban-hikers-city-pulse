@@ -102,8 +102,9 @@ export function isNotExpired(broadcast: any): boolean {
     broadcast.type === 'mural' ||
     broadcast.type === 'street_art' ||
     broadcast.type === 'MURAL' ||
-    broadcast.type === 'STREET_ART'
-  ) return true;                    // permanent — never expire
+    broadcast.type === 'STREET_ART' ||
+    broadcast.type === 'civic_event'
+  ) return true;                    // permanent/civic — keep showing
 
   const end = toMs(broadcast.expires_at || broadcast.expiresAt);
   if (!end) return true;            // no expiry = keep showing

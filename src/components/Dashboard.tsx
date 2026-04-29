@@ -51,16 +51,28 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, userProfile, nodes, 
   const [newLocalHub, setNewLocalHub] = useState({
     name: '',
     address: '',
+    latitude: 39.1092,
+    longitude: -84.5125,
     offer: '',
     tier: 'free' as 'free' | 'paid' | 'premium',
     cta_url: '',
     cover_url: '',
-    is_active: true
+    is_active: true,
+    operating_hours: {
+      monday: { open: '09:00', close: '21:00' },
+      tuesday: { open: '09:00', close: '21:00' },
+      wednesday: { open: '09:00', close: '21:00' },
+      thursday: { open: '09:00', close: '21:00' },
+      friday: { open: '09:00', close: '18:00' },
+      saturday: { open: '09:00', close: '18:00' },
+      sunday: { open: '13:00', close: '17:00' }
+    }
   });
   
   const [newBroadcast, setNewBroadcast] = useState({ 
     title: '', 
     type: BroadcastType.LIVE_EVENT, 
+    description: '',
     node_id: '',
     node_ids: [] as string[],
     custom_address: '',
@@ -70,13 +82,23 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, userProfile, nodes, 
     partner_id: userProfile?.partner_id || userProfile?.partnerId || '',
     cover_url: '',
     artist: '',
+    artist_url: '',
     booking_url: '',
+    organizer_logo_url: '',
     sponsor_logo_url: '',
     is_sponsored: false,
     partner_name: '',
     sponsor_name: '',
     latitude: null as number | null,
-    longitude: null as number | null
+    longitude: null as number | null,
+    deal_description: '',
+    year_created: null as number | null,
+    price: 0,
+    spots_remaining: null as number | null,
+    departure_time: '',
+    meeting_point: '',
+    guide_name: '',
+    discount_value: '',
   });
 
   const [newPartner, setNewPartner] = useState({
@@ -89,6 +111,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, userProfile, nodes, 
 
   const [editingBroadcastId, setEditingBroadcastId] = useState<string | null>(null);
   const [previewNodeId, setPreviewNodeId] = useState<string | null>(null);
+  
+  const [resolvingCoordinates, setResolvingCoordinates] = useState(false);
   
   const [hubCoverPreview, setHubCoverPreview] = useState<string | null>(null);
   const [uploadingHubCover, setUploadingHubCover] = useState(false);
@@ -234,7 +258,26 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, userProfile, nodes, 
         created_at: Timestamp.now()
       });
       setShowAddLocalHub(false);
-      setNewLocalHub({ name: '', address: '', offer: '', tier: 'free', cta_url: '', cover_url: '', is_active: true });
+      setNewLocalHub({ 
+        name: '', 
+        address: '', 
+        latitude: 39.1092, 
+        longitude: -84.5125, 
+        offer: '', 
+        tier: 'free', 
+        cta_url: '', 
+        cover_url: '', 
+        is_active: true,
+        operating_hours: {
+          monday: { open: '09:00', close: '21:00' },
+          tuesday: { open: '09:00', close: '21:00' },
+          wednesday: { open: '09:00', close: '21:00' },
+          thursday: { open: '09:00', close: '21:00' },
+          friday: { open: '09:00', close: '18:00' },
+          saturday: { open: '09:00', close: '18:00' },
+          sunday: { open: '13:00', close: '17:00' }
+        }
+      });
       setHubCoverPreview(null);
       setHubCoverMode('upload');
       setHudMessage({ text: 'LOCAL_HUB_IGNITED', type: 'info' });
@@ -311,6 +354,65 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, userProfile, nodes, 
       setHudMessage({ text: 'SIGNAL_REKINDLED', type: 'info' });
     } catch (err) {
       handleFirestoreError(err, OperationType.CREATE, 'broadcasts');
+    }
+  };
+
+  const handlePatchLibraryHours = async () => {
+    try {
+      const libraryHub = localHubs.find(h => h.name.toLowerCase().includes('library'));
+      if (!libraryHub) {
+        setHudMessage({ text: 'LIBRARY_HUB_NOT_FOUND_IN_REGISTRY', type: 'error' });
+        return;
+      }
+
+      const hours = {
+        monday: { open: '09:00', close: '21:00' },
+        tuesday: { open: '09:00', close: '21:00' },
+        wednesday: { open: '09:00', close: '21:00' },
+        thursday: { open: '09:00', close: '21:00' },
+        friday: { open: '09:00', close: '18:00' },
+        saturday: { open: '09:00', close: '18:00' },
+        sunday: { open: '13:00', close: '17:00' }
+      };
+
+      const { updateDoc: fbUpdateDoc } = await import('firebase/firestore');
+      await fbUpdateDoc(doc(db, 'local_hubs', libraryHub.id), { 
+        operating_hours: hours,
+        is_open: true // Setting true here but logic in card will handle it dynamically
+      });
+
+      setHudMessage({ text: 'LIBRARY_HOURS_SYNCHRONIZED', type: 'info' });
+    } catch (err) {
+      setHudMessage({ text: 'SYNC_FAILED', type: 'error' });
+    }
+  };
+
+  const handleResolveCoordinates = async () => {
+    if (!newLocalHub.address) {
+      setHudMessage({ text: 'ADDRESS_REQUIRED_FOR_RESOLUTION', type: 'error' });
+      return;
+    }
+
+    setResolvingCoordinates(true);
+    try {
+      const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(newLocalHub.address)}`);
+      const data = await response.json();
+
+      if (data && data.length > 0) {
+        const { lat, lon } = data[0];
+        setNewLocalHub(prev => ({
+          ...prev,
+          latitude: parseFloat(lat),
+          longitude: parseFloat(lon)
+        }));
+        setHudMessage({ text: 'COORDINATES_RESOLVED', type: 'info' });
+      } else {
+        setHudMessage({ text: 'COULD_NOT_RESOLVE_ADDRESS', type: 'error' });
+      }
+    } catch (err) {
+      setHudMessage({ text: 'GEOCODING_SERVICE_INTERRUPTED', type: 'error' });
+    } finally {
+      setResolvingCoordinates(false);
     }
   };
 
@@ -411,11 +513,26 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, userProfile, nodes, 
         )}
 
         {activeTab === 'system' && isSuperAdmin && (
-          <SystemHealthPanel 
-            userProfile={userProfile}
-            listenerHealth={listenerHealth}
-            systemHealth={systemHealth}
-          />
+          <div className="space-y-8 animate-in fade-in duration-500">
+            <SystemHealthPanel 
+              userProfile={userProfile}
+              listenerHealth={listenerHealth}
+              systemHealth={systemHealth}
+            />
+            
+            <div className="bg-white border border-uh-gray-200 rounded-2xl p-8">
+              <h3 className="text-[10px] font-black uppercase tracking-widest mb-6 border-b border-uh-gray-100 pb-4">Data_Repair_Ops</h3>
+              <div className="flex flex-wrap gap-4">
+                <button 
+                  onClick={handlePatchLibraryHours}
+                  className="px-6 py-3 bg-teal-500 text-white text-[9px] font-black tracking-widest uppercase rounded-xl hover:scale-105 transition-all flex items-center gap-2"
+                >
+                  <RefreshCw size={14} />
+                  Sync Library Hours
+                </button>
+              </div>
+            </div>
+          </div>
         )}
 
         {activeTab === 'broadcasts' && (
@@ -434,11 +551,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, userProfile, nodes, 
                     setHudMessage({ text: 'SIGNAL_TRANSMITTED', type: 'info' });
                     setEditingBroadcastId(null);
                     setNewBroadcast({ 
-                      title: '', type: BroadcastType.LIVE_EVENT, node_id: '', node_ids: [], custom_address: '', 
+                      title: '', type: BroadcastType.LIVE_EVENT, description: '', node_id: '', node_ids: [], custom_address: '', 
                       event_date: new Date().toISOString().split('T')[0], start_time: '12:00', end_time: '14:00',
                       partner_id: userProfile?.partner_id || userProfile?.partnerId || '', cover_url: '', 
-                      artist: '', booking_url: '', sponsor_logo_url: '', is_sponsored: false, 
-                      partner_name: '', sponsor_name: '', latitude: null, longitude: null
+                      artist: '', artist_url: '', booking_url: '', organizer_logo_url: '', sponsor_logo_url: '', is_sponsored: false, 
+                      partner_name: '', sponsor_name: '', latitude: null, longitude: null,
+                      deal_description: '', year_created: null, price: 0, spots_remaining: null,
+                      departure_time: '', meeting_point: '', guide_name: '', discount_value: ''
                     });
                   }
                 }}
@@ -500,6 +619,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, userProfile, nodes, 
                             setNewBroadcast({
                               title: b.title,
                               type: b.type,
+                              description: b.description || '',
                               node_id: b.node_id || b.nodeId || '',
                               node_ids: b.node_ids || [],
                               custom_address: b.address || b.venue || '',
@@ -509,13 +629,23 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, userProfile, nodes, 
                               partner_id: b.partner_id || b.partnerId || '',
                               cover_url: b.cover_url || b.imageUrl || '',
                               artist: b.artist || '',
+                              artist_url: b.artist_url || '',
                               booking_url: b.booking_url || '',
+                              organizer_logo_url: b.organizer_logo_url || '',
                               sponsor_logo_url: b.sponsor_logo_url || '',
                               is_sponsored: b.is_sponsored || false,
                               partner_name: b.partner_name || '',
                               sponsor_name: b.sponsor_name || '',
                               latitude: b.latitude || null,
-                              longitude: b.longitude || null
+                              longitude: b.longitude || null,
+                              deal_description: b.deal_description || '',
+                              year_created: b.year_created || null,
+                              price: b.price || 0,
+                              spots_remaining: b.spots_remaining || null,
+                              departure_time: b.departure_time || '',
+                              meeting_point: b.meeting_point || '',
+                              guide_name: b.guide_name || '',
+                              discount_value: b.discount_value || ''
                             });
                             window.scrollTo({ top: 0, behavior: 'smooth' });
                           }}
@@ -946,12 +1076,42 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, userProfile, nodes, 
                         onChange={e => setNewLocalHub({...newLocalHub, name: e.target.value})}
                       />
                     </div>
-                    <div>
+                    <div className="md:col-span-2">
                       <label className="text-[9px] text-[#999] tracking-widest uppercase mb-2 block">Address</label>
+                      <div className="flex gap-2">
+                        <input 
+                          className="flex-grow bg-uh-gray-50 border border-uh-gray-100 rounded-xl px-4 py-3 text-[12px] font-bold focus:border-uh-yellow outline-none"
+                          value={newLocalHub.address}
+                          onChange={e => setNewLocalHub({...newLocalHub, address: e.target.value})}
+                        />
+                        <button 
+                          onClick={handleResolveCoordinates}
+                          disabled={resolvingCoordinates || !newLocalHub.address}
+                          className="px-4 bg-black text-[#FFE01A] rounded-xl text-[9px] font-black uppercase tracking-widest hover:scale-105 active:scale-95 transition-all disabled:opacity-50 disabled:grayscale flex items-center gap-2"
+                        >
+                          {resolvingCoordinates ? <Loader2 size={12} className="animate-spin" /> : <MapPin size={12} />}
+                          Resolve
+                        </button>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-[9px] text-[#999] tracking-widest uppercase mb-2 block">Latitude</label>
                       <input 
+                        type="number"
+                        step="0.0001"
                         className="w-full bg-uh-gray-50 border border-uh-gray-100 rounded-xl px-4 py-3 text-[12px] font-bold focus:border-uh-yellow outline-none"
-                        value={newLocalHub.address}
-                        onChange={e => setNewLocalHub({...newLocalHub, address: e.target.value})}
+                        value={newLocalHub.latitude}
+                        onChange={e => setNewLocalHub({...newLocalHub, latitude: parseFloat(e.target.value)})}
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[9px] text-[#999] tracking-widest uppercase mb-2 block">Longitude</label>
+                      <input 
+                        type="number"
+                        step="0.0001"
+                        className="w-full bg-uh-gray-50 border border-uh-gray-100 rounded-xl px-4 py-3 text-[12px] font-bold focus:border-uh-yellow outline-none"
+                        value={newLocalHub.longitude}
+                        onChange={e => setNewLocalHub({...newLocalHub, longitude: parseFloat(e.target.value)})}
                       />
                     </div>
                     <div>
@@ -1101,6 +1261,65 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, userProfile, nodes, 
                             Best results: square or landscape photo of the storefront. PNG · JPG · WEBP — displays on walker-facing hub card.
                           </p>
                         </div>
+                      </div>
+                    </div>
+                    {/* Operating Hours Section */}
+                    <div className="mt-8 border-t border-uh-gray-100 pt-6">
+                      <label className="text-[10px] text-uh-black tracking-widest uppercase mb-6 block font-black">
+                        Targeted_Operating_Hours
+                      </label>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-4">
+                        {['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'].map(day => {
+                          const isClosed = !newLocalHub.operating_hours[day];
+                          return (
+                            <div key={day} className="flex items-center justify-between gap-4 py-2 border-b border-uh-gray-50 last:border-0 md:border-0">
+                              <div className="flex items-center gap-3 w-24">
+                                <button 
+                                  onClick={() => {
+                                    const hours = { ...newLocalHub.operating_hours };
+                                    if (isClosed) {
+                                      hours[day] = { open: '09:00', close: '17:00' };
+                                    } else {
+                                      hours[day] = null;
+                                    }
+                                    setNewLocalHub({ ...newLocalHub, operating_hours: hours });
+                                  }}
+                                  className={`w-8 h-4 rounded-full relative transition-all ${isClosed ? 'bg-uh-gray-200' : 'bg-teal-500'}`}
+                                >
+                                  <div className={`absolute top-0.5 w-3 h-3 bg-white rounded-full transition-all ${isClosed ? 'left-0.5' : 'left-4.5'}`} />
+                                </button>
+                                <span className={`text-[9px] font-black uppercase ${isClosed ? 'text-uh-gray-300 line-through' : 'text-uh-gray-600'}`}>{day.slice(0,3)}</span>
+                              </div>
+                              <div className={`flex items-center gap-2 flex-grow transition-opacity ${isClosed ? 'opacity-30 pointer-events-none' : 'opacity-100'}`}>
+                                <input 
+                                  type="time"
+                                  className="bg-uh-gray-50 border border-uh-gray-100 rounded-lg px-2 py-1.5 text-[11px] font-bold outline-none flex-grow focus:border-uh-yellow"
+                                  value={newLocalHub.operating_hours?.[day]?.open || '09:00'}
+                                  onChange={e => {
+                                    const hours = { ...newLocalHub.operating_hours };
+                                    if (hours[day]) {
+                                      hours[day] = { ...hours[day]!, open: e.target.value };
+                                      setNewLocalHub({ ...newLocalHub, operating_hours: hours });
+                                    }
+                                  }}
+                                />
+                                <span className="text-[9px] text-uh-gray-300 uppercase font-black">to</span>
+                                <input 
+                                  type="time"
+                                  className="bg-uh-gray-50 border border-uh-gray-100 rounded-lg px-2 py-1.5 text-[11px] font-bold outline-none flex-grow focus:border-uh-yellow"
+                                  value={newLocalHub.operating_hours?.[day]?.close || '21:00'}
+                                  onChange={e => {
+                                    const hours = { ...newLocalHub.operating_hours };
+                                    if (hours[day]) {
+                                      hours[day] = { ...hours[day]!, close: e.target.value };
+                                      setNewLocalHub({ ...newLocalHub, operating_hours: hours });
+                                    }
+                                  }}
+                                />
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
                   </div>

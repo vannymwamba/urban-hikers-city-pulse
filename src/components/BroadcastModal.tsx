@@ -102,6 +102,11 @@ export const BroadcastModal: React.FC<BroadcastModalProps> = ({
                     <p className="text-uh-gray-800 text-sm leading-relaxed whitespace-pre-wrap font-medium">
                       {broadcast.description || "No additional intel available for this signal."}
                     </p>
+                    {broadcast.deal_description && (
+                      <p className="mt-4 p-4 bg-uh-yellow/10 border-l-4 border-uh-yellow text-uh-black text-sm font-bold">
+                        {broadcast.deal_description}
+                      </p>
+                    )}
                   </section>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -109,9 +114,16 @@ export const BroadcastModal: React.FC<BroadcastModalProps> = ({
                       <div className="text-[9px] font-black text-uh-gray-400 uppercase tracking-widest font-mono mb-3">Location</div>
                       <div className="flex items-start gap-2">
                         <MapPin size={16} className="text-uh-yellow shrink-0 mt-0.5" />
-                        <span className="text-xs font-black text-uh-black uppercase tracking-tight">
-                          {broadcast.venue || broadcast.meeting_point || 'Washington Park'}
-                        </span>
+                        <div className="flex flex-col">
+                          <span className="text-xs font-black text-uh-black uppercase tracking-tight">
+                            {broadcast.venue || broadcast.address || 'Washington Park'}
+                          </span>
+                          {broadcast.meeting_point && (
+                            <span className="text-[10px] text-uh-gray-400 font-bold mt-1 uppercase">
+                              Meet: {broadcast.meeting_point}
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
 
@@ -119,12 +131,57 @@ export const BroadcastModal: React.FC<BroadcastModalProps> = ({
                       <div className="text-[9px] font-black text-uh-gray-400 uppercase tracking-widest font-mono mb-3">Window</div>
                       <div className="flex items-start gap-2">
                         <Clock size={16} className="text-uh-yellow shrink-0 mt-0.5" />
-                        <span className="text-xs font-black text-uh-black uppercase tracking-tight">
-                          {formatTime(startsAt)} — {formatTime(expiresAt)}
-                        </span>
+                        <div className="flex flex-col">
+                          <span className="text-xs font-black text-uh-black uppercase tracking-tight">
+                            {formatTime(startsAt)} — {formatTime(expiresAt)}
+                          </span>
+                          {broadcast.departure_time && (
+                            <span className="text-[10px] text-uh-gray-400 font-bold mt-1 uppercase text-uh-magenta">
+                              Departs: {broadcast.departure_time}
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </div>
+
+                  {(broadcast.artist || broadcast.guide_name || broadcast.partner_name) && (
+                    <div className="p-5 bg-white rounded-2xl border border-uh-gray-100 shadow-sm transition-all">
+                      <div className="text-[9px] font-black text-uh-gray-400 uppercase tracking-widest font-mono mb-3">Credits</div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        {broadcast.artist && (
+                          <div className="flex flex-col">
+                            <span className="text-[8px] text-uh-gray-400 uppercase tracking-widest mb-1">Artist</span>
+                            {broadcast.artist_url ? (
+                              <a href={broadcast.artist_url} target="_blank" rel="noopener noreferrer" className="text-xs font-black uppercase text-uh-black hover:text-uh-yellow flex items-center gap-1">
+                                {broadcast.artist} <ExternalLink size={10} />
+                              </a>
+                            ) : (
+                              <span className="text-xs font-black uppercase text-uh-black">{broadcast.artist}</span>
+                            )}
+                          </div>
+                        )}
+                        {broadcast.guide_name && (
+                          <div className="flex flex-col">
+                            <span className="text-[8px] text-uh-gray-400 uppercase tracking-widest mb-1">Guide</span>
+                            <span className="text-xs font-black uppercase text-uh-black">{broadcast.guide_name}</span>
+                          </div>
+                        )}
+                        {broadcast.partner_name && (
+                          <div className="flex flex-col">
+                            <span className="text-[8px] text-uh-gray-400 uppercase tracking-widest mb-1">Organizer</span>
+                            <span className="text-xs font-black uppercase text-uh-black">{broadcast.partner_name}</span>
+                          </div>
+                        )}
+                        {broadcast.year_created && (
+                          <div className="flex flex-col">
+                            <span className="text-[8px] text-uh-gray-400 uppercase tracking-widest mb-1">Year</span>
+                            <span className="text-xs font-black uppercase text-uh-black">{broadcast.year_created}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
 
                   <div className="space-y-8 pt-4">
                     <div>

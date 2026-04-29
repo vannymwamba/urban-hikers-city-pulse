@@ -1,7 +1,7 @@
 import React, { useRef, useState } from 'react';
-import { Broadcast, Partner, Node, Sponsor, BroadcastType, UserProfile } from '../types';
+import { Broadcast, Partner, Node, Sponsor, BroadcastType, UserProfile, LocalHub } from '../types';
 import { BroadcastCard } from './BroadcastCard';
-import { LocalHubCard, LocalHub } from './LocalHubCard';
+import { LocalHubCard } from './LocalHubCard';
 import { motion } from 'motion/react';
 import { ArrowRight } from 'lucide-react';
 
@@ -23,6 +23,7 @@ interface FeedProps {
   userProfile?: UserProfile | null;
   localHubs?: LocalHub[];
   onRedeemHub?: (hub: LocalHub) => void;
+  loading?: boolean;
 }
 
 export const Feed: React.FC<FeedProps> = ({
@@ -37,9 +38,31 @@ export const Feed: React.FC<FeedProps> = ({
   userProfile = null,
   localHubs = [],
   onRedeemHub,
+  loading = false,
 }) => {
   const isAdmin = userProfile?.role === 'admin' || userProfile?.role === 'super_admin' || userProfile?.email === 'vannymwamba@gmail.com';
   const isPartner = userProfile?.role === 'partner' || userProfile?.role === 'partner_admin' || userProfile?.role === 'partner_content_editor';
+
+  // Skeleton Loader for better perceived speed
+  if (loading && broadcasts.length === 0) {
+    return (
+      <div className="flex flex-col gap-10 py-6 animate-pulse">
+        {[1, 2].map((i) => (
+          <div key={i} className="flex flex-col gap-4">
+            <div className="px-6 flex justify-between items-center">
+              <div className="h-4 w-32 bg-uh-gray-100 rounded" />
+              <div className="h-3 w-12 bg-uh-gray-100 rounded" />
+            </div>
+            <div className="flex gap-4 px-6 overflow-hidden">
+              {[1, 2, 3].map((j) => (
+                <div key={j} className="flex-shrink-0 w-[85vw] max-w-[340px] h-[240px] bg-uh-gray-100 rounded-[32px]" />
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
 
   const canManageBroadcast = (b: Broadcast) => {
     if (isAdmin) return true;

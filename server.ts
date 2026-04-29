@@ -226,6 +226,44 @@ async function startServer() {
     ctx.fillStyle = "#0a0a0a"; 
     ctx.fillRect(0, 0, width, height);
 
+    // If cover URL exists, draw it as background
+    if (coverUrl) {
+      try {
+        const bgImg = await loadImage(coverUrl);
+        
+        // Center crop cover
+        const imgAspect = bgImg.width / bgImg.height;
+        const canvasAspect = width / height;
+        let drawWidth, drawHeight, offsetX, offsetY;
+
+        if (imgAspect > canvasAspect) {
+          drawHeight = height;
+          drawWidth = height * imgAspect;
+          offsetX = (width - drawWidth) / 2;
+          offsetY = 0;
+        } else {
+          drawWidth = width;
+          drawHeight = width / imgAspect;
+          offsetX = 0;
+          offsetY = (height - drawHeight) / 2;
+        }
+
+        ctx.globalAlpha = 0.4; // Fade out background to make text readable
+        ctx.drawImage(bgImg, offsetX, offsetY, drawWidth, drawHeight);
+        ctx.globalAlpha = 1.0;
+        
+        // Add a dark overlay gradient to ensure text readability
+        const gradient = ctx.createLinearGradient(0, 0, width, 0);
+        gradient.addColorStop(0, 'rgba(10,10,10,0.95)');
+        gradient.addColorStop(0.4, 'rgba(10,10,10,0.7)');
+        gradient.addColorStop(1, 'rgba(10,10,10,0.4)');
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, width, height);
+      } catch (err) {
+        console.error("OG Image BG Load Error:", err);
+      }
+    }
+
     // Draw Grid (Subtle)
     ctx.strokeStyle = "#FFE01A";
     ctx.lineWidth = 0.5;
@@ -290,38 +328,61 @@ async function startServer() {
     drawArc(42, 0.9);
     drawArc(56, 1.0);
 
-    // Brand Text
-    ctx.fillStyle = "#ffffff";
-    ctx.font = "bold 72px sans-serif";
-    ctx.fillText("LOCAL", 680, 280);
-    ctx.fillStyle = "#FFE01A";
-    ctx.fillText("PULSE", 680, 362);
+    // Specific Content Text
+    ctx.textAlign = "left";
     
+    // Type Tag
+    ctx.fillStyle = "#FFE01A";
+    ctx.globalAlpha = 0.9;
+    ctx.font = "bold 18px monospace";
+    ctx.fillText(type, 682, 190);
+    ctx.globalAlpha = 1.0;
+
+    // Pulse Title
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "bold 56px sans-serif";
+    const displayTitle = title.length > 25 ? title.substring(0, 22) + "..." : title;
+    ctx.fillText(displayTitle.toUpperCase(), 680, 260);
+    
+    // Venue/Location
+    ctx.fillStyle = "#FFE01A";
+    ctx.font = "bold 32px sans-serif";
+    const displayVenue = venue.length > 35 ? venue.substring(0, 32) + "..." : venue;
+    ctx.fillText(displayVenue.toUpperCase(), 680, 315);
+
+    // Brand Footnote
     ctx.fillStyle = "#ffffff";
     ctx.globalAlpha = 0.35;
     ctx.font = "14px monospace";
-    ctx.fillText("TAP THE CITY. FEEL WHAT'S NOW.", 682, 402);
+    ctx.fillText("URBAN HIKERS // LOCAL_PULSE_OS", 682, 380);
+    ctx.globalAlpha = 1.0;
+    
+    ctx.fillStyle = "#888";
+    ctx.font = "12px monospace";
+    ctx.fillText("TAP THE CITY. FEEL WHAT'S NOW.", 682, 405);
     
     ctx.fillStyle = "#FFE01A";
     ctx.globalAlpha = 0.5;
     ctx.font = "11px monospace";
-    ctx.fillText("BY URBAN HIKERS", 682, 460);
+    ctx.fillText("BY_URBAN_HIKERS_CREATIVE_LAB", 682, 460);
 
     // Scanning label
     ctx.globalAlpha = 0.9;
-    ctx.fillStyle = "#111";
-    ctx.fillRect(680, 485, 200, 30);
+    ctx.fillStyle = "#141414";
+    ctx.fillRect(680, 485, 220, 32);
     ctx.fillStyle = "#FFE01A";
-    ctx.beginPath(); ctx.arc(698, 500, 4, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = "#666";
+    ctx.beginPath(); ctx.arc(698, 501, 3, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "#999";
     ctx.font = "9px monospace";
-    ctx.fillText("SCANNING CITY...", 710, 504);
+    ctx.fillText("LIVE_SIGNAL_DETECTED_", 710, 505);
+    ctx.fillStyle = "#FFE01A";
+    ctx.fillText("OK", 870, 505);
 
     ctx.globalAlpha = 0.15;
     ctx.fillStyle = "#ffffff";
     ctx.textAlign = "center";
     ctx.font = "9px monospace";
-    ctx.fillText("URBAN HIKERS // PROTOCOL_0.9.1 // OVER-THE-RHINE", 600, 610);
+    ctx.fillText("SYSTEM_VERSION_4.2.0 // Cincinnati_HQ // DATA_ENCRYPTED", 600, 610);
 
     res.setHeader("Content-Type", "image/png");
     canvas.createPNGStream().pipe(res);
@@ -718,13 +779,19 @@ async function startServer() {
 
   // Shared metadata logic
   const getDynamicMetadata = async (req: any) => {
-    const appUrl = process.env.APP_URL || "https://app.localpulses.com";
+    // Determine the base URL dynamically or from ENV
+    const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'https';
+    const host = req.headers['host'];
+    
+    // Fallback order: ENV -> Request Host -> Constants
+    const appUrl = process.env.APP_URL || (host ? `${protocol}://${host}` : "https://app.localpulses.com");
+    
     const ogUrl = `${appUrl}${req.originalUrl}`;
     let ogTitle = "Local Pulse — Map the City";
     let ogDesc = "Urban Hikers — Tap the city. Feel what's happening now.";
     let ogImageUrl = `${appUrl}/api/og`;
 
-    const parsedUrl = new URL(req.url, appUrl);
+    const parsedUrl = new URL(req.originalUrl, appUrl);
     const pathParts = req.originalUrl.split('/');
     const isTapRoute = pathParts.includes('tap');
     const isSignalRoute = pathParts.includes('signal');
@@ -739,10 +806,13 @@ async function startServer() {
         const doc = await db.collection("broadcasts").doc(bId).get();
         if (doc.exists) {
           const data = doc.data();
-          ogTitle = `${data.title} @ ${data.venue || 'Cincinnati'}`;
-          ogDesc = data.description?.substring(0, 150) || ogDesc;
+          ogTitle = `${data.title} @ ${data.venue || data.address || 'Cincinnati'}`;
+          ogDesc = data.description ? data.description.substring(0, 160) : (data.offer ? `Live Deal: ${data.offer}` : ogDesc);
+          if (ogDesc.length > 160) ogDesc = ogDesc.substring(0, 157) + "...";
         }
-      } catch (err) {}
+      } catch (err) {
+        console.error("Metadata Fetch Error:", err);
+      }
     } else if (nId && nId !== 'tap' && db) {
       ogImageUrl += `?nodeId=${nId}`;
       try {

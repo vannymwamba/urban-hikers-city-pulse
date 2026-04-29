@@ -71,6 +71,21 @@ export function SignalPage() {
     );
   }, [tick, broadcast]);
 
+  const locationShort = broadcast?.venue
+    || broadcast?.address?.split(',')[0]?.trim()
+    || 'Nearby';
+
+  // Update document title
+  useEffect(() => {
+    if (broadcast?.title) {
+      document.title = `${broadcast.title} @ ${locationShort} | Local Pulse`;
+    } else if (notFound) {
+      document.title = `Signal Not Found | Local Pulse`;
+    } else {
+      document.title = `Local Pulse | Mapping the City`;
+    }
+  }, [broadcast, locationShort, notFound]);
+
   const handleShare = async () => {
     const url = window.location.href;
     if (navigator.share) {
@@ -111,10 +126,6 @@ export function SignalPage() {
   const timeLabel = getTimeLabel(broadcast.starts_at, broadcast.expires_at, broadcast.type);
   const isExpired = state === null;
   const isLive    = state === 'live';
-
-  const locationShort = broadcast.venue
-    || broadcast.address?.split(',')[0]?.trim()
-    || 'Nearby';
 
   return (
     <div style={{

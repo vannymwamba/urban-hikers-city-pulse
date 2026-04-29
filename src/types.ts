@@ -228,11 +228,16 @@ export interface LocalHub {
   name: string;
   offer?: string;
   address: string;
+  latitude?: number;
+  longitude?: number;
   distance_mi?: number;
   tier: 'free' | 'paid' | 'premium';
   cover_url?: string;
   cta_url?: string;
   is_open?: boolean;
+  operating_hours?: {
+    [key: string]: { open: string; close: string; } | null;
+  };
   is_live_deal?: boolean;
   is_active: boolean;
   created_at?: any;

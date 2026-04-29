@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Broadcast, Node, UserProfile, Partner, Route, Guide, Sponsor } from '../types';
-import { LocalHub } from './LocalHubCard';
+import { Broadcast, Node, UserProfile, Partner, Route, Guide, Sponsor, LocalHub } from '../types';
 import { MapView } from './MapView';
 import { BroadcastCard } from './BroadcastCard';
 import { FlashDealCard } from './FlashDealCard';
@@ -43,6 +42,7 @@ interface DepartureBoardProps {
   onBookRoute?: (route: Route) => void;
   nfcStatus?: 'idle' | 'scanning' | 'error' | 'unsupported';
   localHubs?: LocalHub[];
+  loading?: boolean;
 }
 
 export const DepartureBoard: React.FC<DepartureBoardProps> = ({ 
@@ -74,6 +74,7 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
   onBookRoute = () => {},
   nfcStatus = 'idle',
   localHubs = [],
+  loading = false,
 }) => {
   const [time, setTime] = useState(new Date());
   const [headerTheme, setHeaderTheme] = useState<'yellow' | 'dark' | 'photo' | 'white'>(() => {
@@ -262,6 +263,7 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
                 userProfile={userProfile}
                 localHubs={localHubs}
                 onRedeemHub={(hub) => hub.cta_url && window.open(hub.cta_url, '_blank')}
+                loading={loading}
               />
             ) : activeTab === 'explore' ? (
               // keep your existing explore view but ensure light background compatibility if needed

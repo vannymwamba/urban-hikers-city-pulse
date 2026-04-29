@@ -38,6 +38,7 @@ const StationDivider: React.FC<{ id: string; name: string }> = ({ id, name }) =>
 const initialFormState = {
   title:                '',
   type:                 BroadcastType.LIVE_EVENT,
+  description:          '',
   cover_url:            '',
   custom_address:       '',
   node_id:              null as string | null,
@@ -61,6 +62,10 @@ const initialFormState = {
   rotation_interval_seconds: 3,
   cross_connection_id:  null as string | null,
   scope:                'specific_node' as 'specific_node' | 'all_nodes' | 'multi_node',
+  departure_time:       '',
+  meeting_point:        '',
+  guide_name:           '',
+  discount_value:       '',
 };
 
 interface ValidationResult {
@@ -430,6 +435,10 @@ export const BroadcastControlForm: React.FC<BroadcastControlFormProps> = ({
         price:         formData.type === BroadcastType.CIVIC_EVENT ? 0 : (formData.price ?? 0),
         spots_remaining: formData.spots_remaining || null,
         sponsor_logo_url: formData.sponsor_logo_url || null,
+        departure_time: formData.departure_time || null,
+        meeting_point:  formData.meeting_point  || null,
+        guide_name:     formData.guide_name     || null,
+        discount_value: formData.discount_value || null,
 
         partner_id:    formData.partner_id || userProfile?.partner_id || userProfile?.partnerId || 'urban-hikers-admin',
         partnerId:     formData.partner_id || userProfile?.partner_id || userProfile?.partnerId || 'urban-hikers-admin',
@@ -719,6 +728,19 @@ export const BroadcastControlForm: React.FC<BroadcastControlFormProps> = ({
             <label className="text-[9px] text-[#999] tracking-[0.15em] uppercase mb-4 block underline decoration-[#FFE01A] decoration-2">SIGNAL_DETAILS</label>
             <p className="text-[10px] text-[#bbbbbb] mb-6 tracking-wide italic">Additional fields for this signal type</p>
 
+            <div className="flex flex-col gap-6 mb-8">
+              <div className="flex flex-col gap-2">
+                <label className="text-[9px] text-[#999] tracking-[0.15em] uppercase">GENERAL_DESCRIPTION</label>
+                <textarea 
+                  rows={3}
+                  value={formData.description || ''}
+                  onChange={e => setFormData?.(f => ({ ...f, description: e.target.value }))}
+                  placeholder="Tell the story of this signal... what should people expect when they arrive?"
+                  className="bg-white border-[0.5px] border-[#e0e0e0] rounded-[10px] p-[10px_14px] text-[12px] font-bold focus:border-[#FFE01A] outline-none resize-none"
+                />
+              </div>
+            </div>
+
             <div className="flex flex-col gap-6">
               {formData.type === BroadcastType.WALKING_EVENT && (
                 <div className="flex flex-col gap-6 animate-in fade-in slide-in-from-left-2 duration-300">
@@ -732,6 +754,39 @@ export const BroadcastControlForm: React.FC<BroadcastControlFormProps> = ({
                       className="bg-white border-[0.5px] border-[#e0e0e0] rounded-[10px] p-[10px_14px] text-[12px] font-bold focus:border-[#FFE01A] outline-none"
                     />
                     <p className="text-[8px] text-[#bbbbbb]">Shown above the walk title on the card</p>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="flex flex-col gap-2">
+                      <label className="text-[9px] text-[#999] tracking-widest uppercase">DEPARTURE_TIME</label>
+                      <input 
+                        type="time" 
+                        value={formData.departure_time || ''} 
+                        onChange={e => setFormData?.(f => ({ ...f, departure_time: e.target.value }))}
+                        className="bg-white border-[0.5px] border-[#e0e0e0] rounded-[10px] p-[10px_14px] text-[12px] font-bold focus:border-[#FFE01A] outline-none"
+                      />
+                    </div>
+                    <div className="flex flex-col gap-2">
+                      <label className="text-[9px] text-[#999] tracking-widest uppercase">GUIDE_NAME</label>
+                      <input 
+                        type="text" 
+                        value={formData.guide_name || ''} 
+                        onChange={e => setFormData?.(f => ({ ...f, guide_name: e.target.value }))}
+                        placeholder="e.g. Captain Hiker"
+                        className="bg-white border-[0.5px] border-[#e0e0e0] rounded-[10px] p-[10px_14px] text-[12px] font-bold focus:border-[#FFE01A] outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col gap-2">
+                    <label className="text-[9px] text-[#999] tracking-widest uppercase">MEETING_POINT</label>
+                    <input 
+                      type="text" 
+                      value={formData.meeting_point || ''} 
+                      onChange={e => setFormData?.(f => ({ ...f, meeting_point: e.target.value }))}
+                      placeholder="e.g. Fountain Square (north corner)"
+                      className="bg-white border-[0.5px] border-[#e0e0e0] rounded-[10px] p-[10px_14px] text-[12px] font-bold focus:border-[#FFE01A] outline-none"
+                    />
                   </div>
 
                   <div className="flex flex-col gap-2">
@@ -908,6 +963,16 @@ export const BroadcastControlForm: React.FC<BroadcastControlFormProps> = ({
                     <p className="text-[8px] text-[#bbbbbb]">Short offer text — shown in booking sheet</p>
                   </div>
                   <div className="flex flex-col gap-2">
+                    <label className="text-[9px] text-[#999] tracking-widest uppercase">DISCOUNT_VALUE</label>
+                    <input 
+                      type="text" 
+                      value={formData.discount_value || ''} 
+                      onChange={e => setFormData?.(f => ({ ...f, discount_value: e.target.value }))}
+                      placeholder="e.g. 50% OFF"
+                      className="bg-white border-[0.5px] border-[#e0e0e0] rounded-[10px] p-[10px_14px] text-[12px] font-bold focus:border-[#FFE01A] outline-none"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-2">
                     <label className="text-[9px] text-[#999] tracking-widest uppercase">REDEMPTION_URL</label>
                     <input 
                       type="text" 
@@ -1016,6 +1081,31 @@ export const BroadcastControlForm: React.FC<BroadcastControlFormProps> = ({
                       className="bg-white border-[0.5px] border-[#e0e0e0] rounded-[10px] p-[10px_14px] text-[12px] font-bold focus:border-[#FFE01A] outline-none"
                     />
                     <p className="text-[8px] text-[#bbbbbb]">View button links here</p>
+                  </div>
+                </div>
+              )}
+
+              {formData.type === BroadcastType.POP_UP && (
+                <div className="flex flex-col gap-6 animate-in fade-in slide-in-from-left-2 duration-300">
+                  <div className="flex flex-col gap-2">
+                    <label className="text-[9px] text-[#999] tracking-widest uppercase">HOST_NAME</label>
+                    <input 
+                      type="text" 
+                      value={formData.partner_name || ''} 
+                      onChange={e => setFormData?.(f => ({ ...f, partner_name: e.target.value }))}
+                      placeholder="e.g. HighGrain Brewing Co."
+                      className="bg-white border-[0.5px] border-[#e0e0e0] rounded-[10px] p-[10px_14px] text-[12px] font-bold focus:border-[#FFE01A] outline-none"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <label className="text-[9px] text-[#999] tracking-widest uppercase">OFFER_DETAILS</label>
+                    <input 
+                      type="text" 
+                      value={formData.deal_description || ''} 
+                      onChange={e => setFormData?.(f => ({ ...f, deal_description: e.target.value }))}
+                      placeholder="e.g. Sample the new IPA before it hits cans"
+                      className="bg-white border-[0.5px] border-[#e0e0e0] rounded-[10px] p-[10px_14px] text-[12px] font-bold focus:border-[#FFE01A] outline-none"
+                    />
                   </div>
                 </div>
               )}
