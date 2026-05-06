@@ -1,6 +1,15 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    // ── Global Safety Net ──────────────────────────
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // ── Connection Test ───────────────────────────
+    match /nodes/connection-test {
+      allow read: if true;
+    }
 
     // ── Helper functions ──────────────────────────
     function isSignedIn() {
@@ -108,8 +117,14 @@ service cloud.firestore {
 
     // ── partners collection ───────────────────────
     match /partners/{docId} {
-      allow read:   if true;
-      allow write:  if isSuperAdmin();
+      allow read:   if resource.data.active == true || isAdmin();
+      allow write:  if isAdmin();
+    }
+
+    // ── walks collection ──────────────────────────
+    match /walks/{docId} {
+      allow read:   if resource.data.active == true || isAdmin();
+      allow write:  if isAdmin();
     }
 
     // ── routes collection ─────────────────────────

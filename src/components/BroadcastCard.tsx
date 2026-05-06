@@ -7,7 +7,11 @@ import { getDistance } from '../utils/geo';
 import { 
   getTimeLabel,
   getTimeState,
-  toMs
+  toMs,
+  getRecurringTimeLabel,
+  getRecurringDeparturesSummary,
+  getNextRecurringDeparture,
+  getFrequencySummary,
 } from '../utils/timeUtils';
 import { 
   getEventStatus, 
@@ -122,8 +126,8 @@ export const BroadcastCard: React.FC<BroadcastCardProps> = ({
     return () => clearInterval(timer);
   }, [item, isFlashDeal]);
 
-  const cardHeight = variant === 'hero' ? 'h-[300px]' : 'h-[240px]';
-  const cardWidth = variant === 'hero' ? 'w-full' : 'w-[85vw] max-w-[340px]';
+  const cardHeight = variant === 'hero' ? 'h-[320px]' : 'h-[280px]';
+  const cardWidth = variant === 'hero' ? 'w-full' : 'w-[92vw] max-w-[380px]';
 
   const handleCTA = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -175,35 +179,46 @@ export const BroadcastCard: React.FC<BroadcastCardProps> = ({
   }
 
   const locationLabel = getLocationLabel(item);
+  const isRecurring = item.is_recurring === true;
 
-  const timeLabel = getTimeLabel(
-    item.starts_at,
-    item.expires_at,
-    item.type
-  );
+  const timeLabel = isRecurring
+    ? getRecurringTimeLabel(item)
+    : getTimeLabel(item.starts_at, item.expires_at, item.type);
 
-  const tState = getTimeState(item.starts_at, item.expires_at);
-  const isUrgent = tState === 'live' || tState === 'imminent';
+  const tState = isRecurring
+    ? null
+    : getTimeState(item.starts_at, item.expires_at);
+
+  const isUrgent = isRecurring
+    ? (getNextRecurringDeparture(
+        item.recurring_days ?? [],
+        item.recurring_times ?? []
+      )?.minutesAway ?? 999) <= 30
+    : tState === 'live' || tState === 'imminent';
 
   return (
     <>
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: idx * 0.05 }}
+        whileTap={{ scale: 0.95 }}
+        transition={{ type: 'spring', stiffness: 400, damping: 22 }}
         onClick={() => onSelect(item)}
-        className={`${cardWidth} ${cardHeight} relative rounded-[32px] overflow-hidden flex-shrink-0 cursor-pointer snap-start shadow-2xl group bg-uh-black`}
-        style={{ contain: 'layout paint' }}
+        className={`${cardWidth} ${cardHeight} relative rounded-[32px] overflow-hidden flex-shrink-0 cursor-pointer snap-start shadow-2xl group bg-uh-black select-none pointer-events-auto`}
+        style={{ 
+          contain: 'layout paint',
+          WebkitTapHighlightColor: 'transparent',
+        }}
       >
         {/* Background Layer: Illustration with reduced opacity */}
         <img 
           src={item.cover_url || item.imageUrl || `https://picsum.photos/seed/${item.type}/800/500`}
           alt={item.title}
-          className="absolute inset-0 w-full h-full object-cover opacity-65 mix-blend-normal transition-transform duration-700 group-hover:scale-105"
+          className="absolute inset-0 w-full h-full object-cover opacity-85 mix-blend-normal transition-transform duration-700 group-hover:scale-105"
           referrerPolicy="no-referrer"
         />
         
-        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-black/10" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-black/10" />
         
         {/* Top Header */}
         <div className="absolute top-6 left-6 right-6 flex items-start justify-between z-10 pointer-events-none">
@@ -257,11 +272,38 @@ export const BroadcastCard: React.FC<BroadcastCardProps> = ({
               </div>
             )}
 
-            {!isMural && (
+            {!isMural && !isRecurring && (
               <div className={`px-4 py-2 rounded-full flex items-center gap-2 backdrop-blur-md shadow-lg ${statusTag.bg} border border-white/10`}>
                 <div className={`w-1.5 h-1.5 rounded-full ${getDotColor(item)} animate-pulse`} />
                 <span className={`text-[10px] font-black tracking-widest uppercase font-mono ${statusTag.text}`}>
                   {statusTag.label}
+                </span>
+              </div>
+            )}
+
+            {isRecurring && (
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  padding: '4px 10px',
+                  borderRadius: 20,
+                  background: 'rgba(29,78,216,0.15)', // Blue tint
+                  border: '0.5px solid rgba(29,78,216,0.4)',
+                }}
+              >
+                <div style={{
+                  width: 5, height: 5, borderRadius: '50%',
+                  background: '#3B82F6',
+                  animation: 'pulse 1.5s ease-in-out infinite',
+                }} />
+                <span style={{
+                  fontSize: 9, fontWeight: 700,
+                  letterSpacing: '0.12em', textTransform: 'uppercase',
+                  color: '#60A5FA', fontFamily: "'Space Mono', monospace",
+                }}>
+                  {item.recurring_frequency || 'DAILY'}
                 </span>
               </div>
             )}
@@ -358,6 +400,15 @@ export const BroadcastCard: React.FC<BroadcastCardProps> = ({
               {item.title}
              </h3>
 
+             {item.recurrence && (
+               <div className="flex items-center gap-1.5 mt-1">
+                 <Clock size={10} className="text-uh-magenta" />
+                 <span className="text-uh-magenta text-[9px] font-black tracking-[0.1em] uppercase font-mono">
+                   {item.recurrence}
+                 </span>
+               </div>
+             )}
+
              {isSponsored && item.sponsor_name && (
                <span
                  className="font-mono font-black uppercase block"
@@ -415,6 +466,20 @@ export const BroadcastCard: React.FC<BroadcastCardProps> = ({
                           : 'text-white/55'    // muted  — calm
                       }`}>
                       {timeLabel}
+                    </span>
+                  </>
+                )}
+
+                {isRecurring && (
+                  <>
+                    <span className="text-white/25 shrink-0 text-[10px]">·</span>
+                    <span style={{
+                      fontSize: 9,
+                      color: 'rgba(255,255,255,0.35)',
+                      fontFamily: "'Space Mono', monospace",
+                      flexShrink: 0,
+                    }}>
+                      {getFrequencySummary(item)}
                     </span>
                   </>
                 )}

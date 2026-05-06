@@ -44,6 +44,8 @@ interface LocalPulseLoaderProps {
   background?: string
   /** Optional className for the root wrapper */
   className?: string
+  /** Pulse click handler */
+  onPulseClick?: () => void
 }
 
 // ─── Main export ─────────────────────────────────────────────────────────────
@@ -54,11 +56,12 @@ export function LocalPulseLoader({
   count = 2,
   background = '#0a0a0a',
   className = '',
+  onPulseClick,
 }: LocalPulseLoaderProps) {
   if (variant === 'dots') return <DotLoader className={className} />
   if (variant === 'bars') return <BarLoader className={className} />
   if (variant === 'card') return <CardSkeletonList count={count} className={className} />
-  return <FullLoader label={label} background={background} className={className} />
+  return <FullLoader label={label} background={background} className={className} onPulseClick={onPulseClick} />
 }
 
 // ─── Full Screen Loader ───────────────────────────────────────────────────────
@@ -67,10 +70,12 @@ function FullLoader({
   label,
   background,
   className,
+  onPulseClick,
 }: {
   label: FullLoaderLabel
   background: string
   className: string
+  onPulseClick?: () => void
 }) {
   const [dots, setDots] = useState('.')
 
@@ -98,7 +103,19 @@ function FullLoader({
       }}
     >
       {/* NFC Pulse Ring */}
-      <div style={{ position: 'relative', width: 200, height: 200, display: 'flex', alignItems: 'center', justifySelf: 'center', justifyContent: 'center' }}>
+      <div 
+        onClick={onPulseClick}
+        style={{ 
+          position: 'relative', 
+          width: 200, 
+          height: 200, 
+          display: 'flex', 
+          alignItems: 'center', 
+          justifySelf: 'center', 
+          justifyContent: 'center',
+          cursor: onPulseClick ? 'pointer' : 'default'
+        }}
+      >
         {/* Animated rings */}
         {[
           { size: 80, delay: '0s' },

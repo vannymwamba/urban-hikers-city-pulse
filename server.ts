@@ -86,32 +86,37 @@ async function startServer() {
 
   app.use(express.json());
 
-  // Firebase initialization for server-side stats
-  try {
-    // Force explicit connection to the requested database ID
-    const projectId = "gen-lang-client-0752567409";
-
-    if (!admin.apps.length) {
-      console.log(`[FIREBASE] Initializing Admin SDK for Project: ${projectId}`);
-      admin.initializeApp({
-        projectId: projectId
-      });
-    }
-
-    const databaseId = 'ai-studio-8d3a18ac-9f60-480e-8200-f9f5e01c389a';
-    console.log(`[FIREBASE] Connecting to Firestore Instance: ${databaseId}`);
-    db = getFirestore(databaseId);
-    
-    // Quick test to verify connectivity and permissions
+    // Firebase initialization for server-side stats
     try {
-      await db.collection('nodes').limit(1).get();
-      console.log(`[FIREBASE] Admin connectivity verified for DB: ${databaseId}`);
-    } catch (testError) {
-      console.error(`[FIREBASE] Connection test failed for DB ${databaseId}:`, testError);
+      // Load config from file if possible
+      const configPath = path.join(process.cwd(), 'firebase-applet-config.json');
+      let firebaseConfig: any = {};
+      if (fs.existsSync(configPath)) {
+        firebaseConfig = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+      }
+
+      const projectId = firebaseConfig.projectId || "gen-lang-client-0752567409";
+      const databaseId = firebaseConfig.firestoreDatabaseId || 'ai-studio-8d3a18ac-9f60-480e-8200-f9f5e01c389a';
+
+      if (!admin.apps.length) {
+        console.log(`[FIREBASE] Initializing Admin SDK with default credentials...`);
+        admin.initializeApp();
+      }
+
+      console.log(`[FIREBASE] Connecting to Firestore Instance: ${databaseId}`);
+      db = admin.firestore(databaseId);
+      
+      // Quick test to verify connectivity and permissions
+      try {
+        const testSnapshot = await db.collection('nodes').limit(1).get();
+        console.log(`[FIREBASE] Admin connectivity verified for DB: ${databaseId}. Found ${testSnapshot.size} nodes.`);
+      } catch (testError: any) {
+        console.error(`[FIREBASE] Connection test failed for DB ${databaseId}:`, testError);
+        console.warn("[FIREBASE] HINT: If PERMISSION_DENIED, ensure the database exists and the service account has access.");
+      }
+    } catch (error) {
+      console.error("Firebase Admin init error in server:", error);
     }
-  } catch (error) {
-    console.error("Firebase Admin init error in server:", error);
-  }
 
   // Geocoding Proxy
   app.get("/api/geocode", async (req, res) => {
@@ -575,6 +580,24 @@ async function startServer() {
     } catch (error) {
       console.error("Civic Ingestion Engine: Sync Error:", error);
       res.status(500).json({ error: "Failed to sync Civic events", details: String(error) });
+    }
+  });
+
+  app.get('/api/admin/agent-health', async (req, res) => {
+    try {
+      const libraryResult = await runLibraryIngestionAgent();
+      const civicResult = await runCivicIngestionEngine();
+      res.json({
+        library: libraryResult,
+        civic: civicResult,
+        timestamp: new Date().toISOString()
+      });
+    } catch (error) {
+      console.error("Agent Health Check Error:", error);
+      res.status(500).json({ 
+        error: "Failed to run health check", 
+        details: error instanceof Error ? error.message : String(error) 
+      });
     }
   });
 

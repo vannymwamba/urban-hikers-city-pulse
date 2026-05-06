@@ -24,9 +24,17 @@ export const getIconBg = (item: Broadcast) => {
   return 'bg-[#F0EEE8]';
 };
 
-import { getTimeState, toMs } from './timeUtils';
+import { getTimeState, toMs, getNextRecurringDeparture } from './timeUtils';
 
 export function getEventStatus(item: Broadcast) {
+  if (item.is_recurring) {
+    const freq = item.recurring_frequency || 'daily';
+    return {
+      label: freq.toUpperCase(),
+      color: 'blue' 
+    };
+  }
+
   // Walking events — always show booking status
   if (item.type === BroadcastType.WALKING_EVENT) {
     return { label: 'Booking Open', color: 'green' };
@@ -103,6 +111,20 @@ export const getCategoryTag = (item: Broadcast) => {
 };
 
 export const getStatusTag = (item: Broadcast) => {
+  if (item.is_recurring) {
+    const status = getEventStatus(item);
+    if (!status) return { label: 'Expired', bg: 'bg-gray-700', text: 'text-white', color: 'gray' };
+    
+    const styles: Record<string, { bg: string, text: string }> = {
+      yellow: { bg: 'bg-[#FFE01A]', text: 'text-[#0a0a0a]' },
+      green:  { bg: 'bg-[#10B981]', text: 'text-white' },
+      blue:   { bg: 'bg-[#1D4ED8]', text: 'text-white' },
+    };
+    
+    const style = styles[status.color] || { bg: 'bg-[#10B981]', text: 'text-white' };
+    return { label: status.label, ...style, color: status.color };
+  }
+
   const status = getEventStatus(item);
   if (!status) return { label: 'Expired', bg: 'bg-gray-700', text: 'text-white', color: 'gray' };
 

@@ -9,6 +9,7 @@ export enum BroadcastType {
   STREET_ART = 'street_art',
   POP_UP = 'pop_up',
   CIVIC_EVENT = 'civic_event',
+  CIVIC_FREE = 'civic_free',
   DONATION = 'donation'
 }
 export type UserRole = 'admin' | 'partner' | 'user' | 'partner_admin' | 'partner_viewer' | 'partner_content_editor' | 'super_admin' | 'hiker';
@@ -32,6 +33,11 @@ export interface Node {
   radius_limit: number;
   capacity?: number;
   imageUrl?: string;
+  partner_name?: string;
+  partner_type?: 'walk_hq' | 'civic' | 'anchor' | 'refuel' | 'street';
+  partner_initials?: string;
+  partner_accent?: string;
+  hub_tagline?: string;
 }
 
 export interface Broadcast {
@@ -91,33 +97,59 @@ export interface Broadcast {
   cross_connection_id?: string | null;
   taps?: number;
   impressions?: number;
+  recurrence?: string;
+  is_recurring?: boolean;
+  recurring_days?: string[];
+  recurring_times?: string[];
+  duration_minutes?: number;
+  recurring_frequency?: 'daily' | 'weekly' | 'biweekly' | 'monthly' | 'one_time';
+  recurring_week_of_month?: 1 | 2 | 3 | 4 | 5;
   created_at?: any;
 }
 
 export interface Partner {
   id: string;
   name: string;
-  tier: 'standard' | 'premium' | 'anchor';
+  short_name?: string;
+  logo_url?: string;
+  logo_initials?: string;
+  accent_color?: string;
+  hub_id?: string;
+  label?: string;
+  active?: boolean;
+  tier?: 'standard' | 'premium' | 'anchor';
   address?: string;
-  latitude: number;
-  longitude: number;
+  latitude?: number;
+  longitude?: number;
   ownerUid?: string;
   associated_owner_uid?: string;
   owner_email?: string;
-  logo_url?: string;
   logo_updated_at?: string | any;
   brand_color?: string;
   deal_text?: string;
   sponsor_zones?: string[];
   role?: UserRole;
   is_verified?: boolean;
-  // Backward compatibility
+  // ... existing fields ...
   ownerEmail?: string;
   logoUrl?: string;
   logoUpdatedAt?: string | any;
   brandColor?: string;
   dealText?: string;
   sponsorZones?: string[];
+}
+
+export interface SignatureWalk {
+  id: string;
+  title: string;
+  tag: string;
+  distance: string;
+  duration: string;
+  schedule: string;
+  featured?: boolean;
+  bookingUrl?: string;
+  hub_id: string;
+  active: boolean;
 }
 
 export interface SponsorBadgeProps {

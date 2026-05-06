@@ -20,7 +20,7 @@ const config = {
 
 const app = initializeApp(config);
 
-const finalDbId = 'ai-studio-8d3a18ac-9f60-480e-8200-f9f5e01c389a';
+export const finalDbId = 'ai-studio-8d3a18ac-9f60-480e-8200-f9f5e01c389a';
 export const db = getFirestore(app, finalDbId);
 
 export const storage = getStorage(app);

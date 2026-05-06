@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { auth, db } from './firebase';
+import { auth, db, finalDbId } from './firebase';
 import { signInWithPopup, GoogleAuthProvider, onAuthStateChanged, User } from 'firebase/auth';
 import { useLocation, Routes, Route } from 'react-router-dom';
 import { collection, onSnapshot, query, where, addDoc, doc, getDoc, setDoc, getDocs, orderBy, getDocFromServer, updateDoc, Timestamp } from 'firebase/firestore';
@@ -19,6 +19,8 @@ import { CheckoutCancel } from './components/CheckoutCancel';
 import { SponsorForm, SponsorSuccess, SponsorCancelled } from './components/SponsorForm';
 import { SignalPage } from './pages/SignalPage';
 import MuralNodeAdmin from './components/MuralNodeAdmin';
+import { PartnerHeader, SignatureWalk, PartnerLogo } from './components/PartnerHeader';
+import PartnerOnboarding from './pages/admin/PartnerOnboarding';
 import seedData from './seed';
 import { getDistance } from './utils/geo';
 import { handleFirestoreError, OperationType } from './utils/firebaseErrors';
@@ -26,8 +28,12 @@ import { toMs, isNotExpired } from './utils/timeUtils';
 
 import { v4 as uuidv4 } from 'uuid';
 import { motion, AnimatePresence } from 'motion/react';
+import { APIProvider } from '@vis.gl/react-google-maps';
 import { LocalPulseLoader, useLoaderLabel } from './components/LocalPulseLoader';
 import { Loader2, AlertTriangle, Share2, MapPin, Wallet, X } from 'lucide-react';
+
+const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_PLATFORM_KEY || '';
+const hasValidMapsKey = Boolean(GOOGLE_MAPS_API_KEY) && GOOGLE_MAPS_API_KEY !== 'YOUR_API_KEY';
 
 // Session UUID for anonymous tracking
 const SESSION_ID = (() => {
@@ -167,9 +173,33 @@ export default function App() {
   const [isReporting, setIsReporting] = useState(false);
   const [isSeeding, setIsSeeding] = useState(false);
   const [hudMessage, setHudMessage] = useState<{ text: string; type: 'error' | 'info' } | null>(null);
+  const [signatureWalks, setSignatureWalks] = useState<SignatureWalk[]>([]);
   const location = useLocation();
   const [path, setPath] = useState(location.pathname);
   const [now, setNow] = useState(new Date());
+
+  // Derive view from path state
+  const pathParts = path.split('/').filter(Boolean);
+  const isDashboard = pathParts.includes('dashboard');
+  const isLogin = pathParts.includes('login');
+  const isMuralAdmin = pathParts.includes('admin') && pathParts.includes('mural');
+  const isSignal = pathParts[0] === 'signal' && pathParts[1];
+  const broadcastIdFromSignal = isSignal ? pathParts[1] : null;
+  const tapIndex = pathParts.indexOf('tap');
+  const creatorIndex = pathParts.indexOf('creator');
+  const isCreatorIgnite = creatorIndex !== -1 && pathParts[creatorIndex + 1] === 'ignite';
+  const isCheckoutSuccess = pathParts.includes('checkout') && pathParts.includes('success');
+  const isCheckoutCancel = pathParts.includes('checkout') && pathParts.includes('cancel');
+  const isSponsorIgnite = pathParts.includes('sponsor') && pathParts.includes('ignite');
+  const isSponsorSuccess = pathParts.includes('sponsor') && pathParts.includes('success');
+  const isSponsorCancelled = pathParts.includes('sponsor') && pathParts.includes('cancelled');
+  const isPartnerOnboarding = pathParts.includes('admin') && pathParts.includes('partner-onboarding');
+  const rawNodeId = tapIndex !== -1 && pathParts[tapIndex + 1] ? pathParts[tapIndex + 1] : 
+                 (isCreatorIgnite && pathParts[creatorIndex + 2] ? pathParts[creatorIndex + 2] : null);
+  
+  // Use raw ID as-is. Standardize casing only during lookups for maximum compatibility.
+  const nodeId = rawNodeId;
+  const isHome = path === '/' || path === '';
   const [currentTab, setCurrentTab] = useState<'home' | 'feed' | 'explore' | 'wallet' | 'profile'>(() => {
     const initial = localStorage.getItem('uh_initial_tab');
     if (initial === 'wallet') {
@@ -190,6 +220,45 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('uh_saved_hubs', JSON.stringify(savedHubs));
   }, [savedHubs]);
+
+  useEffect(() => {
+    if (!nodeId) {
+      setSignatureWalks([]);
+      return;
+    }
+    const q = query(
+      collection(db, 'walks'),
+      where('hub_id', '==', nodeId),
+      where('active', '==', true)
+    );
+    const unsub = onSnapshot(q, (snap) => {
+      const walks = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as SignatureWalk));
+      setSignatureWalks(walks);
+    }, (err) => {
+      handleFirestoreError(err, OperationType.LIST, 'walks');
+    });
+    return () => unsub();
+  }, [nodeId]);
+
+  const hubPartners = useMemo(() => {
+    // Hub's list of partner IDs
+    // @ts-ignore
+    const partnerIds: string[] = currentNode?.partners || [];
+    return partnerIds
+      .map(id => partnersMap[id])
+      .filter((p): p is Partner => !!p)
+      .map(p => ({
+        id: p.id,
+        short_name: p.short_name || p.name,
+        logo_url: p.logo_url || null,
+        logo_initials: p.logo_initials || p.name.slice(0, 3).toUpperCase()
+      })) as PartnerLogo[];
+  }, [currentNode, partnersMap]);
+
+  const isAdmin = userProfile?.role === 'admin' || 
+                  userProfile?.role === 'super_admin' || 
+                  user?.email === 'vannymwamba@gmail.com' || 
+                  user?.email?.toLowerCase().endsWith('@urban-hikers.com');
 
   const toggleSaveHub = async (node: Node) => {
     setSavedHubs(prev => {
@@ -240,30 +309,24 @@ export default function App() {
         const hubs = snap.docs.map(d => {
           const hub = { id: d.id, ...d.data() } as LocalHub;
           if (currentNode && hub.latitude && hub.longitude) {
-            // Import helper if needed or use local calc
-            const R = 6371e3; // meters
-            const lat1 = (currentNode.latitude * Math.PI) / 180;
-            const lat2 = (hub.latitude * Math.PI) / 180;
-            const deltaLat = ((hub.latitude - currentNode.latitude) * Math.PI) / 180;
-            const deltaLon = ((hub.longitude - currentNode.longitude) * Math.PI) / 180;
-            const a = Math.sin(deltaLat/2) * Math.sin(deltaLat/2) +
-                      Math.cos(lat1) * Math.cos(lat2) *
-                      Math.sin(deltaLon/2) * Math.sin(deltaLon/2);
-            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-            const distMeters = R * c;
+            const distMeters = getDistance(
+              currentNode.latitude,
+              currentNode.longitude,
+              hub.latitude,
+              hub.longitude
+            );
             hub.distance_mi = distMeters * 0.000621371;
           }
           return hub;
         });
-        // Sort: premium → paid → free
+        // Filter to 3 miles radius from the hub context and sort: premium → paid → free
+        const filteredHubs = hubs.filter(h => (h.distance_mi ?? 0) <= 3);
         const tierOrder: Record<string, number> = { premium: 0, paid: 1, free: 2 };
-        setLocalHubs(hubs.sort((a, b) => tierOrder[a.tier] - tierOrder[b.tier]));
+        setLocalHubs(filteredHubs.sort((a, b) => tierOrder[a.tier] - tierOrder[b.tier]));
       }
     );
     return () => unsub();
   }, [currentNode]);
-
-  const isAdmin = user?.email === 'vannymwamba@gmail.com' || user?.email?.toLowerCase().endsWith('@urban-hikers.com');
 
   // Update current time every 10 seconds for precise expiry tracking
   useEffect(() => {
@@ -490,7 +553,14 @@ export default function App() {
 
   const handleTapIntoPulse = () => {
     // 1. Direct to hub (defaulting to Alpha Plaza)
-    const defaultHub = 'otr-alpha-01';
+    const defaultHub = 'ALPHA_PLAZA_HUB';
+    
+    if (user) {
+      window.history.pushState({}, '', `/tap/${defaultHub}`);
+      window.dispatchEvent(new PopStateEvent('popstate'));
+      return;
+    }
+
     sessionStorage.setItem('uh_login_redirect', `/tap/${defaultHub}`);
     
     // 2. Direct to login with partner mode
@@ -532,28 +602,6 @@ export default function App() {
     (window as any).handleSeed = handleSeed;
     return () => { delete (window as any).handleSeed; };
   }, [handleSeed]);
-
-  // Derive view from path state
-  const pathParts = path.split('/').filter(Boolean);
-  const isDashboard = pathParts.includes('dashboard');
-  const isLogin = pathParts.includes('login');
-  const isMuralAdmin = pathParts.includes('admin') && pathParts.includes('mural');
-  const isSignal = pathParts[0] === 'signal' && pathParts[1];
-  const broadcastIdFromSignal = isSignal ? pathParts[1] : null;
-  const tapIndex = pathParts.indexOf('tap');
-  const creatorIndex = pathParts.indexOf('creator');
-  const isCreatorIgnite = creatorIndex !== -1 && pathParts[creatorIndex + 1] === 'ignite';
-  const isCheckoutSuccess = pathParts.includes('checkout') && pathParts.includes('success');
-  const isCheckoutCancel = pathParts.includes('checkout') && pathParts.includes('cancel');
-  const isSponsorIgnite = pathParts.includes('sponsor') && pathParts.includes('ignite');
-  const isSponsorSuccess = pathParts.includes('sponsor') && pathParts.includes('success');
-  const isSponsorCancelled = pathParts.includes('sponsor') && pathParts.includes('cancelled');
-  const rawNodeId = tapIndex !== -1 && pathParts[tapIndex + 1] ? pathParts[tapIndex + 1] : 
-                 (isCreatorIgnite && pathParts[creatorIndex + 2] ? pathParts[creatorIndex + 2] : null);
-  
-  // Use raw ID as-is. Standardize casing only during lookups for maximum compatibility.
-  const nodeId = rawNodeId;
-  const isHome = path === '/' || path === '';
 
   useEffect(() => {
     setPath(location.pathname);
@@ -760,14 +808,21 @@ export default function App() {
   useEffect(() => {
     const testConnection = async (retries = 3) => {
       try {
-        console.log(`FIREBASE_CONNECTION_TEST: ATTEMPTING...`);
+        console.log(`FIREBASE_CONNECTION_TEST: ATTEMPTING to read nodes/connection-test on DB: ${finalDbId}`);
         // Use getDocFromServer to bypass local cache and force a network request
         await getDocFromServer(doc(db, 'nodes', 'connection-test'));
         console.log("FIREBASE_CONNECTION_TEST: SUCCESS");
       } catch (err: any) {
-        // Silent fail for connection test - don't alarm the user unless real fetches fail
-        console.warn("FIREBASE_CONNECTION_TEST: BACKGROUND_WAIT", err.message);
+        const errInfo = {
+          error: err.message,
+          code: err.code,
+          dbId: finalDbId,
+          auth: auth.currentUser ? { uid: auth.currentUser.uid, email: auth.currentUser.email } : 'ANONYMOUS'
+        };
+        console.warn("FIREBASE_CONNECTION_TEST: FAILED", JSON.stringify(errInfo, null, 2));
+        
         if (retries > 0 && (err.message?.includes('offline') || err.code === 'unavailable')) {
+          console.log(`FIREBASE_CONNECTION_TEST: RETRYING in 3s... (${retries} left)`);
           setTimeout(() => testConnection(retries - 1), 3000);
         }
       }
@@ -1097,7 +1152,11 @@ export default function App() {
 
   if (loading && !currentNode) {
     return (
-      <LocalPulseLoader variant="full" label={loaderLabel} />
+      <LocalPulseLoader 
+        variant="full" 
+        label={loaderLabel} 
+        onPulseClick={handleTapIntoPulse}
+      />
     );
   }
 
@@ -1158,7 +1217,7 @@ export default function App() {
         userProfile={userProfile}
         onOpenWallet={() => {
           // Redirect to a default hub to show the wallet
-          window.location.href = '/tap/otr-alpha-01';
+          window.location.href = '/tap/ALPHA_PLAZA_HUB';
           // We can't easily set the tab across page loads without a query param or localStorage
           localStorage.setItem('uh_initial_tab', 'wallet');
         }}
@@ -1177,7 +1236,7 @@ export default function App() {
           onCreatorIgnite={handleCreatorIgnite}
           userProfile={userProfile}
           onOpenWallet={() => {
-            window.location.href = '/tap/otr-alpha-01';
+            window.location.href = '/tap/ALPHA_PLAZA_HUB';
             localStorage.setItem('uh_initial_tab', 'wallet');
           }}
         />
@@ -1265,25 +1324,78 @@ export default function App() {
     );
   }
 
-  if (isSignal) {
+  if (isPartnerOnboarding) {
+    if (!isAdmin) {
+      return (
+        <div className="h-screen flex flex-col items-center justify-center bg-hud-bg text-hud-magenta p-8 text-center">
+          <AlertTriangle className="mb-4" size={48} />
+          <div className="text-xl font-bold tracking-widest mb-2">ACCESS_RESTRICTED</div>
+          <div className="text-sm border border-hud-magenta p-4 bg-hud-magenta/10 mb-8">
+            YOU_DO_NOT_HAVE_ADMIN_PERMISSIONS
+          </div>
+          <button 
+            onClick={() => window.location.href = '/'}
+            className="px-6 py-2 border border-hud-magenta hover:bg-hud-magenta hover:text-hud-bg transition-all font-bold"
+          >
+            RETURN_TO_HOME
+          </button>
+        </div>
+      );
+    }
     return (
       <ErrorBoundary>
-        <Routes>
-          <Route path="/signal/:broadcastId" element={<SignalPage />} />
-        </Routes>
+        <PartnerOnboarding />
       </ErrorBoundary>
     );
   }
 
+  if (isSignal) {
+    return (
+      <APIProvider apiKey={GOOGLE_MAPS_API_KEY} version="weekly">
+        <ErrorBoundary>
+          <Routes>
+            <Route path="/signal/:broadcastId" element={<SignalPage />} />
+          </Routes>
+        </ErrorBoundary>
+      </APIProvider>
+    );
+  }
+
+  if (!hasValidMapsKey && isDashboard) {
+    return (
+      <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100vh',fontFamily:'sans-serif', backgroundColor: '#0a0a0a', color: '#fff'}}>
+        <div style={{textAlign:'center',maxWidth:520, padding: 40, border: '1px solid #FFE01A', borderRadius: 24}}>
+          <h2 style={{ color: '#FFE01A', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Google Maps API Key Required</h2>
+          <p style={{ opacity: 0.7, marginBottom: 20 }}>The Sector Hubs Network requires a valid Maps API key for geocoding services.</p>
+          <p><strong>Step 1:</strong> <a href="https://console.cloud.google.com/google/maps-apis/start" target="_blank" rel="noopener" style={{ color: '#FFE01A' }}>Get an API Key</a></p>
+          <p><strong>Step 2:</strong> Add your key as a secret in AI Studio:</p>
+          <ul style={{textAlign:'left',lineHeight:'1.8', listStyle: 'none', padding: 0}}>
+            <li>• Open <strong>Settings</strong> (⚙️ gear icon, <strong>top-right corner</strong>)</li>
+            <li>• Select <strong>Secrets</strong></li>
+            <li>• Type <code>GOOGLE_MAPS_PLATFORM_KEY</code> as the name, press <strong>Enter</strong></li>
+            <li>• Paste your API key as the value, press <strong>Enter</strong></li>
+          </ul>
+          <p style={{ marginTop: 20, fontSize: '12px', opacity: 0.5 }}>The app rebuilds automatically after you add the secret.</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <ErrorBoundary>
-      <div key={nodeId} className="h-screen max-w-md mx-auto bg-hud-bg flex flex-col relative overflow-hidden shadow-2xl">
+    <APIProvider apiKey={GOOGLE_MAPS_API_KEY} version="weekly">
+      <ErrorBoundary>
+        <div key={nodeId} className="h-screen max-w-md mx-auto bg-hud-bg flex flex-col relative overflow-hidden shadow-2xl">
         {/* Scanline Effect */}
         <div className="absolute inset-0 pointer-events-none bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.1)_50%),linear-gradient(90deg,rgba(255,0,0,0.03),rgba(0,255,0,0.01),rgba(0,0,255,0.03))] z-50 bg-[length:100%_2px,3px_100%] opacity-30" />
         
         <ErrorBoundary section="DEPARTURE_BOARD">
-          <DepartureBoard 
-            nodeName={currentNode?.name || 'UNKNOWN_SECTOR'} 
+          <div className="flex flex-col h-full">
+            <PartnerHeader 
+              walks={signatureWalks} 
+              allPartners={hubPartners} 
+            />
+            <DepartureBoard 
+              nodeName={currentNode?.name || 'UNKNOWN_SECTOR'} 
             currentNode={currentNode}
             nodes={nodes}
             broadcasts={broadcasts}
@@ -1319,6 +1431,7 @@ export default function App() {
             localHubs={localHubs}
             loading={loading || nodeLoading}
           />
+          </div>
         </ErrorBoundary>
 
         {/* HUD Notifications */}
@@ -1365,5 +1478,6 @@ export default function App() {
         </ErrorBoundary>
       </div>
     </ErrorBoundary>
+    </APIProvider>
   );
 }

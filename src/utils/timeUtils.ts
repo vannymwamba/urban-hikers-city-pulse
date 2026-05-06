@@ -98,15 +98,117 @@ export function getTimeLabel(
 }
 
 export function isNotExpired(broadcast: any): boolean {
+  const type = (broadcast.type ?? '').toLowerCase();
   if (
-    broadcast.type === 'mural' ||
-    broadcast.type === 'street_art' ||
-    broadcast.type === 'MURAL' ||
-    broadcast.type === 'STREET_ART' ||
-    broadcast.type === 'civic_event'
-  ) return true;                    // permanent/civic — keep showing
+    broadcast.is_recurring === true ||
+    type === 'mural' ||
+    type === 'street_art' ||
+    type === 'civic_event' ||
+    type === 'civic_mural'
+  ) return true;                    // permanent/civic/recurring — keep showing
 
   const end = toMs(broadcast.expires_at || broadcast.expiresAt);
   if (!end) return true;            // no expiry = keep showing
   return end > Date.now();
+}
+
+const DAY_MAP: Record<string, number> = {
+  sun: 0, mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6
+};
+
+export function getNextRecurringDeparture(
+  recurring_days: string[],
+  recurring_times: string[]
+): { label: string; isToday: boolean; minutesAway: number } | null {
+  if (!recurring_days?.length || !recurring_times?.length) return null;
+
+  const now = new Date();
+  const nowDay = now.getDay();
+  const nowMins = now.getHours() * 60 + now.getMinutes();
+
+  const activeDayNums = recurring_days.map(d => DAY_MAP[d]).filter(n => n !== undefined);
+  const sortedTimes = [...recurring_times].sort();
+
+  // Check up to 8 days ahead (covers full week + today)
+  for (let offset = 0; offset < 8; offset++) {
+    const checkDay = (nowDay + offset) % 7;
+    if (!activeDayNums.includes(checkDay)) continue;
+
+    for (const t of sortedTimes) {
+      const [h, m] = t.split(':').map(Number);
+      const depMins = h * 60 + m;
+
+      // If today, only show future departures (5 min buffer)
+      if (offset === 0 && depMins <= nowMins + 5) continue;
+
+      const minsAway = offset * 1440 + depMins - nowMins;
+      const isToday = offset === 0;
+      const isTomorrow = offset === 1;
+
+      const timeStr = new Date(2000, 0, 1, h, m)
+        .toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+
+      let label: string;
+      if (isToday) {
+        label = minsAway <= 60
+          ? `Departs in ${Math.round(minsAway)}m`
+          : `Today ${timeStr}`;
+      } else if (isTomorrow) {
+        label = `Tomorrow ${timeStr}`;
+      } else {
+        const dayName = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][checkDay];
+        label = `${dayName} ${timeStr}`;
+      }
+
+      return { label, isToday, minutesAway: minsAway };
+    }
+  }
+
+  return null;
+}
+
+export function getRecurringTimeLabel(broadcast: any): string {
+  if (!broadcast.is_recurring) return '';
+  
+  const freq = broadcast.recurring_frequency || 'daily';
+  const next = getNextRecurringDeparture(
+    broadcast.recurring_days,
+    broadcast.recurring_times
+  );
+  
+  if (freq === 'daily') return next?.label ?? '';
+  
+  // Weekly/Biweekly/Monthly logic could be more complex, but let's approximate based on your spec
+  if (!next) return '';
+  return next.label;
+}
+
+export function getRecurringFrequencyBadge(broadcast: any): string {
+  if (!broadcast.is_recurring) return '';
+  return (broadcast.recurring_frequency || 'daily').toUpperCase();
+}
+
+export function getRecurringDeparturesSummary(times: string[]): string {
+  return [...times]
+    .sort()
+    .map(t => {
+      const [h, m] = t.split(':').map(Number);
+      return new Date(2000, 0, 1, h, m)
+        .toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+    })
+    .join(' · ');
+}
+
+export function getFrequencySummary(broadcast: any): string {
+  const freq = broadcast.recurring_frequency || 'daily';
+  if (freq === 'daily') return getRecurringDeparturesSummary(broadcast.recurring_times || []);
+  if (freq === 'weekly') return 'Every ' + (broadcast.recurring_days?.[0]?.charAt(0).toUpperCase() + broadcast.recurring_days?.[0]?.slice(1) || 'Fri');
+  if (freq === 'biweekly') return 'Alt. ' + (broadcast.recurring_days?.[0]?.charAt(0).toUpperCase() + broadcast.recurring_days?.[0]?.slice(1) || 'Sat');
+  if (freq === 'monthly') {
+    const week = broadcast.recurring_week_of_month || 1;
+    const weekMap: any = { 1: '1st', 2: '2nd', 3: '3rd', 4: '4th', 5: 'Last' };
+    const day = (broadcast.recurring_days?.[0]?.charAt(0).toUpperCase() + broadcast.recurring_days?.[0]?.slice(1)) || 'Thu';
+    return `${weekMap[week]} ${day}`;
+  }
+  return '';
 }

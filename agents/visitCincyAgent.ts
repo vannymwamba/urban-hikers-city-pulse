@@ -65,6 +65,7 @@ interface EnrichedEvent {
   taxonomy_tags: string[];
   vibe_estimate: 'chill' | 'buzzing' | 'packed';
   short_description: string;
+  recurrence_pattern?: string;
 }
 
 let cachedNodes: any[] | null = null;
@@ -163,8 +164,8 @@ async function fetchVisitCincyEvents(): Promise<RawEvent[]> {
           startTimeDate = new Date(`${monthMatch[0]} ${dayMatch[0]}, ${year}`);
           hasSpecificTime = false;
         } else {
-          startTimeDate = new Date();
-          hasSpecificTime = true; // Assume now
+          console.warn(`Visit Cincy: Skipping event with unparseable date: ${title}`);
+          continue; // skip this event
         }
       }
 
@@ -207,7 +208,8 @@ Return JSON only with these fields:
 { 
   "taxonomy_tags": string[],  // pick from: Culture, Wellness, History, Food, Music, Art, Tech, Family, Sports, Civic
   "vibe_estimate": "chill" | "buzzing" | "packed",
-  "short_description": string  // max 120 chars, punchy, present tense
+  "short_description": string,  // max 120 chars, punchy, present tense
+  "recurrence_pattern": string  // e.g. "Weekly on Wednesdays", "Every Saturday", or empty string
 }`;
 
     const result = await model.generateContent(prompt);
@@ -222,7 +224,8 @@ Return JSON only with these fields:
       return {
         taxonomy_tags: ['Civic'],
         vibe_estimate: 'chill',
-        short_description: event.title
+        short_description: event.title,
+        recurrence_pattern: ''
       };
     }
 
@@ -231,14 +234,16 @@ Return JSON only with these fields:
       return {
         taxonomy_tags: parsed.taxonomy_tags || ['Civic'],
         vibe_estimate: parsed.vibe_estimate || 'chill',
-        short_description: parsed.short_description || event.title
+        short_description: parsed.short_description || event.title,
+        recurrence_pattern: parsed.recurrence_pattern || ''
       };
     } catch (parseErr) {
       console.error(`JSON parse failed for ${event.title}. Text: "${text}"`, parseErr);
       return {
         taxonomy_tags: ['Civic'],
         vibe_estimate: 'chill',
-        short_description: event.title
+        short_description: event.title,
+        recurrence_pattern: ''
       };
     }
   } catch (err) {
@@ -246,7 +251,8 @@ Return JSON only with these fields:
     return {
       taxonomy_tags: ['Civic'],
       vibe_estimate: 'chill',
-      short_description: event.title
+      short_description: event.title,
+      recurrence_pattern: ''
     };
   }
 }
@@ -320,7 +326,7 @@ async function writeEventToFirestore(event: RawEvent, enriched: EnrichedEvent, h
   const eventData: any = {
     // ── Core identity ────────────────────────
     title:                event.title,
-    type:                 event.source === 'chpl' ? 'civic_free' : 'civic_event',
+    type:                 'civic_event',
     status:               'active',
     source:               event.source,      // 'chpl' | 'visit-cincy'
     partner_id:           event.source,
@@ -333,6 +339,7 @@ async function writeEventToFirestore(event: RawEvent, enriched: EnrichedEvent, h
     cover_url:            event.imageUrl || null,
     taxonomy_tags:        enriched.taxonomy_tags || [],
     current_vibe:         enriched.vibe_estimate || 'chill',
+    recurrence:           enriched.recurrence_pattern || null,
 
     // ── Pricing — civic events always free ───
     price:                0,

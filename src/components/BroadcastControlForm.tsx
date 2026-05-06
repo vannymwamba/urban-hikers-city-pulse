@@ -66,6 +66,12 @@ const initialFormState = {
   meeting_point:        '',
   guide_name:           '',
   discount_value:       '',
+  is_recurring:         false,
+  recurring_days:       [] as string[],
+  recurring_times:      [] as string[],
+  duration_minutes:     60,
+  recurring_frequency:  'daily' as any,
+  recurring_week_of_month: 1 as any,
 };
 
 interface ValidationResult {
@@ -99,11 +105,14 @@ function validateBroadcast(
   }
 
   // ── STATION 03 — THE SCHEDULE ────────────────
-  if (!formData.event_date) {
+  if (!formData.is_recurring && !formData.event_date) {
     errors.event_date = 'Event date is required'
   }
-  if (!formData.start_time) {
+  if (!formData.is_recurring && !formData.start_time) {
     errors.start_time = 'Start time is required'
+  }
+  if (formData.is_recurring && (!formData.recurring_days?.length || !formData.recurring_times?.length)) {
+    errors.recurrence = 'At least one day and one time required for recurrence';
   }
 
   // End time must be after start time
@@ -415,11 +424,18 @@ export const BroadcastControlForm: React.FC<BroadcastControlFormProps> = ({
         address:       formData.custom_address || null,
         venue:         formData.custom_address || null,
 
-        starts_at:     Timestamp.fromDate(defaultStart),
-        expires_at:    Timestamp.fromDate(defaultExpires),
+        is_recurring:   formData.is_recurring || false,
+        recurring_days:  formData.recurring_days || [],
+        recurring_times: formData.recurring_times || [],
+        duration_minutes: formData.duration_minutes || 60,
+        recurring_frequency: formData.recurring_frequency || 'daily',
+        recurring_week_of_month: formData.recurring_week_of_month || 1,
+
+        starts_at:     formData.is_recurring ? Timestamp.fromDate(new Date()) : Timestamp.fromDate(defaultStart),
+        expires_at:    formData.is_recurring ? Timestamp.fromDate(new Date("2099-12-31")) : Timestamp.fromDate(defaultExpires),
         // ISO string fallbacks for legacy components
-        startsAt:      defaultStart.toISOString(),
-        expiresAt:     defaultExpires.toISOString(),
+        startsAt:      formData.is_recurring ? new Date().toISOString() : defaultStart.toISOString(),
+        expiresAt:     formData.is_recurring ? new Date("2099-12-31").toISOString() : defaultExpires.toISOString(),
         
         expiry_warning_sent: false,
 
@@ -1254,22 +1270,171 @@ export const BroadcastControlForm: React.FC<BroadcastControlFormProps> = ({
           <StationDivider id="STATION_03" name="THE SCHEDULE" />
 
           <div className="flex flex-col gap-6">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="flex flex-col gap-2">
-                <label className="text-[9px] text-[#999] tracking-[0.15em] uppercase">EVENT_DATE</label>
-                <input 
-                  type="date"
-                  value={formData.event_date || ''}
-                  onChange={e => setFormData?.(f => ({ ...f, event_date: e.target.value }))}
-                  onBlur={() => touch('event_date')}
-                  style={{
-                    border: showError('event_date') ? '1px solid #E24B4A' : '0.5px solid #e0e0e0',
-                  }}
-                  className="bg-white rounded-[10px] p-[14px_16px] text-[12px] text-[#1a1a1a] font-bold uppercase focus:border-[1px] focus:border-[#FFE01A] outline-none"
-                />
-                <ErrorLine field="event_date" />
+            <div className="flex items-center justify-between bg-[#f8f8f8] p-4 rounded-[10px] border-[0.5px] border-[#e0e0e0]">
+              <div className="flex flex-col gap-1">
+                <label className="text-[9px] text-[#1a1a1a] font-bold tracking-widest uppercase">DAILY_RECURRENCE_MODE</label>
+                <p className="text-[8px] text-[#999] uppercase tracking-wider">Perpetual schedule (ignores single start/end times)</p>
               </div>
-              <div className="grid grid-cols-2 gap-2">
+              <button 
+                type="button"
+                onClick={() => setFormData?.(f => ({ ...f, is_recurring: !f.is_recurring }))}
+                className={`relative w-10 h-5 rounded-full transition-colors duration-200 focus:outline-none ${formData.is_recurring ? 'bg-[#FFE01A]' : 'bg-[#e0e0e0]'}`}
+              >
+                <div className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform duration-200 ${formData.is_recurring ? 'translate-x-5' : 'translate-x-0'}`} />
+              </button>
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <label className="text-[9px] text-[#999] tracking-[0.15em] uppercase">
+                {formData.is_recurring ? 'SCHEDULE_START_DATE' : 'EVENT_DATE'}
+              </label>
+              <input 
+                type="date"
+                value={formData.event_date || ''}
+                onChange={e => setFormData?.(f => ({ ...f, event_date: e.target.value }))}
+                onBlur={() => touch('event_date')}
+                style={{
+                  border: showError('event_date') ? '1px solid #E24B4A' : '0.5px solid #e0e0e0',
+                }}
+                className="bg-white rounded-[10px] p-[14px_16px] text-[12px] text-[#1a1a1a] font-bold uppercase focus:border-[1px] focus:border-[#FFE01A] outline-none w-full md:w-1/2"
+              />
+              <ErrorLine field="event_date" />
+            </div>
+
+            {formData.is_recurring ? (
+              <div className="flex flex-col gap-6 animate-in fade-in slide-in-from-top-2 duration-300">
+                <div className="flex flex-col gap-3">
+                  <label className="text-[9px] text-[#999] tracking-[0.15em] uppercase">FREQUENCY</label>
+                  <div className="flex flex-wrap gap-2">
+                    {['daily', 'weekly', 'biweekly', 'monthly'].map(f => (
+                      <button
+                        key={f}
+                        type="button"
+                        onClick={() => setFormData?.(prev => ({ ...prev, recurring_frequency: f }))}
+                        className={`px-4 py-2 text-[10px] font-bold rounded-md border transition-all uppercase ${
+                          formData.recurring_frequency === f
+                          ? 'bg-[#FFE01A] border-[#FFE01A] text-[#0a0a0a]'
+                          : 'bg-white border-[#e0e0e0] text-[#999]'
+                        }`}
+                      >
+                        {f}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {formData.recurring_frequency === 'monthly' && (
+                  <div className="flex flex-col gap-3">
+                    <label className="text-[9px] text-[#999] tracking-[0.15em] uppercase">WEEK_OF_MONTH</label>
+                    <div className="flex flex-wrap gap-2">
+                      {[1, 2, 3, 4, 5].map(w => (
+                        <button
+                          key={w}
+                          type="button"
+                          onClick={() => setFormData?.(prev => ({ ...prev, recurring_week_of_month: w }))}
+                          className={`px-4 py-2 text-[10px] font-bold rounded-md border transition-all uppercase ${
+                            formData.recurring_week_of_month === w
+                            ? 'bg-[#1D4ED8] border-[#1D4ED8] text-white'
+                            : 'bg-white border-[#e0e0e0] text-[#999]'
+                          }`}
+                        >
+                          {w === 5 ? 'Last' : w === 1 ? '1st' : w === 2 ? '2nd' : w === 3 ? '3rd' : '4th'}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex flex-col gap-3">
+                  <label className="text-[9px] text-[#999] tracking-[0.15em] uppercase">ACTIVE_DAYS</label>
+                  <div className="flex flex-wrap gap-2">
+                    {['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'].map(day => (
+                      <button
+                        key={day}
+                        type="button"
+                        onClick={() => {
+                          const current = formData.recurring_days || [];
+                          const next = current.includes(day) 
+                            ? current.filter((d: string) => d !== day)
+                            : [...current, day];
+                          setFormData?.(f => ({ ...f, recurring_days: next }));
+                        }}
+                        className={`px-4 py-2 text-[10px] font-bold rounded-md border transition-all uppercase ${
+                          (formData.recurring_days || []).includes(day)
+                          ? 'bg-[#FFE01A] border-[#FFE01A] text-[#0a0a0a]'
+                          : 'bg-white border-[#e0e0e0] text-[#999]'
+                        }`}
+                      >
+                        {day === 'thu' ? 'Thur' : day.charAt(0).toUpperCase() + day.slice(1)}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-3">
+                  <label className="text-[9px] text-[#999] tracking-[0.15em] uppercase">DEPARTURE_TIMES (24H)</label>
+                  <div className="flex flex-col md:flex-row gap-4 items-start">
+                    <div className="flex gap-2 w-full md:w-auto">
+                      <input 
+                        type="time" 
+                        id="recurring-time-input"
+                        className="bg-white border-[0.5px] border-[#e0e0e0] rounded-[10px] p-[10px_14px] text-[12px] font-bold focus:border-[#FFE01A] outline-none h-[44px]"
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            const input = e.target as HTMLInputElement;
+                            const val = input.value;
+                            if (val && !(formData.recurring_times || []).includes(val)) {
+                              setFormData?.(f => ({ ...f, recurring_times: [...(f.recurring_times || []), val].sort() }));
+                              input.value = '';
+                            }
+                          }
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const input = document.getElementById('recurring-time-input') as HTMLInputElement;
+                          const val = input?.value;
+                          if (val && !(formData.recurring_times || []).includes(val)) {
+                            setFormData?.(f => ({ ...f, recurring_times: [...(f.recurring_times || []), val].sort() }));
+                            input.value = '';
+                          }
+                        }}
+                        className="bg-[#0a0a0a] text-white px-4 rounded-[10px] text-[10px] font-bold uppercase hover:bg-uh-yellow hover:text-black transition-colors"
+                      >
+                        Add
+                      </button>
+                    </div>
+                    
+                    <div className="flex flex-wrap gap-2 flex-1 min-h-[44px] items-center">
+                      {(formData.recurring_times || []).length === 0 && (
+                        <span className="text-[10px] text-[#ccc] italic uppercase">No times added yet</span>
+                      )}
+                      {(formData.recurring_times || []).map((t: string) => (
+                        <div key={t} className="flex items-center gap-2 bg-[#f0f0f0] text-[#1a1a1a] px-3 py-1.5 rounded-[6px] text-[10px] font-bold border-[0.5px] border-[#e0e0e0]">
+                          {t}
+                          <X size={12} className="cursor-pointer hover:text-red-500" onClick={() => setFormData?.(f => ({ ...f, recurring_times: f.recurring_times.filter((v: string) => v !== t) }))} />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <p className="text-[8px] text-[#bbbbbb] uppercase tracking-wider">Select a time and click ADD (or press ENTER)</p>
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  <label className="text-[9px] text-[#999] tracking-[0.15em] uppercase">DURATION (MINUTES)</label>
+                  <input 
+                    type="number" 
+                    value={formData.duration_minutes || ''} 
+                    onChange={e => setFormData?.(f => ({ ...f, duration_minutes: parseInt(e.target.value) || 0 }))}
+                    placeholder="60"
+                    className="bg-white border-[0.5px] border-[#e0e0e0] rounded-[10px] p-[14px_16px] text-[12px] text-[#1a1a1a] font-bold focus:border-[1px] focus:border-[#FFE01A] outline-none w-full md:w-1/3"
+                  />
+                </div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-4">
                 <div className="flex flex-col gap-2">
                   <label className="text-[9px] text-[#999] tracking-[0.15em] uppercase">START</label>
                   <input 
@@ -1299,7 +1464,8 @@ export const BroadcastControlForm: React.FC<BroadcastControlFormProps> = ({
                   <ErrorLine field="end_time" />
                 </div>
               </div>
-            </div>
+            )}
+
 
             <div className="grid grid-cols-2 gap-4">
               <div className="flex flex-col gap-2">

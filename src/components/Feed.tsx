@@ -70,12 +70,28 @@ export const Feed: React.FC<FeedProps> = ({
     return false;
   };
 
-  const flashDeals = broadcasts.filter(b => b.type === BroadcastType.FLASH_DEAL || b.is_sponsored === true);
-  const foodTrucks = broadcasts.filter(b => b.type === BroadcastType.FOOD_TRUCK);
-  const walkingEvents = broadcasts.filter(b => b.type === BroadcastType.WALKING_EVENT);
-  const donations = broadcasts.filter(b => b.type === BroadcastType.DONATION);
-  const murals = broadcasts.filter(b => [BroadcastType.MURAL, 'civic_mural', BroadcastType.STREET_ART].includes(b.type as any));
-  const events = broadcasts.filter(b => [BroadcastType.LIVE_EVENT, BroadcastType.POP_UP, 'event', 'conference_panel', BroadcastType.CIVIC_EVENT, 'live_performance'].includes(b.type as any));
+  const flashDeals = broadcasts.filter(b => {
+    const type = (b.type ?? '').toLowerCase();
+    return type === BroadcastType.FLASH_DEAL || b.is_sponsored === true;
+  });
+  const foodTrucks = broadcasts.filter(b => (b.type ?? '').toLowerCase() === BroadcastType.FOOD_TRUCK);
+  const walkingEvents = broadcasts.filter(b => (b.type ?? '').toLowerCase() === BroadcastType.WALKING_EVENT);
+  const donations = broadcasts.filter(b => (b.type ?? '').toLowerCase() === BroadcastType.DONATION);
+  const murals = broadcasts.filter(b => {
+    const type = (b.type ?? '').toLowerCase();
+    return ['mural', 'civic_mural', 'street_art'].includes(type);
+  });
+  const events = broadcasts.filter(b => {
+    const type = (b.type ?? '').toLowerCase();
+    return [
+      'live_event', 
+      'pop_up', 
+      'event', 
+      'conference_panel', 
+      'civic_event', 
+      'live_performance'
+    ].includes(type);
+  });
   
   const flashDealsRef = useRef<HTMLDivElement>(null);
   const [activeFlashIndex, setActiveFlashIndex] = useState(0);
@@ -137,26 +153,31 @@ export const Feed: React.FC<FeedProps> = ({
     <div className="flex flex-col gap-10 py-6">
       <div className="flex flex-col">
         <SectionHeader 
-          title="Flash Deals" 
-          status="LIVE_NOW" 
+          title="Most Popular" 
+          status="HOT_DEALS" 
           count={flashDeals.length}
           onSeeAll={() => console.log('See all flash deals')}
         />
         {/* Flash rotation — high priority campaigns */}
-        <FlashRotation
-          nodeId={currentNode?.id}
-          intervalMs={3000}
-          maxSlots={5}
-          onCtaTap={(slot) => {
-            console.log('Flash CTA tapped:', slot.campaign_title)
-          }}
-        />
+        <div className="px-4">
+          <FlashRotation
+            nodeId={currentNode?.id}
+            intervalMs={3000}
+            maxSlots={5}
+            onCtaTap={(slot) => {
+              console.log('Flash CTA tapped:', slot.campaign_title)
+            }}
+          />
+        </div>
         
         {/* Flash Deals Display Logic */}
         {flashDeals.length > 0 && (
           <div className="mt-4">
             {flashDeals.length <= ROTATION_THRESHOLD ? (
-              <div className="flex overflow-x-auto snap-x snap-mandatory no-scrollbar px-6 gap-4">
+              <div 
+                className="flex overflow-x-auto snap-x snap-mandatory px-4 gap-3"
+                style={{ WebkitOverflowScrolling: 'touch', scrollSnapType: 'x mandatory' }}
+              >
                 {flashDeals.map((item, idx) => (
                   <BroadcastCard 
                     key={item.id}
@@ -174,7 +195,7 @@ export const Feed: React.FC<FeedProps> = ({
                 ))}
               </div>
             ) : (
-              <div className="px-6">
+              <div className="px-4">
                 <FlashRotationInline 
                   broadcasts={flashDeals}
                   currentNode={currentNode}
@@ -199,7 +220,10 @@ export const Feed: React.FC<FeedProps> = ({
             count={localHubs.length}
             status="⚡ Refuel_Stations"
           />
-          <div className="flex overflow-x-auto snap-x snap-mandatory no-scrollbar px-6 gap-4">
+          <div 
+            className="flex overflow-x-auto snap-x snap-mandatory px-4 gap-3"
+            style={{ WebkitOverflowScrolling: 'touch', scrollSnapType: 'x mandatory' }}
+          >
             {[...localHubs]
               .sort((a, b) => (a.distance_mi ?? 99) - (b.distance_mi ?? 99))
               .map((hub, idx) => (
@@ -218,7 +242,10 @@ export const Feed: React.FC<FeedProps> = ({
       {foodTrucks.length > 0 && !hideOtherSections && (
         <div className="flex flex-col">
           <SectionHeader title="Logistics Units" count={foodTrucks.length} status="SCANNING" />
-          <div className="flex overflow-x-auto snap-x snap-mandatory no-scrollbar px-6 gap-4">
+          <div 
+            className="flex overflow-x-auto snap-x snap-mandatory px-4 gap-3"
+            style={{ WebkitOverflowScrolling: 'touch', scrollSnapType: 'x mandatory' }}
+          >
             {foodTrucks.map((truck, idx) => (
               <BroadcastCard 
                 key={truck.id}
@@ -243,7 +270,10 @@ export const Feed: React.FC<FeedProps> = ({
       {donations.length > 0 && !hideOtherSections && (
         <div className="flex flex-col">
           <SectionHeader title="Community_Support" count={donations.length} status="♥ Local Impact" />
-          <div className="flex overflow-x-auto snap-x snap-mandatory no-scrollbar px-6 gap-4">
+          <div 
+            className="flex overflow-x-auto snap-x snap-mandatory px-4 gap-3"
+            style={{ WebkitOverflowScrolling: 'touch', scrollSnapType: 'x mandatory' }}
+          >
             {donations.map((b, idx) => (
               <BroadcastCard 
                 key={b.id}
@@ -267,7 +297,10 @@ export const Feed: React.FC<FeedProps> = ({
       {walkingEvents.length > 0 && !hideOtherSections && (
         <div className="flex flex-col">
           <SectionHeader title="Guided Walks" count={walkingEvents.length} status="BOOKING_OPEN" />
-          <div className="flex overflow-x-auto snap-x snap-mandatory no-scrollbar px-6 gap-4">
+          <div 
+            className="flex overflow-x-auto snap-x snap-mandatory px-4 gap-3"
+            style={{ WebkitOverflowScrolling: 'touch', scrollSnapType: 'x mandatory' }}
+          >
             {walkingEvents.map((walk, idx) => (
               <BroadcastCard 
                 key={walk.id}
@@ -291,8 +324,11 @@ export const Feed: React.FC<FeedProps> = ({
       {/* Events Carousel */}
       {events.length > 0 && !hideOtherSections && (
         <div className="flex flex-col">
-          <SectionHeader title="City Events" count={events.length} />
-          <div className="flex overflow-x-auto snap-x snap-mandatory no-scrollbar px-6 gap-4">
+          <SectionHeader title="City Events" status="VIBRANT_SIGNALS" count={events.length} />
+          <div 
+            className="flex overflow-x-auto snap-x snap-mandatory px-4 gap-3"
+            style={{ WebkitOverflowScrolling: 'touch', scrollSnapType: 'x mandatory' }}
+          >
             {events.map((event, idx) => (
               <BroadcastCard 
                 key={event.id}
@@ -317,7 +353,10 @@ export const Feed: React.FC<FeedProps> = ({
       {murals.length > 0 && !hideOtherSections && (
         <div className="flex flex-col">
           <SectionHeader title="Public Art" count={murals.length} status="PUBLIC_MURALS" />
-          <div className="flex overflow-x-auto snap-x snap-mandatory no-scrollbar px-6 gap-4">
+          <div 
+            className="flex overflow-x-auto snap-x snap-mandatory px-4 gap-3"
+            style={{ WebkitOverflowScrolling: 'touch', scrollSnapType: 'x mandatory' }}
+          >
             {murals.map((mural, idx) => (
               <BroadcastCard 
                 key={mural.id}

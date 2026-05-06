@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Local Pulse Hero Redesign</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --uh-yellow: #FFE01A;
+            --uh-black: #0A0A0A;
+            --uh-gray: #1a1a1a;
+            --uh-muted: #555;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            user-select: none;
+        }
+
+        body {
+            background: var(--uh-black);
+            color: white;
+            font-family: 'Space Mono', monospace;
+            overflow-x: hidden;
+            min-height: 100vh;
+        }
+
+        /* Scanline Overlay */
+        body::before {
+            content: "";
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.1) 50%), 
+                        linear-gradient(90deg, rgba(255, 0, 0, 0.03), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.03));
+            background-size: 100% 2px, 3px 100%;
+            pointer-events: none;
+            z-index: 100;
+            opacity: 0.3;
+        }
+
+        .hero {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 80px 40px;
+            text-align: center;
+            position: relative;
+        }
+
+        .wordmark-container {
+            position: relative;
+            margin-bottom: 24px;
+        }
+
+        .wordmark {
+            font-size: clamp(60px, 15vw, 140px);
+            font-weight: 700;
+            letter-spacing: -0.05em;
+            text-transform: uppercase;
+            line-height: 0.9;
+        }
+
+        .wordmark span {
+            color: var(--uh-yellow);
+        }
+
+        .wordmark-distressed {
+            position: absolute;
+            top: 4px;
+            left: 4px;
+            width: 100%;
+            opacity: 0.15;
+            filter: blur(2px);
+            z-index: -1;
+        }
+
+        .subline {
+            font-size: clamp(14px, 2vw, 18px);
+            color: #888;
+            max-width: 600px;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            margin-bottom: 48px;
+            line-height: 1.6;
+        }
+
+        .subline strong {
+            color: white;
+            font-weight: 700;
+        }
+
+        .cta-group {
+            display: flex;
+            gap: 24px;
+            flex-wrap: wrap;
+            justify-content: center;
+            margin-bottom: 80px;
+        }
+
+        .btn {
+            font-family: 'Space Mono', monospace;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.3em;
+            text-transform: uppercase;
+            padding: 20px 40px;
+            cursor: pointer;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            border: none;
+            outline: none;
+        }
+
+        .btn-primary {
+            background: var(--uh-yellow);
+            color: var(--uh-black);
+            box-shadow: 0 0 30px rgba(255, 224, 26, 0.2);
+        }
+
+        .btn-primary:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 50px rgba(255, 224, 26, 0.4);
+        }
+
+        .btn-ghost {
+            background: transparent;
+            color: white;
+            border: 1px solid #333;
+        }
+
+        .btn-ghost:hover {
+            border-color: var(--uh-yellow);
+            background: rgba(255, 224, 26, 0.05);
+        }
+
+        /* Feed Section */
+        .feed-container {
+            width: 100%;
+            max-width: 1200px;
+            margin-bottom: 100px;
+        }
+
+        .feed-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 32px;
+            padding: 0 16px;
+        }
+
+        .feed-label {
+            font-size: 9px;
+            color: var(--uh-yellow);
+            letter-spacing: 0.4em;
+            text-transform: uppercase;
+        }
+
+        .feed-sync {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 7px;
+            color: #444;
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
+        }
+
+        .sync-dot {
+            width: 5px;
+            height: 5px;
+            background: var(--uh-yellow);
+            border-radius: 50%;
+            animation: pulse 1s infinite;
+        }
+
+        .feed-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+        }
+
+        .card {
+            background: #111;
+            border: 1px solid var(--uh-gray);
+            padding: 24px;
+            text-align: left;
+            position: relative;
+            transition: border-color 0.3s;
+            cursor: pointer;
+        }
+
+        .card:hover {
+            border-color: rgba(255, 224, 26, 0.4);
+        }
+
+        .card-status {
+            font-size: 7px;
+            display: inline-block;
+            padding: 2px 6px;
+            border-radius: 2px;
+            margin-bottom: 12px;
+        }
+
+        .status-live {
+            background: var(--uh-yellow);
+            color: var(--uh-black);
+            font-weight: 700;
+        }
+
+        .status-other {
+            border: 1px solid #333;
+            color: #666;
+        }
+
+        .card-name {
+            font-size: 12px;
+            font-weight: 700;
+            color: white;
+            text-transform: uppercase;
+            margin-bottom: 12px;
+            letter-spacing: 0.05em;
+        }
+
+        .card-meta {
+            font-size: 8px;
+            color: #555;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+        }
+
+        .card-count {
+            position: absolute;
+            top: 24px;
+            right: 24px;
+            font-size: 7px;
+            color: var(--uh-yellow);
+        }
+
+        .card-vibe {
+            color: rgba(255, 224, 26, 0.6);
+            margin-top: 8px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        /* Baseline Footer */
+        .baseline {
+            width: 100%;
+            border-top: 1px solid #222;
+            border-bottom: 1px solid #222;
+            padding: 40px 20px;
+            margin-top: 60px;
+        }
+
+        .anchor-line {
+            font-size: 11px;
+            color: #666;
+            letter-spacing: 0.25em;
+            text-transform: uppercase;
+            max-width: 800px;
+            margin: 0 auto 20px;
+            line-height: 1.8;
+        }
+
+        .anchor-line strong {
+            color: white;
+        }
+
+        .powered-by {
+            font-size: 8px;
+            color: #333;
+            letter-spacing: 0.4em;
+            text-transform: uppercase;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.4; transform: scale(1.2); }
+            100% { opacity: 1; transform: scale(1); }
+        }
+
+        @media (max-width: 768px) {
+            .hero { padding: 40px 20px; }
+            .cta-group { flex-direction: column; width: 100%; }
+            .btn { width: 100%; }
+        }
+    </style>
+</head>
+<body>
+    <section class="hero">
+        <div class="wordmark-container">
+            <h1 class="wordmark">LOCAL <span>PULSE</span></h1>
+            <h1 class="wordmark wordmark-distressed">LOCAL PULSE</h1>
+        </div>
+
+        <p class="subline">
+            See what's happening within 3 miles of you—right now. 
+            <br>
+            <strong>Live events. Real-time energy. No searching.</strong>
+        </p>
+
+        <div class="cta-group">
+            <button class="btn btn-primary">Explore What's Happening Now</button>
+            <button class="btn btn-ghost">View Live Map</button>
+        </div>
+
+        <div class="feed-container">
+            <div class="feed-header">
+                <span class="feed-label">↳ Live City Feed</span>
+                <div class="feed-sync">
+                    <div class="sync-dot"></div>
+                    Real-Time Sync Active
+                </div>
+            </div>
+
+            <div class="feed-grid">
+                <!-- Card 1 -->
+                <div class="card">
+                    <span class="card-count">142 HERE</span>
+                    <span class="card-status status-live">LIVE NOW</span>
+                    <h3 class="card-name">Neon Nights Expo</h3>
+                    <div class="card-meta">
+                        <span>Loc: Vine St</span>
+                        <div class="card-vibe">Signal: Buzzing</div>
+                    </div>
+                </div>
+                <!-- Card 2 -->
+                <div class="card">
+                    <span class="card-count">68 HERE</span>
+                    <span class="card-status status-other">HOT</span>
+                    <h3 class="card-name">Jazz Terrace</h3>
+                    <div class="card-meta">
+                        <span>Loc: Wash. Park</span>
+                        <div class="card-vibe">Signal: Chill</div>
+                    </div>
+                </div>
+                <!-- Card 3 -->
+                <div class="card">
+                    <span class="card-count">215 HERE</span>
+                    <span class="card-status status-live">LIVE NOW</span>
+                    <h3 class="card-name">Street Art Jam</h3>
+                    <div class="card-meta">
+                        <span>Loc: Main St</span>
+                        <div class="card-vibe">Signal: Packed</div>
+                    </div>
+                </div>
+                <!-- Card 4 -->
+                <div class="card">
+                    <span class="card-count">45 HERE</span>
+                    <span class="card-status status-other">UPCOMING</span>
+                    <h3 class="card-name">Gallery Open</h3>
+                    <div class="card-meta">
+                        <span>Loc: Liberty St</span>
+                        <div class="card-vibe">Signal: Chill</div>
+                    </div>
+                </div>
+                <!-- Card 5 -->
+                <div class="card">
+                    <span class="card-count">89 HERE</span>
+                    <span class="card-status status-other">HOT</span>
+                    <h3 class="card-name">Pop-up Market</h3>
+                    <div class="card-meta">
+                        <span>Loc: Findlay</span>
+                        <div class="card-vibe">Signal: Buzzing</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="baseline">
+            <p class="anchor-line">
+                Local Pulse turns the city into a real-time, walkable dashboard. 
+                <strong>Tap any Pulse Cube. See what's alive. Walk toward it.</strong>
+            </p>
+            <div class="powered-by">
+                Powered by Urban Hikers — Built from the streets of Cincinnati.
+            </div>
+        </div>
+    </section>
+</body>
+</html>

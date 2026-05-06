@@ -45,8 +45,8 @@ export const LocalHubCard: React.FC<LocalHubCardProps> = ({ hub, idx, onRedeem }
     ? '1.5px solid #FFE01A'
     : '1px solid #2a2a2a';
 
-  const cardWidth  = 'w-[240px]';
-  const cardHeight = 'h-[200px]';
+  const cardWidth  = 'w-[280px]';
+  const cardHeight = 'h-[220px]';
 
   const openDirections = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -58,8 +58,14 @@ export const LocalHubCard: React.FC<LocalHubCardProps> = ({ hub, idx, onRedeem }
     <motion.div
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
+      whileHover={{ scale: 1.02 }}
+      whileTap={{ 
+        scale: 0.96,
+        rotate: [0, -1, 1, -1, 1, 0],
+        transition: { duration: 0.2 }
+      }}
       transition={{ delay: idx * 0.05 }}
-      className={`${cardWidth} ${cardHeight} relative rounded-[32px] overflow-hidden flex-shrink-0 cursor-pointer snap-start bg-[#1a1a1a] group`}
+      className={`${cardWidth} ${cardHeight} relative rounded-[24px] overflow-hidden flex-shrink-0 cursor-pointer snap-start bg-[#1a1a1a] group shadow-xl`}
       style={{ border: borderStyle }}
       onClick={openDirections}
     >
@@ -68,14 +74,14 @@ export const LocalHubCard: React.FC<LocalHubCardProps> = ({ hub, idx, onRedeem }
         <img
           src={hub.cover_url}
           alt={hub.name}
-          className="absolute inset-0 w-full h-full object-cover opacity-55 transition-transform duration-700 group-hover:scale-105"
+          className="absolute inset-0 w-full h-full object-cover opacity-75 transition-transform duration-700 group-hover:scale-105"
           referrerPolicy="no-referrer"
         />
       ) : (
         <div className="absolute inset-0 bg-[#111]" />
       )}
 
-      <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-black/10" />
+      <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/40 to-black/10" />
 
       {/* Hover action indicator */}
       <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-20 pointer-events-none">

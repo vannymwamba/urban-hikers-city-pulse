@@ -7,6 +7,7 @@ import { BroadcastControlForm } from './BroadcastControlForm';
 import { handleFirestoreError, OperationType } from '../utils/firebaseErrors';
 import { RefreshCw, Trash2, Plus, Layout, Users, Activity, LogOut, Shield, Database, BarChart2, Radio, MapPin, Zap, Loader2, Upload } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { useMapsLibrary } from '@vis.gl/react-google-maps';
 import { OverviewPanel } from './OverviewPanel';
 import { SystemHealthPanel } from './SystemHealthPanel';
 import { LiveTicker } from './LiveTicker';
@@ -45,7 +46,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, userProfile, nodes, 
     latitude: 39.1092,
     longitude: -84.5125,
     radius_limit: 4828,
-    type: 'street' as 'street' | 'conference_center'
+    type: 'street' as any,
+    partner_name: '',
+    partner_type: 'walk_hq' as 'walk_hq' | 'civic' | 'anchor' | 'refuel' | 'street',
+    partner_initials: '',
+    partner_accent: '#FFE01A',
+    hub_tagline: ''
   });
 
   const [newLocalHub, setNewLocalHub] = useState({
@@ -215,6 +221,36 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, userProfile, nodes, 
     }
   };
 
+  const [isSolvingAddress, setIsSolvingAddress] = useState(false);
+  const geocodingLib = useMapsLibrary('geocoding');
+
+  const solveAddress = async () => {
+    if (!geocodingLib || !newSectorNode.address) return;
+    
+    setIsSolvingAddress(true);
+    try {
+      const geocoder = new geocodingLib.Geocoder();
+      const result = await geocoder.geocode({ address: newSectorNode.address });
+      
+      if (result.results && result.results[0]) {
+        const { lat, lng } = result.results[0].geometry.location;
+        setNewSectorNode({
+          ...newSectorNode,
+          latitude: lat(),
+          longitude: lng()
+        });
+        setHudMessage({ text: 'ADDRESS_SOLVED: COORDINATES_UPDATED', type: 'info' });
+      } else {
+        setHudMessage({ text: 'GEOCONDING_FAILED: NO_RESULTS', type: 'error' });
+      }
+    } catch (err) {
+      console.error("Geocoding error:", err);
+      setHudMessage({ text: 'GEOCONDING_ERROR: CHECK_API_KEY', type: 'error' });
+    } finally {
+      setIsSolvingAddress(false);
+    }
+  };
+
   const handleAddPartner = async () => {
     if (!newPartner.name || !newPartner.owner_email) return;
     try {
@@ -327,7 +363,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, userProfile, nodes, 
         created_at: Timestamp.now()
       });
       setShowAddSectorNode(false);
-      setNewSectorNode({ name: '', address: '', latitude: 39.1092, longitude: -84.5125, radius_limit: 4828, type: 'street' });
+      setNewSectorNode({ 
+        name: '', address: '', latitude: 39.1092, longitude: -84.5125, radius_limit: 4828, type: 'street' as any,
+        partner_name: '', partner_type: 'walk_hq', partner_initials: '', partner_accent: '#FFE01A', hub_tagline: ''
+      });
       setHudMessage({ text: 'SECTOR_NODE_REGISTERED', type: 'info' });
     } catch (err) {
       setHudMessage({ text: 'NODE_REGISTRATION_FAILED', type: 'error' });
@@ -388,29 +427,30 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, userProfile, nodes, 
   };
 
   const handleResolveCoordinates = async () => {
-    if (!newLocalHub.address) {
+    if (!geocodingLib || !newLocalHub.address) {
       setHudMessage({ text: 'ADDRESS_REQUIRED_FOR_RESOLUTION', type: 'error' });
       return;
     }
 
     setResolvingCoordinates(true);
     try {
-      const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(newLocalHub.address)}`);
-      const data = await response.json();
+      const geocoder = new geocodingLib.Geocoder();
+      const result = await geocoder.geocode({ address: newLocalHub.address });
 
-      if (data && data.length > 0) {
-        const { lat, lon } = data[0];
+      if (result.results && result.results[0]) {
+        const { lat, lng } = result.results[0].geometry.location;
         setNewLocalHub(prev => ({
           ...prev,
-          latitude: parseFloat(lat),
-          longitude: parseFloat(lon)
+          latitude: lat(),
+          longitude: lng()
         }));
         setHudMessage({ text: 'COORDINATES_RESOLVED', type: 'info' });
       } else {
         setHudMessage({ text: 'COULD_NOT_RESOLVE_ADDRESS', type: 'error' });
       }
     } catch (err) {
-      setHudMessage({ text: 'GEOCODING_SERVICE_INTERRUPTED', type: 'error' });
+      console.error("Geocoding error:", err);
+      setHudMessage({ text: 'GEOCONDING_ERROR: CHECK_API_KEY', type: 'error' });
     } finally {
       setResolvingCoordinates(false);
     }
@@ -934,22 +974,102 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, userProfile, nodes, 
               </div>
 
               {showAddSectorNode && (
-                <div className="bg-white border border-uh-gray-200 rounded-2xl p-8 mb-8">
+                <div className="bg-white border border-uh-gray-200 rounded-2xl p-8 mb-8 animate-in fade-in slide-in-from-top-4 duration-500">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
                       <label className="text-[9px] text-[#999] tracking-widest uppercase mb-2 block">Hub_Name</label>
                       <input 
                         className="w-full bg-uh-gray-50 border border-uh-gray-100 rounded-xl px-4 py-3 text-[12px] font-bold focus:border-uh-yellow outline-none"
                         value={newSectorNode.name}
-                        placeholder="e.g. ALPHA_PLAZA"
+                        placeholder="e.g. KINLEY_LOBBY"
                         onChange={e => setNewSectorNode({...newSectorNode, name: e.target.value})}
                       />
                     </div>
                     <div>
-                      <label className="text-[9px] text-[#999] tracking-widest uppercase mb-2 block">Address</label>
+                      <label className="text-[9px] text-[#999] tracking-widest uppercase mb-2 block">Partner / Venue</label>
+                      <input 
+                        className="w-full bg-uh-gray-50 border border-uh-gray-100 rounded-xl px-4 py-3 text-[12px] font-bold focus:border-uh-yellow outline-none"
+                        value={newSectorNode.partner_name}
+                        placeholder="e.g. Kinley Hotel"
+                        onChange={e => setNewSectorNode({...newSectorNode, partner_name: e.target.value})}
+                      />
+                    </div>
+
+                    <div className="md:col-span-2">
+                       <label className="text-[9px] text-[#999] tracking-widest uppercase mb-3 block">Partner Type</label>
+                       <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                         {[
+                           { id: 'walk_hq', label: 'Walk HQ', color: '#FFE01A' },
+                           { id: 'civic', label: 'Civic', color: '#1D4ED8' },
+                           { id: 'anchor', label: 'Anchor', color: '#6366F1' },
+                           { id: 'refuel', label: 'Refuel', color: '#10B981' }
+                         ].map(type => (
+                           <button
+                             key={type.id}
+                             type="button"
+                             onClick={() => setNewSectorNode({
+                               ...newSectorNode, 
+                               partner_type: type.id as any,
+                               partner_accent: type.color
+                             })}
+                             className={`px-4 py-3 text-[10px] font-black uppercase tracking-widest rounded-xl border transition-all ${
+                               newSectorNode.partner_type === type.id 
+                               ? 'bg-black border-black text-[#FFE01A] shadow-lg scale-[1.02]' 
+                               : 'bg-white border-uh-gray-100 text-uh-gray-400 hover:border-uh-gray-300'
+                             }`}
+                           >
+                             {type.label}
+                           </button>
+                         ))}
+                       </div>
+                    </div>
+
+                    <div>
+                      <label className="text-[9px] text-[#999] tracking-widest uppercase mb-2 block">Partner Initials</label>
+                      <input 
+                        className="w-full bg-uh-gray-50 border border-uh-gray-100 rounded-xl px-4 py-3 text-[12px] font-bold focus:border-uh-yellow outline-none"
+                        value={newSectorNode.partner_initials}
+                        placeholder="e.g. KH"
+                        maxLength={3}
+                        onChange={e => setNewSectorNode({...newSectorNode, partner_initials: e.target.value.toUpperCase()})}
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-[9px] text-[#999] tracking-widest uppercase mb-2 block">Accent Color</label>
+                      <div className="flex items-center gap-3 h-[46px]">
+                        {['#FFE01A', '#1D4ED8', '#10B981', '#6366F1', '#E24B4A'].map(color => (
+                          <button
+                            key={color}
+                            type="button"
+                            onClick={() => setNewSectorNode({...newSectorNode, partner_accent: color})}
+                            className={`w-8 h-8 rounded-full border-2 transition-transform hover:scale-110 ${newSectorNode.partner_accent === color ? 'border-uh-black scale-110' : 'border-transparent'}`}
+                            style={{ backgroundColor: color }}
+                          />
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="md:col-span-2">
+                      <div className="flex justify-between items-center mb-2">
+                        <label className="text-[9px] text-[#999] tracking-widest uppercase block">Address</label>
+                        <button 
+                          onClick={solveAddress}
+                          disabled={isSolvingAddress || !newSectorNode.address}
+                          className="flex items-center gap-1.5 px-3 py-1 bg-uh-yellow text-uh-black text-[8px] font-black tracking-widest uppercase rounded h-6 hover:scale-105 transition-all disabled:opacity-50 disabled:hover:scale-100"
+                        >
+                          {isSolvingAddress ? (
+                            <RefreshCw size={10} className="animate-spin" />
+                          ) : (
+                            <Zap size={10} />
+                          )}
+                          Solve to Address
+                        </button>
+                      </div>
                       <input 
                         className="w-full bg-uh-gray-50 border border-uh-gray-100 rounded-xl px-4 py-3 text-[12px] font-bold focus:border-uh-yellow outline-none"
                         value={newSectorNode.address}
+                        placeholder="636 Race St, Cincinnati, OH"
                         onChange={e => setNewSectorNode({...newSectorNode, address: e.target.value})}
                       />
                     </div>
@@ -972,6 +1092,16 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, userProfile, nodes, 
                         value={newSectorNode.longitude}
                         onChange={e => setNewSectorNode({...newSectorNode, longitude: parseFloat(e.target.value)})}
                       />
+                    </div>
+
+                    <div className="md:col-span-2">
+                       <label className="text-[9px] text-[#999] tracking-widest uppercase mb-2 block">Hub Tagline <span className="opacity-50">(Optional)</span></label>
+                       <input 
+                         className="w-full bg-uh-gray-50 border border-uh-gray-100 rounded-xl px-4 py-3 text-[12px] font-bold focus:border-uh-yellow outline-none"
+                         value={newSectorNode.hub_tagline}
+                         placeholder="e.g. Walk HQ • 3 departures daily"
+                         onChange={e => setNewSectorNode({...newSectorNode, hub_tagline: e.target.value})}
+                       />
                     </div>
                   </div>
                   <button 

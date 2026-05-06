@@ -192,53 +192,96 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
 
   return (
     <div className="flex flex-col h-full bg-[#f0f0f0] text-uh-black font-sans relative overflow-hidden">
-      {/* Collapsible Header Container */}
+      {/* Collapsible Header Container — New Co-branded Structure */}
       <motion.div 
         style={{ 
-          height: 140, // Restore expanded height feel
+          height: 200, 
           backgroundColor: '#0a0a0a',
-          borderBottom: '1px solid #1a1a1a'
+          borderBottom: `1px solid ${currentNode?.partner_accent || '#1a1a1a'}33` 
         }}
         className="fixed top-0 inset-x-0 z-[100] flex flex-col overflow-hidden"
       >
-        <div className="flex-1 px-6 flex items-center justify-between">
-          <div className="flex flex-col">
-            <span className="text-[10px] font-black tracking-[0.25em] text-uh-yellow uppercase mb-1 font-mono">Sector_Hub</span>
-            <h1 className="text-3xl font-black tracking-tight text-uh-yellow uppercase">
-              {nodeName.replace('_HUB', '')}
-            </h1>
-          </div>
+        {/* Partner Bar */}
+        <div className="px-6 py-3 flex items-center justify-between bg-[#050505] border-b border-white/5">
+           <div className="flex items-center gap-3">
+             {currentNode?.partner_initials && (
+               <div 
+                 className="w-8 h-8 rounded-lg flex items-center justify-center text-[10px] font-black tracking-tighter" 
+                 style={{ backgroundColor: currentNode.partner_accent || '#FFE01A', color: '#000' }}
+               >
+                 {currentNode.partner_initials}
+               </div>
+             )}
+             <div className="flex flex-col">
+               <div className="flex items-center gap-2">
+                 <span className="text-[10px] font-black text-white/80 uppercase tracking-widest leading-none">
+                   {currentNode?.partner_name || 'Urban Hikers'}
+                 </span>
+                 <span className="text-[10px] font-black text-white/30 uppercase tracking-widest leading-none">
+                   // {currentNode?.partner_type || 'STREET'} PARTNER
+                 </span>
+               </div>
+             </div>
+           </div>
+           
+           <div className="flex items-center gap-2">
+             <div className="px-2 py-1 rounded-full bg-white/5 flex items-center gap-1.5 border border-white/5">
+                <div className="w-1 h-1 rounded-full animate-pulse" style={{ backgroundColor: currentNode?.partner_accent || '#FFE01A' }} />
+                <span className="text-[8px] font-black uppercase tracking-widest text-[#666]">{currentNode?.partner_type === 'civic' ? 'Civic' : 'Verified'}</span>
+             </div>
+           </div>
+        </div>
+
+        {/* Hub Header Section */}
+        <div className="flex-1 px-6 pt-6 pb-4 flex flex-col justify-end relative overflow-hidden">
+          {/* Subtle gradient tint from accent */}
+          <div className="absolute inset-0 pointer-events-none opacity-10" 
+            style={{ 
+              background: `linear-gradient(to bottom, ${currentNode?.partner_accent || '#FFE01A'}, transparent)` 
+            }} 
+          />
           
-          <div className="text-right flex flex-col items-end">
-            <span className="text-[10px] font-black tracking-[0.25em] text-uh-yellow/60 uppercase mb-1 font-mono">Time</span>
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-uh-yellow animate-pulse" />
-              <div className="text-2xl font-black tracking-tighter text-uh-yellow font-mono tabular-nums">
-                {time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })}
+          <div className="relative z-10 flex flex-col">
+            <div className="flex items-center gap-3 mb-1">
+              <span className="text-[10px] font-black text-white/40 uppercase tracking-widest font-mono">
+                {currentNode?.partner_type?.replace('_', ' ') || 'Sector'} Hub • {currentNode?.address || '636 Race St'}
+              </span>
+            </div>
+            
+            <h1 className="text-4xl md:text-5xl font-black tracking-tighter text-[#FFE01A] uppercase italic leading-[0.8] mb-4">
+              {nodeName.replace('_HUB', '').replace(/_/g, ' ')}
+            </h1>
+            
+            {/* Hub Tagline / Live Meta */}
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <span className="text-[9px] font-bold text-white/60 uppercase tracking-[0.2em]">{currentNode?.hub_tagline || 'Sector_Sync • Active'}</span>
+              </div>
+              <div className="w-[1px] h-3 bg-white/10" />
+              <div className="flex items-center gap-1.5">
+                <div className="w-1 h-1 rounded-full bg-uh-yellow animate-pulse" />
+                <span className="text-[9px] font-black text-white/30 uppercase font-mono tracking-widest">
+                  {time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })}
+                </span>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Identity Bar */}
-        <div className="px-6 py-3 flex items-center justify-between bg-[#111] border-t border-white/5">
+        {/* Status Bar */}
+        <div className="px-6 py-2.5 flex items-center justify-between bg-[#0a0a0a] border-t border-white/5">
           <div className="flex items-center gap-2">
-            <ShieldCheck size={14} className="text-uh-yellow" />
-            <span className="text-[10px] font-bold text-[#666] uppercase tracking-[0.2em] font-mono">
+            <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: currentNode?.partner_accent || '#FFE01A' }} />
+            <span className="text-[9px] font-bold uppercase tracking-[0.2em] font-mono text-white/30">
               {user ? 'Identity_Verified' : 'Anonymous_Protocol'}
+            </span>
+            <span className="text-[9px] font-bold text-white/10 mx-1">·</span>
+            <span className="text-[9px] font-bold uppercase tracking-[0.2em] font-mono text-white/30">
+              Access: Direct
             </span>
           </div>
           <div className="flex items-center gap-4">
-            {!user && (
-              <button 
-                onClick={onLogin}
-                className="text-uh-yellow text-[10px] font-black uppercase tracking-widest font-mono hover:underline"
-              >
-                Upgrade_ID
-              </button>
-            )}
-            <div className="w-[1px] h-3 bg-white/10" />
-            <span className="text-[9px] font-bold text-[#444] uppercase tracking-widest font-mono">Access_Vector: {accessVector}</span>
+            <span className="text-[9px] font-black text-white/10 uppercase tracking-widest font-mono">Sync_active</span>
           </div>
         </div>
       </motion.div>
@@ -246,7 +289,8 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
       {/* Main Scrollable Area */}
       <div 
         onScroll={handleScroll}
-        className="flex-1 overflow-y-auto relative z-10 no-scrollbar pt-[140px] pb-32"
+        className="flex-1 overflow-y-auto relative z-10 pt-[200px] pb-32 scroll-smooth"
+        style={{ WebkitOverflowScrolling: 'touch' }}
       >
         <div className="flex flex-col gap-0">
           <div className="flex flex-col">
@@ -311,9 +355,9 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
         </div>
       </div>
 
-    {/* Bottom Navigation — White version */}
+    {/* Bottom Navigation — Dark version */}
     <div className="fixed bottom-0 inset-x-0 z-[110] flex flex-col pointer-events-none">
-      <div className="bg-white px-8 py-6 flex justify-between items-center border-t border-uh-gray-100 pointer-events-auto shadow-[0_-10px_40px_rgba(0,0,0,0.05)]">
+      <div className="bg-[#0a0a0a] px-8 py-6 flex justify-between items-center border-t border-white/5 pointer-events-auto shadow-[0_-10px_40px_rgba(0,0,0,0.5)]">
         {[
           { id: 'home', icon: Home, label: 'Home', href: '/' },
           { id: 'feed', icon: Clock, label: 'Feed' },
@@ -326,9 +370,13 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
           
           const content = (
             <div className="flex flex-col items-center gap-1 group relative">
-              <Icon size={22} className={`${isActive ? 'text-uh-black' : 'text-uh-gray-300 group-hover:text-uh-black'} transition-colors`} />
+              <Icon size={24} strokeWidth={isActive ? 3 : 2} className={`${isActive ? 'text-uh-yellow shadow-[0_0_15px_rgba(255,224,26,0.3)]' : 'text-white/30 group-hover:text-white'} transition-all duration-150 ease-out`} />
               {isActive && (
-                <div className="absolute -bottom-2 w-1.5 h-1.5 bg-uh-yellow rounded-full" />
+                <motion.div 
+                  layoutId="nav-dot"
+                  className="absolute -bottom-3 w-1.5 h-1.5 bg-uh-yellow rounded-full shadow-[0_0_8px_rgba(255,224,26,0.8)]"
+                  transition={{ duration: 0.15, ease: 'easeOut' }}
+                />
               )}
             </div>
           );

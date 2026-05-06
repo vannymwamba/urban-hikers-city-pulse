@@ -66,6 +66,7 @@ interface EnrichedSignal {
   short_description: string;
   walking_relevance_score: number;
   nearest_hub_hint: string;
+  recurrence_pattern?: string;
 }
 
 /**
@@ -169,6 +170,7 @@ async function enrichEvent(event: LibraryEvent): Promise<EnrichedSignal | null> 
 - short_description: 2 sentences max, energetic tone
 - walking_relevance_score: 1-10 (how relevant is this to someone on a walking tour nearby?)
 - nearest_hub_hint: which Cincinnati neighborhood does this belong to? (OTR, Downtown, Findlay Market, The Banks, Covington, Newport, Northside)
+- recurrence_pattern: if the description suggests this repeats (e.g., "Weekly on Mondays", "Monthly first Sat", "Daily"), extract it. Otherwise empty string.
 
 Return only valid JSON, no markdown.`;
 
@@ -202,7 +204,7 @@ Return only valid JSON, no markdown.`;
 export async function runLibraryIngestionAgent() {
   initDb();
   
-  const MAX_PER_RUN = 3;
+  const MAX_PER_RUN = 20;
   const summary = {
     total_fetched: 0,
     total_enriched: 0,
@@ -215,16 +217,14 @@ export async function runLibraryIngestionAgent() {
     const rawEvents = await fetchLibraryEvents();
     summary.total_fetched = rawEvents.length;
 
-    const downtownEvents = rawEvents.filter(evt =>
-      evt.location_name.toLowerCase().includes('downtown') ||
-      evt.location_name.toLowerCase().includes('main')
-    );
+    const validEvents = rawEvents.filter(evt => {
+      if (!evt.start_datetime) return false;
+      const d = new Date(evt.start_datetime);
+      return !isNaN(d.getTime()) && d > new Date();
+    });
 
-    for (const rawEvent of downtownEvents) {
+    for (const rawEvent of validEvents) {
       try {
-        const eventStart = new Date(rawEvent.start_datetime);
-        if (isNaN(eventStart.getTime()) || eventStart < new Date()) continue;
-
         // DEDUPLICATION
         const existingDoc = await db.collection('broadcasts')
           .where('source', '==', 'cincinnati_library')
@@ -248,7 +248,7 @@ export async function runLibraryIngestionAgent() {
           source_id: rawEvent.source_id,
           title: enriched?.signal_title || rawEvent.title,
           vibe: enriched?.signal_vibe || 'CHILL',
-          type: enriched?.signal_category || 'CIVIC_EVENT',
+          type: 'civic_event',
           description: enriched?.short_description || rawEvent.description.slice(0, 150),
           location_name: rawEvent.location_name,
           location_address: rawEvent.location_address,
@@ -268,6 +268,7 @@ export async function runLibraryIngestionAgent() {
           venue:      'Cincinnati Public Library',
           address:    '800 Vine St, Cincinnati, OH 45202',
           partner_id: 'cincinnati-public-library',
+          recurrence: enriched?.recurrence_pattern || null,
           created_at: FieldValue.serverTimestamp(),
           node_id: null, // geocoded later
           is_active: true

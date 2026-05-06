@@ -54,9 +54,10 @@ export const BroadcastModal: React.FC<BroadcastModalProps> = ({
           />
           
           <motion.div
-            initial={{ scale: 0.95, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0.95, opacity: 0 }}
+            initial={{ y: '100%' }}
+            animate={{ y: 0 }}
+            exit={{ y: '100%' }}
+            transition={{ ease: [0.32, 0.72, 0, 1], duration: 0.38 }}
             className="relative w-full max-w-2xl bg-white rounded-[32px] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
           >
             {/* Header Image */}
@@ -135,6 +136,11 @@ export const BroadcastModal: React.FC<BroadcastModalProps> = ({
                           <span className="text-xs font-black text-uh-black uppercase tracking-tight">
                             {formatTime(startsAt)} — {formatTime(expiresAt)}
                           </span>
+                          {broadcast.recurrence && (
+                            <span className="text-[10px] text-uh-magenta font-bold mt-1 uppercase">
+                              {broadcast.recurrence}
+                            </span>
+                          )}
                           {broadcast.departure_time && (
                             <span className="text-[10px] text-uh-gray-400 font-bold mt-1 uppercase text-uh-magenta">
                               Departs: {broadcast.departure_time}
