@@ -70,28 +70,21 @@ export const Feed: React.FC<FeedProps> = ({
     return false;
   };
 
-  const flashDeals = broadcasts.filter(b => {
+  const walkingEvents = broadcasts.filter(b => (b.type ?? '').toLowerCase() === 'walking_event');
+  const cityPulse = broadcasts.filter(b => {
     const type = (b.type ?? '').toLowerCase();
-    return type === BroadcastType.FLASH_DEAL || b.is_sponsored === true;
+    return ['live_event', 'pop_up', 'civic_event', 'civic_free', 'event', 'conference_panel', 'live_performance'].includes(type);
   });
-  const foodTrucks = broadcasts.filter(b => (b.type ?? '').toLowerCase() === BroadcastType.FOOD_TRUCK);
-  const walkingEvents = broadcasts.filter(b => (b.type ?? '').toLowerCase() === BroadcastType.WALKING_EVENT);
-  const donations = broadcasts.filter(b => (b.type ?? '').toLowerCase() === BroadcastType.DONATION);
+  const foodTrucks = broadcasts.filter(b => (b.type ?? '').toLowerCase() === 'food_truck');
   const murals = broadcasts.filter(b => {
     const type = (b.type ?? '').toLowerCase();
     return ['mural', 'civic_mural', 'street_art'].includes(type);
   });
-  const events = broadcasts.filter(b => {
+  const flashDeals = broadcasts.filter(b => {
     const type = (b.type ?? '').toLowerCase();
-    return [
-      'live_event', 
-      'pop_up', 
-      'event', 
-      'conference_panel', 
-      'civic_event', 
-      'live_performance'
-    ].includes(type);
+    return type === 'flash_deal' || b.is_sponsored === true;
   });
+  const donations = broadcasts.filter(b => (b.type ?? '').toLowerCase() === 'donation');
   
   const flashDealsRef = useRef<HTMLDivElement>(null);
   const [activeFlashIndex, setActiveFlashIndex] = useState(0);
@@ -151,10 +144,148 @@ export const Feed: React.FC<FeedProps> = ({
 
   return (
     <div className="flex flex-col gap-10 py-6">
+      {/* JOIN A WALK */}
+      {walkingEvents.length > 0 && !hideOtherSections && (
+        <div className="flex flex-col">
+          <SectionHeader title="JOIN A WALK" count={walkingEvents.length} status="SECURE SPOT" />
+          <div 
+            className="flex overflow-x-auto snap-x snap-mandatory px-4 gap-3"
+            style={{ WebkitOverflowScrolling: 'touch', scrollSnapType: 'x mandatory' }}
+          >
+            {walkingEvents.map((walk, idx) => (
+              <BroadcastCard 
+                key={walk.id}
+                item={walk}
+                idx={idx}
+                currentNode={currentNode}
+                onSelect={onSelect}
+                onConfirm={onConfirm}
+                onShareEvent={onShareEvent}
+                onManage={onManage}
+                partner={partnersMap[walk.partnerId || walk.partner_id || '']}
+                variant="peek"
+                canManage={canManageBroadcast(walk)}
+              />
+            ))}
+            <MoreCard label="VIEW_SCHEDULE" />
+          </div>
+        </div>
+      )}
+
+      {/* CITY PULSE */}
+      {cityPulse.length > 0 && !hideOtherSections && (
+        <div className="flex flex-col">
+          <SectionHeader title="CITY PULSE" status="LIVE UPDATES" count={cityPulse.length} />
+          <div 
+            className="flex overflow-x-auto snap-x snap-mandatory px-4 gap-3"
+            style={{ WebkitOverflowScrolling: 'touch', scrollSnapType: 'x mandatory' }}
+          >
+            {cityPulse.map((event, idx) => (
+              <BroadcastCard 
+                key={event.id}
+                item={event}
+                idx={idx}
+                currentNode={currentNode}
+                onSelect={onSelect}
+                onConfirm={onConfirm}
+                onShareEvent={onShareEvent}
+                onManage={onManage}
+                partner={partnersMap[event.partnerId || event.partner_id || '']}
+                variant="peek"
+                canManage={canManageBroadcast(event)}
+              />
+            ))}
+            <MoreCard label="SYSTEM_ARCHIVE" />
+          </div>
+        </div>
+      )}
+
+      {localHubs.length > 0 && !hideOtherSections && (
+        <div className="flex flex-col">
+          <SectionHeader
+            title="Local_Hubs"
+            count={localHubs.length}
+            status="REFUEL STATIONS"
+          />
+          <div 
+            className="flex overflow-x-auto snap-x snap-mandatory px-4 gap-3"
+            style={{ WebkitOverflowScrolling: 'touch', scrollSnapType: 'x mandatory' }}
+          >
+            {[...localHubs]
+              .sort((a, b) => (a.distance_mi ?? 99) - (b.distance_mi ?? 99))
+              .map((hub, idx) => (
+                <LocalHubCard
+                  key={hub.id}
+                  hub={hub}
+                  idx={idx}
+                  onRedeem={onRedeemHub}
+                />
+              ))}
+          </div>
+        </div>
+      )}
+
+      {/* FOOD TRUCKS NEARBY */}
+      {foodTrucks.length > 0 && !hideOtherSections && (
+        <div className="flex flex-col">
+          <SectionHeader title="FOOD TRUCKS NEARBY" count={foodTrucks.length} status="SERVING NOW" />
+          <div 
+            className="flex overflow-x-auto snap-x snap-mandatory px-4 gap-3"
+            style={{ WebkitOverflowScrolling: 'touch', scrollSnapType: 'x mandatory' }}
+          >
+            {foodTrucks.map((truck, idx) => (
+              <BroadcastCard 
+                key={truck.id}
+                item={truck}
+                idx={idx}
+                currentNode={currentNode}
+                onSelect={onSelect}
+                onConfirm={onConfirm}
+                onShareEvent={onShareEvent}
+                onManage={onManage}
+                partner={partnersMap[truck.partnerId || truck.partner_id || '']}
+                variant="peek"
+                canManage={canManageBroadcast(truck)}
+              />
+            ))}
+            <MoreCard label="EXPLORE_ALL" />
+          </div>
+        </div>
+      )}
+
+      {/* PUBLIC ART */}
+      {murals.length > 0 && !hideOtherSections && (
+        <div className="flex flex-col">
+          <SectionHeader title="PUBLIC ART" count={murals.length} status="CITY MURALS" />
+          <div 
+            className="flex overflow-x-auto snap-x snap-mandatory px-4 gap-3"
+            style={{ WebkitOverflowScrolling: 'touch', scrollSnapType: 'x mandatory' }}
+          >
+            {murals.map((mural, idx) => (
+              <BroadcastCard 
+                key={mural.id}
+                item={mural}
+                idx={idx}
+                currentNode={currentNode}
+                onSelect={onSelect}
+                onConfirm={onConfirm}
+                onShareEvent={onShareEvent}
+                onManage={onManage}
+                partner={partnersMap[mural.partnerId || mural.partner_id || '']}
+                variant="peek"
+                canManage={canManageBroadcast(mural)}
+              />
+            ))}
+            <MoreCard label="MORE_ART" />
+          </div>
+        </div>
+      )}
+
+      {/* HOT DEALS */}
       <div className="flex flex-col">
         <SectionHeader 
-          title="Most Popular" 
-          status="HOT_DEALS" 
+          title="HOT DEALS" 
+          status="LIMITED TIME" 
           count={flashDeals.length}
           onSeeAll={() => console.log('See all flash deals')}
         />
@@ -213,63 +344,10 @@ export const Feed: React.FC<FeedProps> = ({
         )}
       </div>
 
-      {localHubs.length > 0 && !hideOtherSections && (
-        <div className="flex flex-col">
-          <SectionHeader
-            title="Local_Hubs"
-            count={localHubs.length}
-            status="⚡ Refuel_Stations"
-          />
-          <div 
-            className="flex overflow-x-auto snap-x snap-mandatory px-4 gap-3"
-            style={{ WebkitOverflowScrolling: 'touch', scrollSnapType: 'x mandatory' }}
-          >
-            {[...localHubs]
-              .sort((a, b) => (a.distance_mi ?? 99) - (b.distance_mi ?? 99))
-              .map((hub, idx) => (
-                <LocalHubCard
-                  key={hub.id}
-                  hub={hub}
-                  idx={idx}
-                  onRedeem={onRedeemHub}
-                />
-              ))}
-          </div>
-        </div>
-      )}
-
-      {/* Food Trucks Carousel */}
-      {foodTrucks.length > 0 && !hideOtherSections && (
-        <div className="flex flex-col">
-          <SectionHeader title="Logistics Units" count={foodTrucks.length} status="SCANNING" />
-          <div 
-            className="flex overflow-x-auto snap-x snap-mandatory px-4 gap-3"
-            style={{ WebkitOverflowScrolling: 'touch', scrollSnapType: 'x mandatory' }}
-          >
-            {foodTrucks.map((truck, idx) => (
-              <BroadcastCard 
-                key={truck.id}
-                item={truck}
-                idx={idx}
-                currentNode={currentNode}
-                onSelect={onSelect}
-                onConfirm={onConfirm}
-                onShareEvent={onShareEvent}
-                onManage={onManage}
-                partner={partnersMap[truck.partnerId || truck.partner_id || '']}
-                variant="peek"
-                canManage={canManageBroadcast(truck)}
-              />
-            ))}
-            <MoreCard label="EXPLORE_ALL" />
-          </div>
-        </div>
-      )}
-
-      {/* Donations Carousel */}
+      {/* LOCAL IMPACT */}
       {donations.length > 0 && !hideOtherSections && (
         <div className="flex flex-col">
-          <SectionHeader title="Community_Support" count={donations.length} status="♥ Local Impact" />
+          <SectionHeader title="LOCAL IMPACT" count={donations.length} status="♥ Local Impact" />
           <div 
             className="flex overflow-x-auto snap-x snap-mandatory px-4 gap-3"
             style={{ WebkitOverflowScrolling: 'touch', scrollSnapType: 'x mandatory' }}
@@ -289,90 +367,6 @@ export const Feed: React.FC<FeedProps> = ({
                 canManage={canManageBroadcast(b)}
               />
             ))}
-          </div>
-        </div>
-      )}
-
-      {/* Walking Events Carousel */}
-      {walkingEvents.length > 0 && !hideOtherSections && (
-        <div className="flex flex-col">
-          <SectionHeader title="Guided Walks" count={walkingEvents.length} status="BOOKING_OPEN" />
-          <div 
-            className="flex overflow-x-auto snap-x snap-mandatory px-4 gap-3"
-            style={{ WebkitOverflowScrolling: 'touch', scrollSnapType: 'x mandatory' }}
-          >
-            {walkingEvents.map((walk, idx) => (
-              <BroadcastCard 
-                key={walk.id}
-                item={walk}
-                idx={idx}
-                currentNode={currentNode}
-                onSelect={onSelect}
-                onConfirm={onConfirm}
-                onShareEvent={onShareEvent}
-                onManage={onManage}
-                partner={partnersMap[walk.partnerId || walk.partner_id || '']}
-                variant="peek"
-                canManage={canManageBroadcast(walk)}
-              />
-            ))}
-            <MoreCard label="VIEW_SCHEDULE" />
-          </div>
-        </div>
-      )}
-
-      {/* Events Carousel */}
-      {events.length > 0 && !hideOtherSections && (
-        <div className="flex flex-col">
-          <SectionHeader title="City Events" status="VIBRANT_SIGNALS" count={events.length} />
-          <div 
-            className="flex overflow-x-auto snap-x snap-mandatory px-4 gap-3"
-            style={{ WebkitOverflowScrolling: 'touch', scrollSnapType: 'x mandatory' }}
-          >
-            {events.map((event, idx) => (
-              <BroadcastCard 
-                key={event.id}
-                item={event}
-                idx={idx}
-                currentNode={currentNode}
-                onSelect={onSelect}
-                onConfirm={onConfirm}
-                onShareEvent={onShareEvent}
-                onManage={onManage}
-                partner={partnersMap[event.partnerId || event.partner_id || '']}
-                variant="peek"
-                canManage={canManageBroadcast(event)}
-              />
-            ))}
-            <MoreCard label="SYSTEM_ARCHIVE" />
-          </div>
-        </div>
-      )}
-
-      {/* Murals Carousel */}
-      {murals.length > 0 && !hideOtherSections && (
-        <div className="flex flex-col">
-          <SectionHeader title="Public Art" count={murals.length} status="PUBLIC_MURALS" />
-          <div 
-            className="flex overflow-x-auto snap-x snap-mandatory px-4 gap-3"
-            style={{ WebkitOverflowScrolling: 'touch', scrollSnapType: 'x mandatory' }}
-          >
-            {murals.map((mural, idx) => (
-              <BroadcastCard 
-                key={mural.id}
-                item={mural}
-                idx={idx}
-                currentNode={currentNode}
-                onSelect={onSelect}
-                onConfirm={onConfirm}
-                onShareEvent={onShareEvent}
-                onManage={onManage}
-                partner={partnersMap[mural.partnerId || mural.partner_id || '']}
-                variant="peek"
-                canManage={canManageBroadcast(mural)}
-              />
-            ))}
-            <MoreCard label="MORE_ART" />
           </div>
         </div>
       )}

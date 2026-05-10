@@ -1264,6 +1264,21 @@ export const BroadcastControlForm: React.FC<BroadcastControlFormProps> = ({
               </AnimatePresence>
             </div>
 
+            <div className="flex flex-col gap-4 mt-6 p-4 bg-[#f8f8f8] rounded-[10px] border-[0.5px] border-[#e0e0e0]">
+              <div className="flex items-center justify-between">
+                <div className="flex flex-col gap-1">
+                  <label className="text-[9px] text-[#1a1a1a] font-bold tracking-widest uppercase">CITYWIDE_SIGNAL_OVERRIDE</label>
+                  <p className="text-[8px] text-[#999] uppercase tracking-wider">Broadcast to all active hubs citywide</p>
+                </div>
+                <button 
+                  type="button"
+                  onClick={() => setFormData?.(f => ({ ...f, scope: f.scope === 'all_nodes' ? 'multi_node' : 'all_nodes' }))}
+                  className={`relative w-10 h-5 rounded-full transition-colors duration-200 focus:outline-none ${formData.scope === 'all_nodes' ? 'bg-[#1D9E75]' : 'bg-[#e0e0e0]'}`}
+                >
+                  <div className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform duration-200 ${formData.scope === 'all_nodes' ? 'translate-x-5' : 'translate-x-0'}`} />
+                </button>
+              </div>
+            </div>
           </div>
 
           {/* STATION_03 — THE SCHEDULE */}

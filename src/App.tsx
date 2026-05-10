@@ -927,7 +927,8 @@ export default function App() {
     const allRaw = [...rawBroadcasts, ...rawPois];
 
     const filtered = allRaw.filter(b => {
-      const radiusLimit = currentNode.radius_limit || (currentNode as any).radiusLimit || 4828;
+      // Default to 8km (approx 5 miles) for a more inclusive local feel in Cincinnati
+      const radiusLimit = currentNode.radius_limit || (currentNode as any).radiusLimit || 8046;
       
       const matched = broadcastMatchesHub(
         b,

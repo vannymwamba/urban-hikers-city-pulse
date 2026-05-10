@@ -190,8 +190,44 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
 
   const currentTheme = themeColors[headerTheme];
 
+  // Calculate nearby things (within 0.5 miles / 805 meters)
+  const nearbyThingsCount = broadcasts.filter(b => {
+    if (!currentNode || typeof currentNode.latitude !== 'number' || typeof currentNode.longitude !== 'number') return false;
+    if (typeof b.latitude !== 'number' || typeof b.longitude !== 'number') return false;
+    const dist = getDistance(currentNode.latitude, currentNode.longitude, b.latitude, b.longitude);
+    return dist <= 805;
+  }).length;
+
+  const nearestWalk = broadcasts
+    .filter(b => (b.type ?? '').toLowerCase() === 'walking_event')
+    .sort((a, b) => {
+      if (!currentNode || typeof currentNode.latitude !== 'number' || typeof currentNode.longitude !== 'number') return 0;
+      const distA = getDistance(currentNode.latitude, currentNode.longitude, a.latitude!, a.longitude!);
+      const distB = getDistance(currentNode.latitude, currentNode.longitude, b.latitude!, b.longitude!);
+      return distA - distB;
+    })[0];
+
   return (
     <div className="flex flex-col h-full bg-[#f0f0f0] text-uh-black font-sans relative overflow-hidden">
+      {/* Sticky Book Bar — always tied to nearest walking_event */}
+      <AnimatePresence>
+        {nearestWalk && (
+          <motion.div
+            initial={{ y: 100 }}
+            animate={{ y: 0 }}
+            exit={{ y: 100 }}
+            className="fixed bottom-[96px] inset-x-0 z-[120] px-6 pointer-events-none"
+          >
+            <button 
+              onClick={() => onSelect(nearestWalk)}
+              className="w-full py-4 bg-uh-yellow text-uh-black font-black uppercase tracking-widest text-[11px] rounded-full shadow-[0_10px_40px_rgba(255,224,26,0.3)] border-4 border-white pointer-events-auto transition-transform active:scale-95"
+            >
+              Book a Walk From Here
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Collapsible Header Container — New Co-branded Structure */}
       <motion.div 
         style={{ 
@@ -255,7 +291,9 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
             {/* Hub Tagline / Live Meta */}
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-2">
-                <span className="text-[9px] font-bold text-white/60 uppercase tracking-[0.2em]">{currentNode?.hub_tagline || 'Sector_Sync • Active'}</span>
+                <span className="text-[9px] font-bold text-white/60 uppercase tracking-[0.2em] italic">
+                  {nearbyThingsCount} things happening within 0.5 miles right now
+                </span>
               </div>
               <div className="w-[1px] h-3 bg-white/10" />
               <div className="flex items-center gap-1.5">
@@ -272,12 +310,12 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
         <div className="px-6 py-2.5 flex items-center justify-between bg-[#0a0a0a] border-t border-white/5">
           <div className="flex items-center gap-2">
             <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: currentNode?.partner_accent || '#FFE01A' }} />
-            <span className="text-[9px] font-bold uppercase tracking-[0.2em] font-mono text-white/30">
+            <span className="text-[9px] font-bold uppercase tracking-[0.2em] font-mono text-uh-yellow">
               {user ? 'Identity_Verified' : 'Anonymous_Protocol'}
             </span>
             <span className="text-[9px] font-bold text-white/10 mx-1">·</span>
             <span className="text-[9px] font-bold uppercase tracking-[0.2em] font-mono text-white/30">
-              Access: Direct
+              {radiusInMiles} mile radius active
             </span>
           </div>
           <div className="flex items-center gap-4">

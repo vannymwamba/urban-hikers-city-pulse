@@ -37,7 +37,7 @@ export function getEventStatus(item: Broadcast) {
 
   // Walking events — always show booking status
   if (item.type === BroadcastType.WALKING_EVENT) {
-    return { label: 'Booking Open', color: 'green' };
+    return { label: 'BOOK →', color: 'green' };
   }
 
   // Permanent types — no status pill
@@ -67,43 +67,53 @@ export function getEventStatus(item: Broadcast) {
 export const getCategoryTag = (item: Broadcast) => {
   const types: Record<string, { label: string; bg: string; text: string }> = {
     [BroadcastType.FLASH_DEAL]: {
-      label: 'Flash Deal',
+      label: 'FLASH DEAL',
       bg: 'bg-[#FFE01A]',
       text: 'text-[#1A1A1A]',
     },
     [BroadcastType.LIVE_EVENT]: {
-      label: 'Live Performance',
+      label: 'LIVE NOW',
       bg: 'bg-[#FF3B30]',
       text: 'text-white',
     },
     [BroadcastType.FOOD_TRUCK]: {
-      label: 'Food Truck',
+      label: 'FOOD TRUCK',
       bg: 'bg-[#F97316]',
       text: 'text-white',
     },
     [BroadcastType.WALKING_EVENT]: {
-      label: 'Guided Walk',
+      label: 'WALKING EVENT',
       bg: 'bg-[#10B981]',
       text: 'text-white',
     },
     [BroadcastType.POP_UP]: {
-      label: 'Event',
+      label: 'POP-UP',
       bg: 'bg-[#0EA5E9]',
       text: 'text-white',
     },
     [BroadcastType.CIVIC_EVENT]: {
-      label: 'Civic Event',
+      label: 'CITY EVENT',
       bg: 'bg-[#378ADD]',
       text: 'text-white',
     },
+    [BroadcastType.CIVIC_FREE]: {
+      label: 'FREE · PUBLIC',
+      bg: 'bg-[#1D9E75]',
+      text: 'text-white',
+    },
     [BroadcastType.MURAL]: {
-      label: 'Mural',
+      label: 'MURAL',
       bg: 'bg-[#8B5CF6]',
       text: 'text-white',
     },
     [BroadcastType.STREET_ART]: {
-      label: 'Street Art',
+      label: 'STREET ART',
       bg: 'bg-[#8B5CF6]',
+      text: 'text-white',
+    },
+    [BroadcastType.DONATION]: {
+      label: 'LOCAL IMPACT',
+      bg: 'bg-[#FF3B30]',
       text: 'text-white',
     },
   };

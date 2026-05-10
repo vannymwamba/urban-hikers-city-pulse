@@ -27,7 +27,8 @@ service cloud.firestore {
     function isAdmin() {
       return isSuperAdmin() || (
         isSignedIn() && (
-          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+          (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+           get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin') ||
           request.auth.token.email.lower().endsWith('@urban-hikers.com')
         )
       );
@@ -65,7 +66,7 @@ service cloud.firestore {
     // ── pois collection (Public Art) ──────────────
     match /pois/{docId} {
       allow read: if true;
-      allow write: if isSuperAdmin();
+      allow write: if isAdmin();
     }
 
     // ── vibe_reports collection ───────────────────
@@ -99,7 +100,7 @@ service cloud.firestore {
     // ── flash_rotation collection ─────────────────
     match /flash_rotation/{docId} {
       allow read:   if true;
-      allow write: if isSuperAdmin();
+      allow write: if isAdmin();
     }
 
     // ── impressions collection ────────────────────
@@ -112,7 +113,7 @@ service cloud.firestore {
     // ── nodes / hubs collection ───────────────────
     match /nodes/{docId} {
       allow read:   if true;
-      allow write:  if isSuperAdmin();
+      allow write:  if isAdmin();
     }
 
     // ── partners collection ───────────────────────
@@ -130,7 +131,7 @@ service cloud.firestore {
     // ── routes collection ─────────────────────────
     match /routes/{docId} {
       allow read: if true;
-      allow write: if isSuperAdmin();
+      allow write: if isAdmin();
     }
 
     // ── sync_logs collection ──────────────────────
@@ -152,13 +153,13 @@ service cloud.firestore {
     // ── signals / civic events ────────────────────
     match /signals/{docId} {
       allow read:   if true;
-      allow write:  if isSuperAdmin();
+      allow write:  if isAdmin();
     }
 
     // ── local_hubs collection ─────────────────────
     match /local_hubs/{docId} {
       allow read:   if true;
-      allow write:  if isSuperAdmin();
+      allow write:  if isAdmin();
     }
 
     // ── users / profiles ──────────────────────────
