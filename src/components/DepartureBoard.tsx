@@ -198,36 +198,8 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
     return dist <= 805;
   }).length;
 
-  const nearestWalk = broadcasts
-    .filter(b => (b.type ?? '').toLowerCase() === 'walking_event')
-    .sort((a, b) => {
-      if (!currentNode || typeof currentNode.latitude !== 'number' || typeof currentNode.longitude !== 'number') return 0;
-      const distA = getDistance(currentNode.latitude, currentNode.longitude, a.latitude!, a.longitude!);
-      const distB = getDistance(currentNode.latitude, currentNode.longitude, b.latitude!, b.longitude!);
-      return distA - distB;
-    })[0];
-
   return (
     <div className="flex flex-col h-full bg-[#f0f0f0] text-uh-black font-sans relative overflow-hidden">
-      {/* Sticky Book Bar — always tied to nearest walking_event */}
-      <AnimatePresence>
-        {nearestWalk && (
-          <motion.div
-            initial={{ y: 100 }}
-            animate={{ y: 0 }}
-            exit={{ y: 100 }}
-            className="fixed bottom-[96px] inset-x-0 z-[120] px-6 pointer-events-none"
-          >
-            <button 
-              onClick={() => onSelect(nearestWalk)}
-              className="w-full py-4 bg-uh-yellow text-uh-black font-black uppercase tracking-widest text-[11px] rounded-full shadow-[0_10px_40px_rgba(255,224,26,0.3)] border-4 border-white pointer-events-auto transition-transform active:scale-95"
-            >
-              Book a Walk From Here
-            </button>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
       {/* Collapsible Header Container — New Co-branded Structure */}
       <motion.div 
         style={{ 

@@ -131,21 +131,36 @@ export const BroadcastCard: React.FC<BroadcastCardProps> = ({
 
   const handleCTA = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (isWalkingEvent || isDonation) {
-      const url = item.booking_url;
-      if (url) {
-        window.open(url, '_blank', 'noopener,noreferrer');
-      } else if (isWalkingEvent) {
-        setShowBooking(true);
+
+    // Partner walk — open external booking URL directly
+    if (isWalkingEvent && item.booking_type === 'partner' && item.booking_url) {
+      window.open(item.booking_url, '_blank', 'noopener,noreferrer');
+      return;
+    }
+
+    // Native walk — open inline booking sheet
+    if (isWalkingEvent) {
+      if (item.spots_remaining === 0) return; // full, no-op
+      setShowBooking(true);
+      return;
+    }
+
+    // Donation with external link
+    if (isDonation) {
+      if (item.booking_url) {
+        window.open(item.booking_url, '_blank');
       } else {
         onSelect(item);
       }
       return;
     }
+
+    // Tip jar
     if (item.payment_type === 'tip_jar' && item.tip_url) {
       window.open(item.tip_url, '_blank');
       return;
     }
+
     onSelect(item);
   };
 
@@ -494,6 +509,16 @@ export const BroadcastCard: React.FC<BroadcastCardProps> = ({
                     </span>
                   </>
                 )}
+                {isWalkingEvent && item.spots_remaining !== undefined && (
+                  <>
+                    <span className="text-white/25 shrink-0 text-[10px]">·</span>
+                    <span className={`text-[10px] font-black shrink-0 uppercase tracking-tight ${
+                      item.spots_remaining <= 3 ? 'text-uh-magenta' : 'text-white/55'
+                    }`}>
+                      {item.spots_remaining === 0 ? 'Full' : `${item.spots_remaining} left`}
+                    </span>
+                  </>
+                )}
             </button>
             
             {/* CTA Buttons */}
@@ -503,7 +528,13 @@ export const BroadcastCard: React.FC<BroadcastCardProps> = ({
                 className="px-5 py-3 bg-uh-yellow text-uh-black rounded-2xl flex flex-col items-center justify-center shadow-xl hover:scale-105 active:scale-95 transition-all whitespace-nowrap min-w-[100px]"
               >
                 <span className="text-[10px] font-black uppercase tracking-widest font-mono">
-                  {isDonation ? 'Donate ♥' : 'Book Now'}
+                  {isDonation
+                    ? 'Donate ♥'
+                    : item.spots_remaining === 0
+                      ? 'Full'
+                      : item.booking_type === 'partner'
+                        ? 'Book ↗'
+                        : 'Book Now'}
                 </span>
               </button>
             )}
@@ -577,20 +608,56 @@ export const BroadcastCard: React.FC<BroadcastCardProps> = ({
           <div className="flex flex-col gap-4">
             <button
               onClick={async () => {
+                // Free walk — instant confirm
                 if ((item.price ?? 0) === 0) {
-                  // Free walk — confirm instantly, no Stripe
+                  // Request notification permission and get FCM token
+                  let notifyToken: string | undefined;
+                  try {
+                    const permission = await Notification.requestPermission();
+                    if (permission === 'granted') {
+                      // FCM token retrieval — wire to your firebase/messaging setup
+                      // import { getToken } from 'firebase/messaging';
+                      // import { messaging } from '../firebase';
+                      // notifyToken = await getToken(messaging, { vapidKey: process.env.VITE_VAPID_KEY });
+                      // For now, store intent — token wired in firebase.ts messaging setup
+                      notifyToken = localStorage.getItem('uh_fcm_token') || undefined;
+                    }
+                  } catch (_) {
+                    // Notification permission denied — booking still proceeds
+                  }
+
+                  // Write to bookings collection — Cloud Function handles decrement + push
+                  const { addDoc, collection, serverTimestamp } = await import('firebase/firestore');
+                  const { db, auth } = await import('../firebase');
+
+                  await addDoc(collection(db, 'bookings'), {
+                    broadcastId: item.id,
+                    userId: auth.currentUser?.uid || null,
+                    spots,
+                    price: 0,
+                    status: 'pending',
+                    notifyToken: notifyToken || null,
+                    created_at: serverTimestamp(),
+                  });
+
                   setShowBooking(false);
-                  onConfirm?.(item.id);   // notify App
-                  onSelect(item); // opens BroadcastModal with confirmed state
+                  onConfirm?.(item.id);
+                  onSelect(item);
                   return;
                 }
-                // Paid — hit your existing Stripe endpoint
+
+                // Paid walk — Stripe checkout
                 const res = await fetch('/api/create-checkout-session', {
-                  method:'POST',
-                  headers:{'Content-Type':'application/json'},
-                  body: JSON.stringify({type:'walking_event_booking', broadcastId:item.id, title:item.title, price:(item.price??0)*spots})
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    type: 'walking_event_booking',
+                    broadcastId: item.id,
+                    title: item.title,
+                    price: (item.price ?? 0) * spots,
+                  }),
                 });
-                const {url} = await res.json();
+                const { url } = await res.json();
                 if (url) window.location.href = url;
               }}
               style={{padding:'20px',background:'#FFE01A',color:'#0a0a0a',fontSize:12,fontWeight:700,letterSpacing:'.15em',textTransform:'uppercase',cursor:'pointer',width:'100%', border: 'none'}}

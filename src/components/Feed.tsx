@@ -172,6 +172,69 @@ export const Feed: React.FC<FeedProps> = ({
         </div>
       )}
 
+      {/* HOT DEALS */}
+      <div className="flex flex-col">
+        <SectionHeader 
+          title="HOT DEALS" 
+          status="LIMITED TIME" 
+          count={flashDeals.length}
+          onSeeAll={() => console.log('See all flash deals')}
+        />
+        {/* Flash rotation — high priority campaigns */}
+        <div className="px-4">
+          <FlashRotation
+            nodeId={currentNode?.id}
+            intervalMs={3000}
+            maxSlots={5}
+            onCtaTap={(slot) => {
+              console.log('Flash CTA tapped:', slot.campaign_title)
+            }}
+          />
+        </div>
+        
+        {/* Flash Deals Display Logic */}
+        {flashDeals.length > 0 && (
+          <div className="mt-4">
+            {flashDeals.length <= ROTATION_THRESHOLD ? (
+              <div 
+                className="flex overflow-x-auto snap-x snap-mandatory px-4 gap-3"
+                style={{ WebkitOverflowScrolling: 'touch', scrollSnapType: 'x mandatory' }}
+              >
+                {flashDeals.map((item, idx) => (
+                  <BroadcastCard 
+                    key={item.id}
+                    item={item}
+                    idx={idx}
+                    currentNode={currentNode}
+                    onSelect={onSelect}
+                    onConfirm={onConfirm}
+                    onShareEvent={onShareEvent}
+                    onManage={onManage}
+                    partner={partnersMap[item.partnerId || item.partner_id || '']}
+                    variant="peek"
+                    canManage={canManageBroadcast(item)}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="px-4">
+                <FlashRotationInline 
+                  broadcasts={flashDeals}
+                  currentNode={currentNode}
+                  intervalMs={3000}
+                  onSelect={onSelect}
+                  onConfirm={onConfirm}
+                  onShareEvent={onShareEvent}
+                  onManage={onManage}
+                  partnersMap={partnersMap}
+                  canManageBroadcast={canManageBroadcast}
+                />
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
       {/* CITY PULSE */}
       {cityPulse.length > 0 && !hideOtherSections && (
         <div className="flex flex-col">
@@ -280,69 +343,6 @@ export const Feed: React.FC<FeedProps> = ({
           </div>
         </div>
       )}
-
-      {/* HOT DEALS */}
-      <div className="flex flex-col">
-        <SectionHeader 
-          title="HOT DEALS" 
-          status="LIMITED TIME" 
-          count={flashDeals.length}
-          onSeeAll={() => console.log('See all flash deals')}
-        />
-        {/* Flash rotation — high priority campaigns */}
-        <div className="px-4">
-          <FlashRotation
-            nodeId={currentNode?.id}
-            intervalMs={3000}
-            maxSlots={5}
-            onCtaTap={(slot) => {
-              console.log('Flash CTA tapped:', slot.campaign_title)
-            }}
-          />
-        </div>
-        
-        {/* Flash Deals Display Logic */}
-        {flashDeals.length > 0 && (
-          <div className="mt-4">
-            {flashDeals.length <= ROTATION_THRESHOLD ? (
-              <div 
-                className="flex overflow-x-auto snap-x snap-mandatory px-4 gap-3"
-                style={{ WebkitOverflowScrolling: 'touch', scrollSnapType: 'x mandatory' }}
-              >
-                {flashDeals.map((item, idx) => (
-                  <BroadcastCard 
-                    key={item.id}
-                    item={item}
-                    idx={idx}
-                    currentNode={currentNode}
-                    onSelect={onSelect}
-                    onConfirm={onConfirm}
-                    onShareEvent={onShareEvent}
-                    onManage={onManage}
-                    partner={partnersMap[item.partnerId || item.partner_id || '']}
-                    variant="peek"
-                    canManage={canManageBroadcast(item)}
-                  />
-                ))}
-              </div>
-            ) : (
-              <div className="px-4">
-                <FlashRotationInline 
-                  broadcasts={flashDeals}
-                  currentNode={currentNode}
-                  intervalMs={3000}
-                  onSelect={onSelect}
-                  onConfirm={onConfirm}
-                  onShareEvent={onShareEvent}
-                  onManage={onManage}
-                  partnersMap={partnersMap}
-                  canManageBroadcast={canManageBroadcast}
-                />
-              </div>
-            )}
-          </div>
-        )}
-      </div>
 
       {/* LOCAL IMPACT */}
       {donations.length > 0 && !hideOtherSections && (

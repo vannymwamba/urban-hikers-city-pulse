@@ -84,6 +84,9 @@ export interface Broadcast {
   scope?: 'single_hub' | 'all_nodes' | 'specific_node' | 'multi_node';
   discount_value?: string;
   signal_location_source?: string;
+  booking_type?: 'native' | 'partner' | null;
+  last_spots_alert?: number;
+  fcm_token?: string;
   artist?: string;
   artist_url?: string;
   booking_url?: string;
@@ -273,4 +276,18 @@ export interface LocalHub {
   is_live_deal?: boolean;
   is_active: boolean;
   created_at?: any;
+}
+
+export interface Booking {
+  id: string;
+  broadcastId: string;
+  userId?: string;
+  spots: number;
+  status: 'pending' | 'confirmed' | 'failed';
+  notifyToken?: string;
+  price?: number;
+  stripe_session_id?: string;
+  confirmed_at?: any;
+  created_at?: any;
+  error?: string;
 }

@@ -152,6 +152,28 @@ function validateBroadcast(
     }
   }
 
+  // flash_deal requires an expiry and a verified partner
+  if (formData.type === BroadcastType.FLASH_DEAL) {
+    if (!formData.end_time || !formData.event_date) {
+      errors.end_time =
+        'Flash deals require an end time — set expiry in Station 03'
+    }
+    if (!formData.partner_id && !formData.is_sponsored) {
+      errors.partner_id =
+        'Flash deals must be linked to a sponsor — toggle Sponsored Signal'
+    }
+  }
+
+  // walking_event requires max_capacity for live spot countdown
+  if (formData.type === BroadcastType.WALKING_EVENT) {
+    if (!formData.spots_remaining || formData.spots_remaining < 1) {
+      errors.spots_remaining =
+        'Set available spots — required for live countdown'
+    }
+    // booking_type defaults to 'native' if booking_url is empty
+    // (already validated above — booking_url required for walks)
+  }
+
   // ── COVER IMAGE ──────────────────────────────
   if (!formData.cover_url?.trim()) {
     errors.cover_url =
@@ -444,6 +466,10 @@ export const BroadcastControlForm: React.FC<BroadcastControlFormProps> = ({
         artist:        formData.artist        || null,
         artist_url:    formData.artist_url    || null,
         booking_url:   formData.booking_url   || null,
+        booking_type: (() => {
+          if (formData.type !== BroadcastType.WALKING_EVENT) return null;
+          return formData.booking_url?.trim() ? 'partner' : 'native';
+        })(),
         organizer_logo_url: formData.organizer_logo_url || null,
         partner_name:  formData.partner_name  || null,
         deal_description: formData.deal_description || null,
