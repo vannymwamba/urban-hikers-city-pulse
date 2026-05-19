@@ -58,7 +58,8 @@ const seedData = async () => {
         logo_url: 'https://picsum.photos/seed/kroger/200/200',
         brand_color: '#002D72',
         deal_text: 'Show NFC stamp — $2 off select items',
-        sponsor_zones: ['A', 'D']
+        sponsor_zones: ['A', 'D'],
+        active: true
       },
       {
         id: 'partner-allez',
@@ -71,7 +72,8 @@ const seedData = async () => {
         logo_url: 'https://picsum.photos/seed/bakery/200/200',
         brand_color: '#F5DEB3',
         deal_text: 'Free pastry with Urban Hiker ticket',
-        sponsor_zones: ['B', 'C']
+        sponsor_zones: ['B', 'C'],
+        active: true
       },
       {
         id: 'partner-fotofocus',
@@ -84,7 +86,8 @@ const seedData = async () => {
         logo_url: 'https://picsum.photos/seed/arts/200/200',
         brand_color: '#1A1A2E',
         deal_text: 'Free Biennial Passport — tap 8 venues',
-        sponsor_zones: ['A', 'B', 'D']
+        sponsor_zones: ['A', 'B', 'D'],
+        active: true
       },
       {
         id: 'partner-music-hall',
@@ -97,7 +100,8 @@ const seedData = async () => {
         logo_url: 'https://picsum.photos/seed/musichall/200/200',
         brand_color: '#8E1B1B',
         deal_text: 'Show NFC for 10% off concessions',
-        sponsor_zones: ['A', 'B']
+        sponsor_zones: ['A', 'B'],
+        active: true
       },
       {
         id: 'partner-rhinegeist',
@@ -110,7 +114,8 @@ const seedData = async () => {
         logo_url: 'https://picsum.photos/seed/beer/200/200',
         brand_color: '#000000',
         deal_text: 'Happy Hour: $1 off all pints',
-        sponsor_zones: ['C', 'D']
+        sponsor_zones: ['C', 'D'],
+        active: true
       },
       {
         id: 'partner-cac',
@@ -123,7 +128,8 @@ const seedData = async () => {
         logo_url: 'https://picsum.photos/seed/cac/200/200',
         brand_color: '#FF3B30',
         deal_text: 'Free admission with NFC tap',
-        sponsor_zones: ['B']
+        sponsor_zones: ['B'],
+        active: true
       },
       {
         id: 'partner-btw26',
@@ -136,7 +142,8 @@ const seedData = async () => {
         logo_url: 'https://picsum.photos/seed/btw26/200/200',
         brand_color: '#5856D6',
         deal_text: 'Conference Pass: 50% off for locals',
-        sponsor_zones: ['A', 'B', 'C', 'D']
+        sponsor_zones: ['A', 'B', 'C', 'D'],
+        active: true
       },
       {
         id: 'chpl',
@@ -149,7 +156,8 @@ const seedData = async () => {
         logo_url: 'https://picsum.photos/seed/library/200/200',
         brand_color: '#185FA5',
         deal_text: 'Free resources & community events',
-        sponsor_zones: ['A', 'D']
+        sponsor_zones: ['A', 'D'],
+        active: true
       }
     ];
 

@@ -12,6 +12,7 @@ import { WalletCard } from './WalletCard';
 import { getEventStatus } from '../utils/broadcastHelpers';
 import { BroadcastControlForm } from './BroadcastControlForm';
 import { BroadcastType } from '../types';
+import { PulseDropStrip } from './PulseDropStrip';
 
 interface DepartureBoardProps {
   nodeName: string;
@@ -302,6 +303,12 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
         className="flex-1 overflow-y-auto relative z-10 pt-[200px] pb-32 scroll-smooth"
         style={{ WebkitOverflowScrolling: 'touch' }}
       >
+        <PulseDropStrip
+          userId={user?.uid || null}
+          nodeId={currentNode?.id || null}
+          broadcasts={broadcasts}
+          onRevealSaved={(broadcast) => onSelect(broadcast)}
+        />
         <div className="flex flex-col gap-0">
           <div className="flex flex-col">
             {/* Feed Content */}

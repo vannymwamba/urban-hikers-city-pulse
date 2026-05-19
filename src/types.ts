@@ -107,6 +107,8 @@ export interface Broadcast {
   duration_minutes?: number;
   recurring_frequency?: 'daily' | 'weekly' | 'biweekly' | 'monthly' | 'one_time';
   recurring_week_of_month?: 1 | 2 | 3 | 4 | 5;
+  rarity_weight?: number;   // 1–10; 1 = ultra rare, 10 = very common
+  drop_eligible?: boolean;  // false = permanent/recurring, skip for drops
   created_at?: any;
 }
 

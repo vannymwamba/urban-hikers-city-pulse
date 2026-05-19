@@ -20,8 +20,9 @@ import { createSponsorCheckoutRoute, handleSponsorWebhook } from "./src/services
 
 dotenv.config();
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+// In ESM, __dirname and __filename are not defined. We use process.cwd() as a reliable fallback
+// since this server.ts is located in the project root.
+const __dirname = process.cwd();
 
 const stripe = process.env.STRIPE_SECRET_KEY 
   ? new Stripe(process.env.STRIPE_SECRET_KEY) 

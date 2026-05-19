@@ -67,6 +67,8 @@ interface EnrichedSignal {
   walking_relevance_score: number;
   nearest_hub_hint: string;
   recurrence_pattern?: string;
+  rarity_weight: number;
+  drop_eligible: boolean;
 }
 
 /**
@@ -163,16 +165,37 @@ async function fetchLibraryEvents(): Promise<LibraryEvent[]> {
  */
 async function enrichEvent(event: LibraryEvent): Promise<EnrichedSignal | null> {
   try {
-    const prompt = `You are enriching a civic event for a hyper-local city discovery platform called Urban Hikers. Given this raw event data: ${JSON.stringify(event)}, return a JSON object with:
-- signal_title: punchy 5-7 word title
-- signal_vibe: one of [CHILL, BUZZING, PACKED]
-- signal_category: one of [CIVIC_EVENT, WALKING_EVENT, COMMUNITY, KIDS, WORKSHOP, PERFORMANCE]
-- short_description: 2 sentences max, energetic tone
-- walking_relevance_score: 1-10 (how relevant is this to someone on a walking tour nearby?)
-- nearest_hub_hint: which Cincinnati neighborhood does this belong to? (OTR, Downtown, Findlay Market, The Banks, Covington, Newport, Northside)
-- recurrence_pattern: if the description suggests this repeats (e.g., "Weekly on Mondays", "Monthly first Sat", "Daily"), extract it. Otherwise empty string.
+    const prompt = `You are enriching a Cincinnati Public Library event for Local Pulse OS.
 
-Return only valid JSON, no markdown.`;
+Given this event:
+  Title: ${event.title}
+  Description: ${event.description}
+  Location: ${event.location_name}
+  Starts at: ${event.start_datetime}
+  Ends at: ${event.end_datetime}
+  Category: ${event.category}
+
+Return JSON only — no markdown — with exactly these fields:
+
+{
+  "signal_title": string,
+  "signal_vibe": "CHILL" | "BUZZING" | "PACKED",
+  "signal_category": "CIVIC_EVENT" | "WALKING_EVENT" | "COMMUNITY" | "KIDS" | "WORKSHOP" | "PERFORMANCE",
+  "short_description": string,
+  "walking_relevance_score": number,
+  "nearest_hub_hint": string,
+  "recurrence_pattern": string,
+  "rarity_weight": number,
+  "drop_eligible": boolean
+}
+
+rarity_weight: integer 1–10.
+  1–3 (ULTRA RARE): one-time, spontaneous, limited capacity, author appearances, surprise events
+  4–6 (RARE):       weekly/monthly, special programming, featured speakers, ticketed workshops
+  7–10 (COMMON):    daily storytimes, open hours, recurring free programs, walk-in events
+  Default 8 if uncertain.
+
+drop_eligible: false only for permanent collections or always-open facilities. true for events.`;
 
     const result = await model.generateContent(prompt);
     const response = await result.response;
@@ -187,7 +210,12 @@ Return only valid JSON, no markdown.`;
     }
 
     try {
-      return JSON.parse(text) as EnrichedSignal;
+      const parsed = JSON.parse(text);
+      return {
+        ...parsed,
+        rarity_weight: clampRarity(parsed.rarity_weight),
+        drop_eligible: parsed.drop_eligible ?? true,
+      } as EnrichedSignal;
     } catch (parseError) {
       console.error(`Library Agent: JSON parse failed for ${event.title}. Text: "${text}"`, parseError);
       return null;
@@ -196,6 +224,12 @@ Return only valid JSON, no markdown.`;
     console.error(`Library Agent: Enrichment failed for ${event.title}`, error);
     return null;
   }
+}
+
+function clampRarity(val: any): number {
+  const n = parseInt(val, 10);
+  if (isNaN(n)) return 8;
+  return Math.min(10, Math.max(1, n));
 }
 
 /**
@@ -254,6 +288,8 @@ export async function runLibraryIngestionAgent() {
           location_address: rawEvent.location_address,
           nearest_hub: enriched?.nearest_hub_hint || '',
           walking_relevance_score: enriched?.walking_relevance_score || 0,
+          rarity_weight:           enriched?.rarity_weight           ?? 8,
+          drop_eligible:           enriched?.drop_eligible           ?? true,
           start_datetime: startTimestamp,
           end_datetime: endTimestamp,
           expires_at: endTimestamp, // same as end_datetime

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { collection, onSnapshot, query, where, doc, deleteDoc, addDoc, setDoc, Timestamp, getDocFromServer, orderBy, limit } from 'firebase/firestore';
+import { collection, onSnapshot, query, where, doc, deleteDoc, addDoc, setDoc, Timestamp, getDocFromServer, orderBy, limit, updateDoc } from 'firebase/firestore';
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { db, auth, storage } from '../firebase';
 import { Broadcast, Node, Partner, UserProfile, BroadcastType, Tap, VibeReport, TabView, Interaction, LocalHub } from '../types';
@@ -112,7 +112,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, userProfile, nodes, 
     owner_email: '',
     tier: 'standard' as 'standard' | 'premium' | 'anchor',
     logo_url: '',
-    is_active: true
+    active: true
   });
 
   const [editingBroadcastId, setEditingBroadcastId] = useState<string | null>(null);
@@ -259,7 +259,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, userProfile, nodes, 
         created_at: Timestamp.now()
       });
       setShowAddPartner(false);
-      setNewPartner({ name: '', owner_email: '', tier: 'standard', logo_url: '', is_active: true });
+      setNewPartner({ name: '', owner_email: '', tier: 'standard', logo_url: '', active: true });
       setHudMessage({ text: 'PARTNER_REGISTERED', type: 'info' });
     } catch (err) {
       setHudMessage({ text: 'REGISTRATION_FAILED', type: 'error' });
@@ -278,8 +278,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, userProfile, nodes, 
 
   const handleChangePartnerTier = async (id: string, tier: string) => {
     try {
-      const { updateDoc: fbUpdateDoc } = await import('firebase/firestore');
-      await fbUpdateDoc(doc(db, 'partners', id), { tier });
+      await updateDoc(doc(db, 'partners', id), { tier });
       setHudMessage({ text: `TIER_UPDATED: ${tier.toUpperCase()}`, type: 'info' });
     } catch (err) {
       setHudMessage({ text: 'UPDATE_FAILED', type: 'error' });
@@ -414,8 +413,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, userProfile, nodes, 
         sunday: { open: '13:00', close: '17:00' }
       };
 
-      const { updateDoc: fbUpdateDoc } = await import('firebase/firestore');
-      await fbUpdateDoc(doc(db, 'local_hubs', libraryHub.id), { 
+      await updateDoc(doc(db, 'local_hubs', libraryHub.id), { 
         operating_hours: hours,
         is_open: true // Setting true here but logic in card will handle it dynamically
       });

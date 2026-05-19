@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { MapPin, Share2, ArrowRight, Clock, Heart } from 'lucide-react';
 import { format } from 'date-fns';
+import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
+import { db, auth } from '../firebase';
 import { Broadcast, Partner, Node, Sponsor, BroadcastType } from '../types';
 import { getDistance } from '../utils/geo';
 import { 
@@ -19,6 +21,7 @@ import {
   getStatusTag,
   getDotColor
 } from '../utils/broadcastHelpers';
+import { RarityBadge } from './PulseDropStrip';
 
 const ARTWAVE_DONATION_URL = 'https://4agc.com/donation_pages/0785fa30-9065-400b-b54d-74458f2c9eb0';
 
@@ -50,6 +53,7 @@ export const BroadcastCard: React.FC<BroadcastCardProps> = ({
 }) => {
   const [progress, setProgress] = useState(100);
   const [showBooking, setShowBooking] = useState(false);
+  const [isBooking, setIsBooking] = useState(false);
   const [spots, setSpots] = useState(1);
   const [copied, setCopied] = useState(false);
   const [, forceUpdate] = useState(0);
@@ -326,6 +330,9 @@ export const BroadcastCard: React.FC<BroadcastCardProps> = ({
 
 
           <div className="flex items-center gap-4 pointer-events-auto">
+            {item.rarity_weight && (
+              <RarityBadge weight={item.rarity_weight} className="mr-2" />
+            )}
             {isMural ? (
               <a
                 href={item.booking_url || ARTWAVE_DONATION_URL}
@@ -581,10 +588,14 @@ export const BroadcastCard: React.FC<BroadcastCardProps> = ({
           </div>
 
           <div style={{display:'flex',gap:12}}>
-            {[['Departs', item.departure_time || 'Pending'], ['Remaining', String(item.spots_remaining ?? '—')], ['Price', item.price ? `$${item.price}` : 'Free']].map(([l,v]) => (
+            {[
+              ['Departs', item.is_recurring ? (getNextRecurringDeparture(item.recurring_days || [], item.recurring_times || [])?.label?.split(' ').slice(1).join(' ') || item.departure_time || 'Pending') : (item.departure_time || 'Pending')], 
+              ['Remaining', String(item.spots_remaining ?? (item.price === 0 || !item.price ? 'Open' : '—'))], 
+              ['Price', item.price ? `$${item.price}` : 'Free']
+            ].map(([l,v]) => (
               <div key={l} style={{flex:1,background:'#111',border: '1px solid #222',padding:'16px'}}>
                 <div style={{fontSize:8,fontWeight:700,color:'#444',letterSpacing:'.15em',textTransform:'uppercase', marginBottom: '4px'}}>{l}</div>
-                <div style={{fontSize:14,fontWeight:700,textTransform:'uppercase',color: l==='Price' && !item.price ? '#FFE01A' : '#fff'}}>{v}</div>
+                <div style={{fontSize:14,fontWeight:700,textTransform:'uppercase',color: l==='Price' && (!item.price || item.price === 0) ? '#FFE01A' : '#fff'}}>{v}</div>
               </div>
             ))}
           </div>
@@ -607,62 +618,79 @@ export const BroadcastCard: React.FC<BroadcastCardProps> = ({
 
           <div className="flex flex-col gap-4">
             <button
+              disabled={isBooking}
               onClick={async () => {
-                // Free walk — instant confirm
-                if ((item.price ?? 0) === 0) {
-                  // Request notification permission and get FCM token
-                  let notifyToken: string | undefined;
-                  try {
-                    const permission = await Notification.requestPermission();
-                    if (permission === 'granted') {
-                      // FCM token retrieval — wire to your firebase/messaging setup
-                      // import { getToken } from 'firebase/messaging';
-                      // import { messaging } from '../firebase';
-                      // notifyToken = await getToken(messaging, { vapidKey: process.env.VITE_VAPID_KEY });
-                      // For now, store intent — token wired in firebase.ts messaging setup
-                      notifyToken = localStorage.getItem('uh_fcm_token') || undefined;
+                if (isBooking) return;
+                setIsBooking(true);
+                try {
+                  // Free walk — instant confirm
+                  if ((item.price ?? 0) === 0) {
+                    // Request notification permission and get FCM token
+                    let notifyToken: string | undefined;
+                    try {
+                      const permission = await Notification.requestPermission();
+                      if (permission === 'granted') {
+                        notifyToken = localStorage.getItem('uh_fcm_token') || undefined;
+                      }
+                    } catch (_) {
+                      // Notification permission denied — booking still proceeds
                     }
-                  } catch (_) {
-                    // Notification permission denied — booking still proceeds
+
+                    // Write to bookings collection — Cloud Function handles decrement + push
+                    await addDoc(collection(db, 'bookings'), {
+                      broadcastId: item.id,
+                      userId: auth.currentUser?.uid || null,
+                      spots,
+                      price: 0,
+                      status: 'pending',
+                      notifyToken: notifyToken || null,
+                      created_at: serverTimestamp(),
+                    });
+
+                    // Local success feedback
+                    alert("SPOT_INITIALIZED! Your place is secured. Redirecting...");
+
+                    setShowBooking(false);
+                    onConfirm?.(item.id);
+                    onSelect(item);
+                    return;
                   }
 
-                  // Write to bookings collection — Cloud Function handles decrement + push
-                  const { addDoc, collection, serverTimestamp } = await import('firebase/firestore');
-                  const { db, auth } = await import('../firebase');
-
-                  await addDoc(collection(db, 'bookings'), {
-                    broadcastId: item.id,
-                    userId: auth.currentUser?.uid || null,
-                    spots,
-                    price: 0,
-                    status: 'pending',
-                    notifyToken: notifyToken || null,
-                    created_at: serverTimestamp(),
+                  // Paid walk — Stripe checkout
+                  const res = await fetch('/api/create-checkout-session', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      type: 'walking_event_booking',
+                      broadcastId: item.id,
+                      title: item.title,
+                      price: (item.price ?? 0) * spots,
+                    }),
                   });
-
-                  setShowBooking(false);
-                  onConfirm?.(item.id);
-                  onSelect(item);
-                  return;
+                  const { url } = await res.json();
+                  if (url) window.location.href = url;
+                } catch (err) {
+                  console.error("Booking failed:", err);
+                  alert("Protocol Error: Booking failed. Please try again.");
+                } finally {
+                  setIsBooking(false);
                 }
-
-                // Paid walk — Stripe checkout
-                const res = await fetch('/api/create-checkout-session', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    type: 'walking_event_booking',
-                    broadcastId: item.id,
-                    title: item.title,
-                    price: (item.price ?? 0) * spots,
-                  }),
-                });
-                const { url } = await res.json();
-                if (url) window.location.href = url;
               }}
-              style={{padding:'20px',background:'#FFE01A',color:'#0a0a0a',fontSize:12,fontWeight:700,letterSpacing:'.15em',textTransform:'uppercase',cursor:'pointer',width:'100%', border: 'none'}}
+              style={{
+                padding:'20px',
+                background: isBooking ? '#333' : '#FFE01A',
+                color: isBooking ? '#888' : '#0a0a0a',
+                fontSize:12,
+                fontWeight:700,
+                letterSpacing:'.15em',
+                textTransform:'uppercase',
+                cursor: isBooking ? 'not-allowed' : 'pointer',
+                width:'100%', 
+                border: 'none',
+                opacity: isBooking ? 0.7 : 1
+              }}
             >
-              {(item.price ?? 0) === 0 ? 'Initialize_Spot — Free' : `Secure_Checkout · $${((item.price??0)*spots).toFixed(2)}`}
+              {isBooking ? 'Processing_Protocol...' : ((item.price ?? 0) === 0 ? 'Initialize_Spot — Free' : `Secure_Checkout · $${((item.price??0)*spots).toFixed(2)}`)}
             </button>
           </div>
         </div>

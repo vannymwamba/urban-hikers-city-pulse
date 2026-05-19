@@ -510,8 +510,9 @@ export default function App() {
   }, [user]);
 
   useEffect(() => {
+    const q = query(collection(db, 'partners'), where('active', '==', true));
     const unsub = onSnapshot(
-      collection(db, 'partners'),
+      q,
       (snap) => {
         try {
           const map: Record<string, Partner> = {};
@@ -980,7 +981,6 @@ export default function App() {
     
     setIsReporting(true);
     try {
-      const { updateDoc, getDocs, orderBy } = await import('firebase/firestore');
       
       // 1. Add the new report
       try {

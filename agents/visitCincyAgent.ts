@@ -66,6 +66,8 @@ interface EnrichedEvent {
   vibe_estimate: 'chill' | 'buzzing' | 'packed';
   short_description: string;
   recurrence_pattern?: string;
+  rarity_weight: number;
+  drop_eligible: boolean;
 }
 
 let cachedNodes: any[] | null = null;
@@ -203,14 +205,56 @@ async function fetchVisitCincyEvents(): Promise<RawEvent[]> {
 
 async function enrichEventWithAI(event: RawEvent): Promise<EnrichedEvent> {
   try {
-    const prompt = `Given this Cincinnati event: Title: ${event.title}, Description: ${event.description}
-Return JSON only with these fields:
-{ 
-  "taxonomy_tags": string[],  // pick from: Culture, Wellness, History, Food, Music, Art, Tech, Family, Sports, Civic
+    const prompt = `You are enriching a Cincinnati civic event for Local Pulse OS, a hyper-local walking discovery platform.
+
+Given this event:
+  Title: ${event.title}
+  Description: ${event.description}
+  Venue: ${event.venue}
+  Starts at: ${event.starts_at}
+  Expires at: ${event.expires_at}
+
+Return JSON only — no markdown, no preamble — with exactly these fields:
+
+{
+  "taxonomy_tags": string[],
   "vibe_estimate": "chill" | "buzzing" | "packed",
-  "short_description": string,  // max 120 chars, punchy, present tense
-  "recurrence_pattern": string  // e.g. "Weekly on Wednesdays", "Every Saturday", or empty string
-}`;
+  "short_description": string,
+  "recurrence_pattern": string,
+  "rarity_weight": number,
+  "drop_eligible": boolean
+}
+
+FIELD RULES:
+
+taxonomy_tags: pick from [Culture, Wellness, History, Food, Music, Art, Tech, Family, Sports, Civic]
+
+vibe_estimate: "chill" | "buzzing" | "packed"
+
+short_description: max 120 chars, energetic, present tense
+
+recurrence_pattern: e.g. "Weekly on Wednesdays", "Every Saturday", or empty string
+
+rarity_weight: integer 1–10. This controls how rare this event feels as a discovery.
+  Score 1–3 (ULTRA RARE) if:
+    - It is a one-time or spontaneous occurrence
+    - It has a very short time window (under 2 hours total)
+    - It is exclusive, invite-only, or limited capacity under 20 people
+    - It is a live artist finishing work, a surprise performance, or a pop-up with no advance notice
+  Score 4–6 (RARE) if:
+    - It happens weekly or monthly
+    - It has limited spots (20–50 people)
+    - It is a ticketed event, opening night, or special edition of a recurring series
+    - It has notable speakers, performers, or artists
+  Score 7–10 (COMMON) if:
+    - It is a daily or multi-day open event
+    - It is free, walk-in, no registration required
+    - It is a regular library program, farmers market, or recurring civic event
+    - It has unlimited or large capacity
+  Default to 8 if uncertain.
+
+drop_eligible: false if this is a permanent installation (mural, street art, always-on POI) or 
+  a recurring event with no specific end date. true for everything else.`;
 
     const result = await model.generateContent(prompt);
     const response = await result.response;
@@ -221,40 +265,44 @@ Return JSON only with these fields:
     
     if (!text) {
       console.warn(`Enrichment failed for ${event.title}: Gemini returned empty text`);
-      return {
-        taxonomy_tags: ['Civic'],
-        vibe_estimate: 'chill',
-        short_description: event.title,
-        recurrence_pattern: ''
-      };
+      return defaultEnrichment(event.title);
     }
 
     try {
       const parsed = JSON.parse(text);
       return {
         taxonomy_tags: parsed.taxonomy_tags || ['Civic'],
-        vibe_estimate: parsed.vibe_estimate || 'chill',
+        vibe_estimate: (parsed.vibe_estimate || 'chill') as 'chill' | 'buzzing' | 'packed',
         short_description: parsed.short_description || event.title,
-        recurrence_pattern: parsed.recurrence_pattern || ''
+        recurrence_pattern: parsed.recurrence_pattern || '',
+        rarity_weight: clampRarity(parsed.rarity_weight),
+        drop_eligible: parsed.drop_eligible ?? true,
       };
     } catch (parseErr) {
       console.error(`JSON parse failed for ${event.title}. Text: "${text}"`, parseErr);
-      return {
-        taxonomy_tags: ['Civic'],
-        vibe_estimate: 'chill',
-        short_description: event.title,
-        recurrence_pattern: ''
-      };
+      return defaultEnrichment(event.title);
     }
   } catch (err) {
     console.error(`enrichEventWithAI Error for ${event.title}:`, err);
-    return {
-      taxonomy_tags: ['Civic'],
-      vibe_estimate: 'chill',
-      short_description: event.title,
-      recurrence_pattern: ''
-    };
+    return defaultEnrichment(event.title);
   }
+}
+
+function clampRarity(val: any): number {
+  const n = parseInt(val, 10);
+  if (isNaN(n)) return 8;
+  return Math.min(10, Math.max(1, n));
+}
+
+function defaultEnrichment(title: string): EnrichedEvent {
+  return {
+    taxonomy_tags:      ['Civic'],
+    vibe_estimate:      'chill',
+    short_description:  title,
+    recurrence_pattern: '',
+    rarity_weight:      8,   // default common
+    drop_eligible:      true,
+  };
 }
 
 function haversineMeters(lat1: number, lon1: number, lat2: number, lon2: number): number {
@@ -339,6 +387,8 @@ async function writeEventToFirestore(event: RawEvent, enriched: EnrichedEvent, h
     cover_url:            event.imageUrl || null,
     taxonomy_tags:        enriched.taxonomy_tags || [],
     current_vibe:         enriched.vibe_estimate || 'chill',
+    rarity_weight:        enriched.rarity_weight ?? 8,
+    drop_eligible:        enriched.drop_eligible ?? true,
     recurrence:           enriched.recurrence_pattern || null,
 
     // ── Pricing — civic events always free ───
