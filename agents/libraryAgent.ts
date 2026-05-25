@@ -9,7 +9,7 @@ import * as cheerio from 'cheerio';
 import crypto from 'crypto';
 import admin from 'firebase-admin';
 import { getFirestore, FieldValue, Timestamp } from 'firebase-admin/firestore';
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenAI } from "@google/genai";
 import dotenv from 'dotenv';
 import fs from 'fs';
 import path from 'path';
@@ -25,8 +25,14 @@ function getLibraryFallback(): string {
   return LIBRARY_FALLBACK_IMAGES.default;
 }
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
-const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+const ai = new GoogleGenAI({
+  apiKey: process.env.GEMINI_API_KEY,
+  httpOptions: {
+    headers: {
+      'User-Agent': 'aistudio-build',
+    }
+  }
+});
 
 // Firestore instance targeting the specific named database
 let db: admin.firestore.Firestore;
@@ -87,8 +93,19 @@ async function fetchLibraryEvents(): Promise<LibraryEvent[]> {
     console.log(`Library Agent: Fetching from API: ${apiUrl}`);
     const response = await axios.get(apiUrl, { headers, timeout: 10000 });
     
-    if (response.headers['content-type']?.includes('application/json')) {
-      const data = response.data;
+    const isJson = response.headers['content-type']?.includes('application/json') || 
+                   typeof response.data === 'object' ||
+                   (typeof response.data === 'string' && (response.data.trim().startsWith('{') || response.data.trim().startsWith('[')));
+
+    if (isJson) {
+      let data = response.data;
+      if (typeof data === 'string') {
+        try {
+          data = JSON.parse(data);
+        } catch (e) {
+          throw new Error('Endpoint returned non-JSON response');
+        }
+      }
       const rawEvents = data.entities?.events || {};
       
       for (const id in rawEvents) {
@@ -197,9 +214,16 @@ rarity_weight: integer 1–10.
 
 drop_eligible: false only for permanent collections or always-open facilities. true for events.`;
 
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
-    let text = response.text();
+    if (!process.env.GEMINI_API_KEY) {
+      console.warn(`Gemini API key is not configured. Skipping enrichment for: ${event.title}`);
+      return null;
+    }
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-3.5-flash',
+      contents: prompt,
+    });
+    let text = response.text || '';
     
     // Clean JSON from potential markdown markers
     text = text.replace(/```json/g, '').replace(/```/g, '').trim();

@@ -77,8 +77,19 @@ export async function fetchAndProcessCHPLEvents(db: admin.firestore.Firestore): 
       timeout: 10000
     });
 
-    if (response.headers['content-type']?.includes('application/json')) {
-      const data = response.data;
+    const isJson = response.headers['content-type']?.includes('application/json') || 
+                   typeof response.data === 'object' ||
+                   (typeof response.data === 'string' && (response.data.trim().startsWith('{') || response.data.trim().startsWith('[')));
+
+    if (isJson) {
+      let data = response.data;
+      if (typeof data === 'string') {
+        try {
+          data = JSON.parse(data);
+        } catch (e) {
+          throw new Error('API returned non-JSON response');
+        }
+      }
       const rawEvents = data.entities?.events || {};
       for (const id in rawEvents) {
         const evt = rawEvents[id];

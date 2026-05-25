@@ -100,8 +100,10 @@ async function startServer() {
       const databaseId = firebaseConfig.firestoreDatabaseId || 'ai-studio-8d3a18ac-9f60-480e-8200-f9f5e01c389a';
 
       if (!admin.apps.length) {
-        console.log(`[FIREBASE] Initializing Admin SDK with default credentials...`);
-        admin.initializeApp();
+        console.log(`[FIREBASE] Initializing Admin SDK with project: ${projectId}`);
+        admin.initializeApp({
+          projectId: projectId
+        });
       }
 
       console.log(`[FIREBASE] Connecting to Firestore Instance: ${databaseId}`);

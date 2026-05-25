@@ -18,6 +18,7 @@ import { CheckoutSuccess } from './components/CheckoutSuccess';
 import { CheckoutCancel } from './components/CheckoutCancel';
 import { SponsorForm, SponsorSuccess, SponsorCancelled } from './components/SponsorForm';
 import { SignalPage } from './pages/SignalPage';
+import { WrapPage } from './pages/WrapPage';
 import MuralNodeAdmin from './components/MuralNodeAdmin';
 import { PartnerHeader, SignatureWalk, PartnerLogo } from './components/PartnerHeader';
 import PartnerOnboarding from './pages/admin/PartnerOnboarding';
@@ -184,6 +185,7 @@ export default function App() {
   const isLogin = pathParts.includes('login');
   const isMuralAdmin = pathParts.includes('admin') && pathParts.includes('mural');
   const isSignal = pathParts[0] === 'signal' && pathParts[1];
+  const isWrap = pathParts[0] === 'wrap' && pathParts[1];
   const broadcastIdFromSignal = isSignal ? pathParts[1] : null;
   const tapIndex = pathParts.indexOf('tap');
   const creatorIndex = pathParts.indexOf('creator');
@@ -657,7 +659,9 @@ export default function App() {
             access_vector: vector,
             timestamp: new Date().toISOString(),
             tab: currentTab,
-            sponsor_id: activeSponsor?.partner_id || null
+            sponsor_id: activeSponsor?.partner_id || null,
+            walkId: new URLSearchParams(window.location.search).get('walkId') ?? null,
+            eventTag: new URLSearchParams(window.location.search).get('eventTag') ?? null,
           });
           sessionStorage.setItem(tapKey, 'true');
         } catch (err) {
@@ -1359,6 +1363,16 @@ export default function App() {
           </Routes>
         </ErrorBoundary>
       </APIProvider>
+    );
+  }
+
+  if (isWrap) {
+    return (
+      <ErrorBoundary>
+        <Routes>
+          <Route path="/wrap/:vendorId" element={<WrapPage />} />
+        </Routes>
+      </ErrorBoundary>
     );
   }
 

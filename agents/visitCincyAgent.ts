@@ -10,7 +10,7 @@ import crypto from 'crypto';
 import admin from 'firebase-admin';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import { Client } from "@googlemaps/google-maps-services-js";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenAI } from "@google/genai";
 import dotenv from 'dotenv';
 import fs from 'fs';
 import { fetchAndProcessCHPLEvents } from '../shared/chplIngestion.ts';
@@ -18,8 +18,14 @@ import { fetchAndProcessCHPLEvents } from '../shared/chplIngestion.ts';
 dotenv.config();
 
 const mapsClient = new Client({});
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
-const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+const ai = new GoogleGenAI({
+  apiKey: process.env.GEMINI_API_KEY,
+  httpOptions: {
+    headers: {
+      'User-Agent': 'aistudio-build',
+    }
+  }
+});
 
 import { Timestamp } from 'firebase-admin/firestore';
 
@@ -256,9 +262,16 @@ rarity_weight: integer 1–10. This controls how rare this event feels as a disc
 drop_eligible: false if this is a permanent installation (mural, street art, always-on POI) or 
   a recurring event with no specific end date. true for everything else.`;
 
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
-    let text = response.text();
+    if (!process.env.GEMINI_API_KEY) {
+      console.warn(`Gemini API key is not configured. Falling back to default enrichment for: ${event.title}`);
+      return defaultEnrichment(event.title);
+    }
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-3.5-flash',
+      contents: prompt,
+    });
+    let text = response.text || '';
     
     // Strip markdown fences
     text = text.replace(/```json/g, '').replace(/```/g, '').trim();

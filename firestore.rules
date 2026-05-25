@@ -17,10 +17,10 @@ service cloud.firestore {
     }
 
     function isSuperAdmin() {
-      return isSignedIn() && request.auth.token.email_verified == true && (
+      return isSignedIn() && (
         (exists(/databases/$(database)/documents/admins/$(request.auth.uid)) &&
          get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.role == 'super_admin') ||
-        request.auth.token.email == 'vannymwamba@gmail.com'
+        (request.auth.token.keys().hasAll(['email']) && request.auth.token.email != null && request.auth.token.email == 'vannymwamba@gmail.com')
       );
     }
 
@@ -29,7 +29,7 @@ service cloud.firestore {
         isSignedIn() && (
           (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
            get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin') ||
-          request.auth.token.email.lower().endsWith('@urban-hikers.com')
+          (request.auth.token.keys().hasAll(['email']) && request.auth.token.email != null && request.auth.token.email.lower().endsWith('@urban-hikers.com'))
         )
       );
     }
@@ -78,23 +78,23 @@ service cloud.firestore {
 
     // ── taps collection ───────────────────────────
     match /taps/{docId} {
-      allow read: if isSuperAdmin();
+      allow read: if isAdmin();
       allow create: if true; // Anonymous taps allowed
-      allow update, delete: if isSuperAdmin();
+      allow update, delete: if isAdmin();
     }
 
     // ── tab_views collection ──────────────────────
     match /tab_views/{docId} {
-      allow read: if isSuperAdmin();
+      allow read: if isAdmin();
       allow create: if true;
-      allow update, delete: if isSuperAdmin();
+      allow update, delete: if isAdmin();
     }
 
     // ── interactions collection ───────────────────
     match /interactions/{docId} {
-      allow read: if isSuperAdmin();
+      allow read: if isAdmin();
       allow create: if true;
-      allow update, delete: if isSuperAdmin();
+      allow update, delete: if isAdmin();
     }
 
     // ── flash_rotation collection ─────────────────
@@ -124,7 +124,7 @@ service cloud.firestore {
 
     // ── walks collection ──────────────────────────
     match /walks/{docId} {
-      allow read:   if resource.data.active == true || isAdmin();
+      allow read:   if true;
       allow write:  if isAdmin();
     }
 
@@ -136,8 +136,8 @@ service cloud.firestore {
 
     // ── sync_logs collection ──────────────────────
     match /sync_logs/{docId} {
-      allow read: if isSuperAdmin();
-      allow write: if isSuperAdmin();
+      allow read: if isAdmin();
+      allow write: if isAdmin();
     }
 
     // ── mail collection (Trigger Email extension) ─
@@ -161,6 +161,12 @@ service cloud.firestore {
     match /signals/{docId} {
       allow read:   if true;
       allow write:  if isAdmin();
+    }
+
+    // ── wrap_summaries collection ────────────────
+    match /wrap_summaries/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
     }
 
     // ── local_hubs collection ─────────────────────
