@@ -22,6 +22,7 @@ import {
   getDotColor
 } from '../utils/broadcastHelpers';
 import { RarityBadge } from './PulseDropStrip';
+import { LocationPreviewModal } from './LocationPreviewModal';
 
 const ARTWAVE_DONATION_URL = 'https://4agc.com/donation_pages/0785fa30-9065-400b-b54d-74458f2c9eb0';
 
@@ -57,6 +58,7 @@ export const BroadcastCard: React.FC<BroadcastCardProps> = ({
   const [spots, setSpots] = useState(1);
   const [copied, setCopied] = useState(false);
   const [, forceUpdate] = useState(0);
+  const [showMapPreview, setShowMapPreview] = useState(false);
 
   const handleShare = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -170,11 +172,12 @@ export const BroadcastCard: React.FC<BroadcastCardProps> = ({
 
   const openMaps = (e: React.MouseEvent) => {
     e.stopPropagation();
-    const lat = item.latitude;
-    const lng = item.longitude;
-    const address = item.address;
-    const destination = lat && lng ? `${lat},${lng}` : encodeURIComponent(address || 'Cincinnati, OH');
-    window.open(`https://www.google.com/maps/dir/?api=1&destination=${destination}`, '_blank');
+    if (item.latitude && item.longitude) {
+      setShowMapPreview(true);
+    } else {
+      const destination = encodeURIComponent(item.address || 'Cincinnati, OH');
+      window.open(`https://www.google.com/maps/dir/?api=1&destination=${destination}`, '_blank');
+    }
   };
 
   function getLocationLabel(item: Broadcast): string {
@@ -573,6 +576,16 @@ export const BroadcastCard: React.FC<BroadcastCardProps> = ({
         </div>
       </motion.div>
 
+
+    {showMapPreview && item.latitude && item.longitude && (
+      <LocationPreviewModal
+        name={item.venue || item.title}
+        address={item.address}
+        latitude={item.latitude}
+        longitude={item.longitude}
+        onClose={() => setShowMapPreview(false)}
+      />
+    )}
 
     {showBooking && (
       <div 

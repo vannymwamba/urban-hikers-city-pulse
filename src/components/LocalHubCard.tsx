@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { motion } from 'motion/react';
 import { MapPin } from 'lucide-react';
 import { LocalHub } from '../types';
+import { LocationPreviewModal } from './LocationPreviewModal';
 
 export type LocalHubTier = 'free' | 'paid' | 'premium';
 
@@ -38,6 +39,7 @@ export const LocalHubCard: React.FC<LocalHubCardProps> = ({ hub, idx, onRedeem }
   };
 
   const isOpen = checkIsOpen();
+  const [showMapPreview, setShowMapPreview] = useState(false);
 
   const borderStyle = isPremium
     ? '2px solid #FFE01A'
@@ -50,11 +52,16 @@ export const LocalHubCard: React.FC<LocalHubCardProps> = ({ hub, idx, onRedeem }
 
   const openDirections = (e: React.MouseEvent) => {
     e.stopPropagation();
-    const query = encodeURIComponent(`${hub.name} ${hub.address}`);
-    window.open(`https://www.google.com/maps/search/?api=1&query=${query}`, '_blank');
+    if (hub.latitude && hub.longitude) {
+      setShowMapPreview(true);
+    } else {
+      const query = encodeURIComponent(`${hub.name} ${hub.address}`);
+      window.open(`https://www.google.com/maps/search/?api=1&query=${query}`, '_blank');
+    }
   };
 
   return (
+    <>
     <motion.div
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
@@ -174,5 +181,16 @@ export const LocalHubCard: React.FC<LocalHubCardProps> = ({ hub, idx, onRedeem }
           </div>
       </div>
     </motion.div>
+
+    {showMapPreview && hub.latitude && hub.longitude && (
+      <LocationPreviewModal
+        name={hub.name}
+        address={hub.address}
+        latitude={hub.latitude}
+        longitude={hub.longitude}
+        onClose={() => setShowMapPreview(false)}
+      />
+    )}
+  </>
   );
 };
