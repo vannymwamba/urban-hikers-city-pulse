@@ -12,8 +12,9 @@ import fs from "fs";
 import { Client } from "@googlemaps/google-maps-services-js";
 import axios from "axios";
 import cron from "node-cron";
-import { runCivicIngestionEngine } from "./agents/visitCincyAgent.ts";
-import { runLibraryIngestionAgent } from "./agents/libraryAgent.ts";
+import { runFixedCivicIngestion as runCivicIngestionEngine,
+         runFixedLibraryIngestion as runLibraryIngestionAgent }
+  from "./agents/agentDiagnostic.ts";
 import { initializeScheduler } from "./src/cron/scheduler.ts";
 import { createRateLimiter } from "./rateLimiter.ts";
 import { createSponsorCheckoutRoute, handleSponsorWebhook } from "./src/services/onSponsorPaid.ts";
@@ -565,24 +566,22 @@ async function startServer() {
   // Library Ingestion Agent Manual Sync
   app.post("/api/admin/sync-library-events", async (req, res) => {
     try {
-      console.log("Admin: Triggering Library Ingestion Agent...");
       const result = await runLibraryIngestionAgent();
-      res.json(result || { status: 'complete', count: 0 });
+      res.json(result);
     } catch (error) {
-      console.error("Library Ingestion Agent: Sync Error:", error);
-      res.status(500).json({ error: "Failed to sync Library events", details: String(error) });
+      console.error("Library sync error:", error);
+      res.status(500).json({ error: "Failed to sync", details: String(error) });
     }
   });
 
   // Civic Ingestion Agent Manual Sync
   app.post("/api/admin/sync-civic-events", async (req, res) => {
     try {
-      console.log("Admin: Triggering Civic Ingestion Engine...");
       const result = await runCivicIngestionEngine();
-      res.json(result || { status: 'complete', processed: 0 });
+      res.json(result);
     } catch (error) {
-      console.error("Civic Ingestion Engine: Sync Error:", error);
-      res.status(500).json({ error: "Failed to sync Civic events", details: String(error) });
+      console.error("Civic sync error:", error);
+      res.status(500).json({ error: "Failed to sync", details: String(error) });
     }
   });
 
