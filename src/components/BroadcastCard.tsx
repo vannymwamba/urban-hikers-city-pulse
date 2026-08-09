@@ -22,6 +22,7 @@ import {
   getDotColor
 } from '../utils/broadcastHelpers';
 import { RarityBadge } from './PulseDropStrip';
+import { LocationPreviewModal } from './LocationPreviewModal';
 
 const ARTWAVE_DONATION_URL = 'https://4agc.com/donation_pages/0785fa30-9065-400b-b54d-74458f2c9eb0';
 
@@ -52,6 +53,7 @@ export const BroadcastCard: React.FC<BroadcastCardProps> = ({
   canManage = false
 }) => {
   const [progress, setProgress] = useState(100);
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [showBooking, setShowBooking] = useState(false);
   const [isBooking, setIsBooking] = useState(false);
   const [spots, setSpots] = useState(1);
@@ -173,8 +175,12 @@ export const BroadcastCard: React.FC<BroadcastCardProps> = ({
     const lat = item.latitude;
     const lng = item.longitude;
     const address = item.address;
-    const destination = lat && lng ? `${lat},${lng}` : encodeURIComponent(address || 'Cincinnati, OH');
-    window.open(`https://www.google.com/maps/dir/?api=1&destination=${destination}`, '_blank');
+    if (typeof lat === 'number' && typeof lng === 'number' && !isNaN(lat) && !isNaN(lng)) {
+      setIsPreviewOpen(true);
+    } else {
+      const destination = lat && lng ? `${lat},${lng}` : encodeURIComponent(address || 'Cincinnati, OH');
+      window.open(`https://www.google.com/maps/dir/?api=1&destination=${destination}`, '_blank');
+    }
   };
 
   function getLocationLabel(item: Broadcast): string {
@@ -696,6 +702,16 @@ export const BroadcastCard: React.FC<BroadcastCardProps> = ({
         </div>
       </div>
 
+    )}
+    {typeof item.latitude === 'number' && typeof item.longitude === 'number' && !isNaN(item.latitude) && !isNaN(item.longitude) && (
+      <LocationPreviewModal
+        isOpen={isPreviewOpen}
+        onClose={() => setIsPreviewOpen(false)}
+        locationName={item.venue?.trim() || item.title || 'Signal Location'}
+        address={item.address || 'Cincinnati, OH'}
+        latitude={item.latitude}
+        longitude={item.longitude}
+      />
     )}
     </>
   );

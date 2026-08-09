@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { UserProfile } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
 import { db } from '../firebase';
 import { collection, query, where, orderBy, limit, onSnapshot, Timestamp } from 'firebase/firestore';
-import { MapPin, ShieldAlert, Cpu, Thermometer, Wind, Zap, Terminal, Share2, Layers, Search, Globe, Lock, Unlock } from 'lucide-react';
+import { MapPin, Thermometer, Zap, Terminal, Layers, Globe, Search } from 'lucide-react';
+import { TapJourneyGraphic } from './TapJourneyGraphic';
 
 interface LandingPageProps {
   onLogin: () => void;
@@ -22,307 +23,469 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   onCreatorIgnite, 
   userProfile 
 }) => {
-  const [tapsCount, setTapsCount] = useState(12);
-  const [pulseKey, setPulseKey] = useState(0);
   const [time, setTime] = useState(new Date());
+  const [activeCount, setActiveCount] = useState(15);
+  const [activeVectorMode, setActiveVectorMode] = useState<'nfc' | 'qr' | 'direct'>('nfc');
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+
   const [liveSignals, setLiveSignals] = useState([
-    { label: 'DAMON LYNCH', status: 'LIVE', color: '#FFE01A' },
-    { label: 'INTRO TO BLOCK PRINT', status: 'UPCOMING', color: '#666' },
-    { label: 'AUGUST WILSON\'S THE', status: 'UPCOMING', color: '#666' },
+    { label: 'DAMON LYNCH', status: 'LIVE', color: '#F5E306' },
+    { label: 'INTRO TO BLOCK PRINT', status: 'UPCOMING', color: '#8E8E85' },
+    { label: 'AUGUST WILSON\'S THE', status: 'UPCOMING', color: '#8E8E85' },
   ]);
 
+  // Clock
   useEffect(() => {
     const timer = setInterval(() => setTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
 
+  // Micro-motion: Fluctuate active count between 12 and 19
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const nextCount = Math.floor(Math.random() * (19 - 12 + 1)) + 12;
+      setActiveCount(nextCount);
+    }, 3500);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Firestore Live Signals
   useEffect(() => {
     const q = query(
       collection(db, 'broadcasts'),
       where('expires_at', '>', Timestamp.now()),
       orderBy('expires_at'),
       limit(4)
-    )
+    );
     const unsub = onSnapshot(q, snap => {
       if (!snap.empty) {
         setLiveSignals(
           snap.docs.map((d) => {
-            const data = d.data()
+            const data = d.data();
             const isLive = data.starts_at && data.starts_at.toMillis() < Date.now();
             return {
               label: `${data.title?.toUpperCase()}`,
               status: isLive ? 'LIVE' : 'UPCOMING',
-              color: isLive ? '#FFE01A' : '#666',
-            }
+              color: isLive ? '#F5E306' : '#8E8E85',
+            };
           })
-        )
-        setTapsCount(snap.size);
+        );
       }
-    })
-    return () => unsub()
-  }, [])
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setPulseKey(prev => prev + 1);
-    }, 6000);
-    return () => clearInterval(interval);
+    });
+    return () => unsub();
   }, []);
+
+  // CANVAS DYNAMIC BACKGROUND SIMULATION
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    let width = (canvas.width = window.innerWidth);
+    let height = (canvas.height = window.innerHeight);
+
+    let animationFrameId: number;
+
+    // Node structure
+    interface SignalNode {
+      x: number;
+      y: number;
+      vx: number;
+      vy: number;
+      baseRadius: number;
+      phase: number;
+      twinkleSpeed: number;
+      flare: number;
+    }
+
+    let nodes: SignalNode[] = [];
+    const PROXIMITY_DIST = 95;
+
+    // Mode-specific state
+    let scanX = 0;
+    let scanDirection = 1;
+    let ripples: { x: number; y: number; radius: number; maxRadius: number; alpha: number }[] = [];
+    let directBeams: { x1: number; y1: number; x2: number; y2: number; progress: number; alpha: number }[] = [];
+
+    const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    const initNodes = () => {
+      nodes = [];
+      const count = Math.max(25, Math.floor((width * height) / 12000));
+      for (let i = 0; i < count; i++) {
+        nodes.push({
+          x: Math.random() * width,
+          y: Math.random() * height,
+          vx: (Math.random() - 0.5) * 0.4,
+          vy: (Math.random() - 0.5) * 0.4,
+          baseRadius: Math.random() * 2 + 1.5,
+          phase: Math.random() * Math.PI * 2,
+          twinkleSpeed: 0.02 + Math.random() * 0.03,
+          flare: 0,
+        });
+      }
+    };
+
+    const handleResize = () => {
+      width = canvas.width = window.innerWidth;
+      height = canvas.height = window.innerHeight;
+      initNodes();
+    };
+
+    window.addEventListener('resize', handleResize);
+    initNodes();
+
+    // Ripple Generator for NFC mode
+    const rippleInterval = setInterval(() => {
+      if (activeVectorMode === 'nfc' && nodes.length > 0 && !prefersReducedMotion) {
+        const randomNode = nodes[Math.floor(Math.random() * nodes.length)];
+        ripples.push({
+          x: randomNode.x,
+          y: randomNode.y,
+          radius: 5,
+          maxRadius: 60 + Math.random() * 50,
+          alpha: 0.8,
+        });
+      }
+    }, 700);
+
+    // Direct Beam Generator
+    const beamInterval = setInterval(() => {
+      if (activeVectorMode === 'direct' && nodes.length > 1 && !prefersReducedMotion) {
+        const sourceIdx = Math.floor(Math.random() * nodes.length);
+        const source = nodes[sourceIdx];
+
+        let minDist = Infinity;
+        let nearest: SignalNode | null = null;
+        nodes.forEach((target, idx) => {
+          if (idx !== sourceIdx) {
+            const dist = Math.hypot(target.x - source.x, target.y - source.y);
+            if (dist < minDist) {
+              minDist = dist;
+              nearest = target;
+            }
+          }
+        });
+
+        if (nearest && minDist < 300) {
+          source.flare = 1.0;
+          nearest.flare = 1.0;
+          directBeams.push({
+            x1: source.x,
+            y1: source.y,
+            x2: nearest.x,
+            y2: nearest.y,
+            progress: 0,
+            alpha: 1.0,
+          });
+        }
+      }
+    }, 800);
+
+    const render = () => {
+      ctx.clearRect(0, 0, width, height);
+      ctx.globalCompositeOperation = 'lighter';
+
+      const centerX = width / 2;
+      const centerY = height * 0.45;
+      const centerFalloffRadius = Math.min(width, height) * 0.4;
+
+      // 1. Draw Nodes
+      nodes.forEach(node => {
+        if (!prefersReducedMotion) {
+          node.x += node.vx;
+          node.y += node.vy;
+
+          if (node.x < 0 || node.x > width) node.vx *= -1;
+          if (node.y < 0 || node.y > height) node.vy *= -1;
+
+          node.phase += node.twinkleSpeed;
+        }
+
+        if (node.flare > 0) node.flare -= 0.02;
+
+        const distToCenter = Math.hypot(node.x - centerX, node.y - centerY);
+        const centerFactor = Math.min(1, Math.max(0.15, distToCenter / centerFalloffRadius));
+
+        const baseAlpha = (0.3 + 0.3 * Math.sin(node.phase) + node.flare * 0.7) * centerFactor;
+
+        ctx.beginPath();
+        const r = node.baseRadius + node.flare * 3;
+        ctx.arc(node.x, node.y, r, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(245, 227, 6, ${baseAlpha.toFixed(3)})`;
+        ctx.fill();
+
+        ctx.beginPath();
+        ctx.arc(node.x, node.y, r * 2.5, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(245, 227, 6, ${(baseAlpha * 0.25).toFixed(3)})`;
+        ctx.fill();
+      });
+
+      // 2. Proximity Lines
+      for (let i = 0; i < nodes.length; i++) {
+        for (let j = i + 1; j < nodes.length; j++) {
+          const n1 = nodes[i];
+          const n2 = nodes[j];
+          const dist = Math.hypot(n2.x - n1.x, n2.y - n1.y);
+
+          if (dist < PROXIMITY_DIST) {
+            const midX = (n1.x + n2.x) / 2;
+            const midY = (n1.y + n2.y) / 2;
+            const distToCenter = Math.hypot(midX - centerX, midY - centerY);
+            const centerFactor = Math.min(1, Math.max(0.1, distToCenter / centerFalloffRadius));
+
+            const lineAlpha = (1 - dist / PROXIMITY_DIST) * 0.22 * centerFactor;
+            ctx.beginPath();
+            ctx.moveTo(n1.x, n1.y);
+            ctx.lineTo(n2.x, n2.y);
+            ctx.strokeStyle = `rgba(245, 227, 6, ${lineAlpha.toFixed(3)})`;
+            ctx.lineWidth = 1;
+            ctx.stroke();
+          }
+        }
+      }
+
+      // 3. Vector Modes
+      if (activeVectorMode === 'nfc') {
+        for (let i = ripples.length - 1; i >= 0; i--) {
+          const rip = ripples[i];
+          rip.radius += 1.2;
+          rip.alpha -= 0.012;
+
+          if (rip.alpha <= 0 || rip.radius >= rip.maxRadius) {
+            ripples.splice(i, 1);
+            continue;
+          }
+
+          ctx.beginPath();
+          ctx.arc(rip.x, rip.y, rip.radius, 0, Math.PI * 2);
+          ctx.strokeStyle = `rgba(245, 227, 6, ${rip.alpha.toFixed(3)})`;
+          ctx.lineWidth = 1.5;
+          ctx.stroke();
+        }
+      } else if (activeVectorMode === 'qr') {
+        if (!prefersReducedMotion) {
+          scanX += scanDirection * 4;
+          if (scanX > width) { scanX = width; scanDirection = -1; }
+          if (scanX < 0) { scanX = 0; scanDirection = 1; }
+        }
+
+        const scanGradient = ctx.createLinearGradient(scanX - 15, 0, scanX + 15, 0);
+        scanGradient.addColorStop(0, 'rgba(245, 227, 6, 0)');
+        scanGradient.addColorStop(0.5, 'rgba(245, 227, 6, 0.7)');
+        scanGradient.addColorStop(1, 'rgba(245, 227, 6, 0)');
+
+        ctx.fillStyle = scanGradient;
+        ctx.fillRect(scanX - 15, 0, 30, height);
+
+        nodes.forEach(node => {
+          if (Math.abs(node.x - scanX) < 15) {
+            node.flare = 0.9;
+          }
+        });
+      } else if (activeVectorMode === 'direct') {
+        for (let i = directBeams.length - 1; i >= 0; i--) {
+          const beam = directBeams[i];
+          beam.progress += 0.05;
+          beam.alpha -= 0.02;
+
+          if (beam.alpha <= 0 || beam.progress >= 1) {
+            directBeams.splice(i, 1);
+            continue;
+          }
+
+          const currentX = beam.x1 + (beam.x2 - beam.x1) * beam.progress;
+          const currentY = beam.y1 + (beam.y2 - beam.y1) * beam.progress;
+
+          ctx.beginPath();
+          ctx.moveTo(beam.x1, beam.y1);
+          ctx.lineTo(currentX, currentY);
+          ctx.strokeStyle = `rgba(245, 227, 6, ${beam.alpha.toFixed(3)})`;
+          ctx.lineWidth = 2;
+          ctx.stroke();
+
+          ctx.beginPath();
+          ctx.arc(currentX, currentY, 3, 0, Math.PI * 2);
+          ctx.fillStyle = `rgba(245, 227, 6, ${beam.alpha.toFixed(3)})`;
+          ctx.fill();
+        }
+      }
+
+      ctx.globalCompositeOperation = 'source-over';
+      animationFrameId = requestAnimationFrame(render);
+    };
+
+    animationFrameId = requestAnimationFrame(render);
+
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      clearInterval(rippleInterval);
+      clearInterval(beamInterval);
+      cancelAnimationFrame(animationFrameId);
+    };
+  }, [activeVectorMode]);
 
   const formatTime = (date: Date) => {
     return date.toLocaleTimeString('en-US', { 
       hour: '2-digit', 
       minute: '2-digit', 
+      second: '2-digit',
       hour12: true 
     });
   };
 
   return (
-    <div className="bg-[#050505] min-h-screen font-mono text-white flex flex-col selection:bg-uh-yellow selection:text-uh-black overflow-hidden relative">
+    <div className="bg-[#0A0A08] min-h-screen font-mono text-[#F7F7F2] uppercase flex flex-col justify-between relative overflow-x-hidden selection:bg-[#F5E306] selection:text-[#0A0A08]">
       
-      {/* NOISE & GRIT OVERLAY */}
-      <div className="fixed inset-0 pointer-events-none z-50 opacity-[0.03]" 
-           style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")` }} />
+      {/* LAYER 0: Canvas Dynamic Signal Background */}
+      <canvas ref={canvasRef} className="fixed inset-0 w-full h-full z-0 pointer-events-none" />
 
-      {/* GRADIENT MASKED MAP BACKGROUND BACKGROUND */}
-      <div className="fixed inset-0 pointer-events-none z-0 opacity-20">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_0%,#050505_70%)] z-10" />
-        <div className="absolute inset-0 grayscale contrast-125 brightness-50 mix-blend-screen"
-             style={{ 
-               backgroundImage: `url('https://images.unsplash.com/photo-1514924013411-cbf25faa35bb?q=80&w=2576&auto=format&fit=crop')`,
-               backgroundSize: 'cover',
-               backgroundPosition: 'center'
-             }} />
-      </div>
+      {/* LAYER 1: Radial Vignette Overlay */}
+      <div 
+        className="fixed inset-0 z-[1] pointer-events-none"
+        style={{
+          background: `radial-gradient(circle at 50% 45%, rgba(10, 10, 8, 0.35) 0%, rgba(10, 10, 8, 0.75) 55%, rgba(10, 10, 8, 0.96) 100%)`
+        }}
+      />
 
-      {/* VERTICAL SIDE SCANNER - LEFT */}
-      <div className="fixed left-6 top-1/2 -translate-y-1/2 flex flex-col gap-8 z-20 hidden lg:flex">
-         <div className="flex flex-col gap-1 items-center">
-            <span className="text-[7px] font-black text-uh-yellow/30 uppercase vertical-text tracking-[0.4em]">CINCIKWHATI</span>
-            <div className="w-[1px] h-32 bg-uh-yellow/10 relative">
-               <motion.div 
-                 animate={{ top: ['0%', '100%', '0%'] }}
-                 transition={{ duration: 4, repeat: Infinity, ease: "linear" }}
-                 className="absolute left-1/2 -translate-x-1/2 w-1.5 h-1.5 bg-uh-yellow rounded-full shadow-[0_0_8px_#FFE01A]" 
-               />
-            </div>
-            <span className="text-[7px] font-black text-uh-yellow/30 uppercase vertical-text tracking-[0.4em]">39.0991° N, 84.5120° W</span>
-         </div>
-      </div>
-
-      {/* VERTICAL SIDE SCANNER - RIGHT */}
-      <div className="fixed right-6 top-1/2 -translate-y-1/2 flex flex-col items-center gap-10 z-20">
-         <div className="flex flex-col gap-2 items-center">
-            <span className="text-[10px] font-black text-[#444] uppercase tracking-widest">{formatTime(time)}</span>
-            <div className="flex flex-col items-center gap-0">
-               <span className="text-3xl font-black text-uh-yellow tracking-tighter">72°</span>
-               <Thermometer size={14} className="text-uh-yellow/40" />
-            </div>
-         </div>
-         
-         <div className="flex flex-col gap-4">
-            {[1, 2, 3, 4, 5].map(i => (
-               <div key={i} className={`w-3 h-[2px] ${i === 2 ? 'bg-uh-yellow shadow-[0_0_8px_#FFE01A]' : 'bg-[#222]'}`} />
-            ))}
-         </div>
-
-         <div className="flex flex-col gap-8 text-[#444] font-black text-[8px] uppercase tracking-[0.3em] vertical-text">
-            <span>Tap in.</span>
-            <span>Tune in.</span>
-            <span>Turn the city on.</span>
-         </div>
-      </div>
-
-      {/* LP-NAV */}
-      <nav className="flex items-center justify-between px-8 py-6 relative z-30">
-        <div className="flex flex-col gap-0.5">
-          <div className="flex items-center gap-2">
-            <div className="w-1.5 h-1.5 bg-uh-yellow animate-pulse" />
-            <span className="text-[14px] font-black tracking-[0.25em] text-uh-yellow uppercase">Local Pulse</span>
-          </div>
-          <span className="text-[8px] tracking-[0.4em] text-[#666] uppercase pl-3.5">By Urban Hikers</span>
-        </div>
+      {/* LAYER 2: UI Content Container */}
+      <div className="relative z-[2] w-full min-h-screen flex flex-col justify-between p-6 md:p-9 gap-8">
         
-        <div className="flex items-center gap-8">
-          <div className="hidden md:flex items-center gap-8 border-r border-[#222] pr-8">
-            <span className="text-[9px] font-black tracking-[0.2em] text-[#666] uppercase cursor-pointer hover:text-uh-yellow transition-all flex items-center gap-2">
-               <Layers size={12} strokeWidth={3} /> Nodes
-            </span>
-            <span className="text-[9px] font-black tracking-[0.2em] text-[#666] uppercase cursor-pointer hover:text-uh-yellow transition-all flex items-center gap-2">
-               <Globe size={12} strokeWidth={3} /> Partners
+        {/* TOP NAV */}
+        <nav className="flex items-center justify-between w-full">
+          <div className="flex flex-col gap-0.5">
+            <div className="text-[16px] font-black tracking-[-0.01em] text-white font-['Archivo'] leading-none">
+              LOCAL <span className="text-[#F5E306]">PULSE</span>
+            </div>
+            <span className="text-[9px] font-medium tracking-[0.22em] text-[#8E8E85]">
+              BY URBAN HIKERS
             </span>
           </div>
+
+          <div className="hidden md:flex items-center gap-8">
+            <a href="#nodes" className="text-[11px] font-semibold tracking-[0.18em] text-[#8E8E85] hover:text-[#F5E306] transition-colors flex items-center gap-2">
+              <span className="w-1.5 h-1.5 border border-[#8E8E85] inline-block" />
+              NODES
+            </a>
+            <a href="#partners" className="text-[11px] font-semibold tracking-[0.18em] text-[#8E8E85] hover:text-[#F5E306] transition-colors flex items-center gap-2">
+              <span className="w-1.5 h-1.5 border border-[#8E8E85] inline-block" />
+              PARTNERS
+            </a>
+          </div>
+
           <button 
             onClick={onLogin}
-            className="text-[9px] font-black tracking-[0.25em] text-uh-yellow uppercase border border-uh-yellow/30 px-6 py-2.5 bg-transparent cursor-pointer hover:bg-uh-yellow hover:text-[#0a0a0a] transition-all flex items-center gap-2 backdrop-blur-md"
+            className="text-[10px] font-bold tracking-[0.22em] text-[#F5E306] bg-transparent border border-[#F5E306] px-5 py-2.5 cursor-pointer hover:bg-[#F5E306] hover:text-[#0A0A08] transition-all hover:shadow-[0_0_20px_rgba(245,227,6,0.4)]"
           >
-            {userProfile ? 'System Dashboard' : 'Login'}
+            {userProfile ? 'SYSTEM DASHBOARD' : 'LOGIN'}
           </button>
-        </div>
-      </nav>
+        </nav>
 
-      {/* LP-HERO */}
-      <div className="flex-1 flex flex-col items-center justify-center px-10 py-10 relative z-20 text-center">
-        
-        {/* UPPER DATA HUD */}
-        <div className="flex items-center gap-4 mb-2">
-           <div className="h-px w-8 bg-uh-yellow/20" />
-           <div className="flex items-center gap-2 px-4 py-1.5 border border-white/5 bg-white/5 backdrop-blur-xl">
-             <div className="w-1 h-1 rounded-full bg-uh-yellow shadow-[0_0_5px_#FFE01A] animate-ping" />
-             <span className="text-[8px] font-black tracking-[0.2em] text-[#666] uppercase">City Signals</span>
-             <span className="text-[8px] font-black tracking-[0.2em] text-uh-yellow uppercase italic">{liveSignals.filter(s => s.status === 'LIVE').length + 12} Active</span>
-           </div>
-           <div className="h-px w-8 bg-uh-yellow/20" />
-        </div>
-
-        {/* MAIN DISTRESSED HEADLINE */}
-        <div className="relative mb-6">
-          <h1 className="text-[80px] md:text-[140px] font-black leading-none tracking-tighter uppercase relative z-10">
-            Local <span className="text-uh-yellow relative inline-block">Pulse</span>
-          </h1>
-          {/* DISTRESSED OVERLAY TEXT */}
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-20 select-none blur-[2px]">
-             <h1 className="text-[82px] md:text-[142px] font-black leading-none tracking-tighter uppercase text-uh-yellow mix-blend-overlay translate-x-1 translate-y-1">
-               Local Pulse
-             </h1>
-          </div>
-        </div>
-
-        <div className="max-w-2xl mb-12">
-          <p className="text-[14px] md:text-[18px] font-black tracking-widest text-[#888] uppercase leading-relaxed">
-            See what's happening within 3 miles of you—right now. <br className="hidden md:block" />
-            <span className="text-white">Live events. Real-time energy. No searching.</span>
-          </p>
-        </div>
-
-        {/* CTA ACTIONS */}
-        <div className="flex flex-wrap items-center justify-center gap-6 mb-20">
-          <button 
-            onClick={onTapIntoPulse}
-            className="group relative bg-uh-yellow text-uh-black font-black text-[12px] tracking-[0.3em] uppercase px-10 py-5 transition-all hover:scale-105 active:scale-95 shadow-[0_0_30px_rgba(255,224,26,0.3)]"
-          >
-            Explore What's Happening Now
-          </button>
+        {/* CENTERED HERO */}
+        <main className="flex-1 flex flex-col items-center justify-center text-center max-w-4xl mx-auto my-auto py-8">
           
-          <button 
-            onClick={onLogin}
-            className="group px-10 py-5 bg-transparent border border-[#333] hover:border-uh-yellow hover:bg-uh-yellow/5 transition-all"
-          >
-            <span className="text-[12px] font-black tracking-[0.3em] text-white uppercase group-hover:text-uh-yellow transition-all">View Live Map</span>
-          </button>
-        </div>
-
-        {/* LIVE EVENT FEED */}
-        <div className="w-full max-w-5xl mb-24">
-          <div className="flex items-center justify-between mb-8 px-4">
-             <span className="text-[10px] font-black text-uh-yellow tracking-[0.4em] uppercase">Live City Feed</span>
-             <div className="flex items-center gap-2">
-                <div className="w-1.5 h-1.5 rounded-full bg-uh-yellow animate-ping" />
-                <span className="text-[8px] font-black text-[#444] uppercase tracking-widest">Real-Time Sync Active</span>
-             </div>
+          {/* Signal Pill */}
+          <div className="inline-flex items-center gap-2.5 px-4 py-1.5 border border-[#232320] bg-[rgba(18,18,15,0.8)] backdrop-blur-md rounded-full mb-6 text-[10px] font-semibold tracking-[0.2em] text-[#8E8E85]">
+            <span className="w-2 h-2 rounded-full bg-[#F5E306] shadow-[0_0_8px_#F5E306] animate-ping" />
+            <span>CITY SIGNALS — <span className="text-[#F5E306] font-bold">{activeCount} ACTIVE</span></span>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-             {[
-               { name: "Neon Nights Expo", loc: "Vine St", count: "142", status: "LIVE NOW", vibe: "BUZZING", color: "#FFE01A" },
-               { name: "Jazz on the Terrace", loc: "Washington Park", count: "68", status: "HOT", vibe: "CHILL", color: "#FFE01A" },
-               { name: "Street Art Jam", loc: "Main St", count: "215", status: "LIVE NOW", vibe: "PACKED", color: "#FFE01A" },
-               { name: "Gallery Opening", loc: "Liberty St", count: "45", status: "UPCOMING", vibe: "CHILL", color: "#666" },
-               { name: "Pop-up Market", loc: "Findlay", count: "89", status: "HOT", vibe: "BUZZING", color: "#FFE01A" }
-             ].map((event, i) => (
-                <motion.div 
-                  key={i}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: i * 0.1 }}
-                  className="bg-[#0a0a0a]/80 backdrop-blur-md border border-[#1a1a1a] p-5 text-left group hover:border-uh-yellow/40 transition-all cursor-pointer relative overflow-hidden"
-                >
-                   {/* Minimal Vibe Grid Background */}
-                   <div className="absolute top-0 right-0 p-1 opacity-10">
-                      <div className="grid grid-cols-3 gap-0.5">
-                         {[...Array(9)].map((_, j) => <div key={j} className="w-0.5 h-0.5 bg-uh-yellow" />)}
-                      </div>
-                   </div>
-
-                   <div className="flex justify-between items-start mb-4">
-                      <div className={`text-[7px] font-black px-1.5 py-0.5 rounded-[2px] ${event.status === 'LIVE NOW' ? 'bg-uh-yellow text-uh-black' : 'border border-[#333] text-[#555]'}`}>
-                         {event.status}
-                      </div>
-                      <span className="text-[8px] font-black text-uh-yellow tracking-tighter">{event.count} HERE</span>
-                   </div>
-
-                   <h3 className="text-[12px] font-black text-white uppercase mb-2 tracking-tight line-clamp-1 group-hover:text-uh-yellow transition-colors">
-                      {event.name}
-                   </h3>
-
-                   <div className="flex flex-col gap-1">
-                      <div className="flex items-center gap-1.5">
-                         <MapPin size={8} className="text-[#444]" />
-                         <span className="text-[8px] font-black text-[#555] uppercase tracking-wider">{event.loc}</span>
-                      </div>
-                      <div className="flex items-center gap-1.5">
-                         <Zap size={8} className="text-uh-yellow/40" />
-                         <span className="text-[8px] font-black text-uh-yellow/60 uppercase tracking-widest">{event.vibe}</span>
-                      </div>
-                   </div>
-                </motion.div>
-             ))}
+          {/* Stacked Hero Wordmark */}
+          <div className="flex flex-col items-center font-['Archivo'] font-black leading-[0.86] tracking-[-0.01em] text-[clamp(66px,17vw,220px)] mb-6 select-none">
+            <span className="text-[#F7F7F2] [text-shadow:0_0_35px_rgba(247,247,242,0.15)]">LOCAL</span>
+            <span className="text-[#F5E306] [text-shadow:0_0_45px_rgba(245,227,6,0.5),0_0_12px_rgba(245,227,6,0.8)]">PULSE</span>
           </div>
-        </div>
 
-        {/* ANCHOR LINE */}
-        <div className="w-full border-t border-b border-[#111] py-8 flex flex-col items-center gap-4">
-          <p className="text-[10px] md:text-[12px] font-black tracking-[0.3em] text-[#666] uppercase max-w-3xl leading-relaxed">
-            Local Pulse turns the city into a real-time, walkable dashboard. 
-            <span className="text-white"> Tap any Pulse Cube. See what's alive. Walk toward it.</span>
+          <p className="text-[clamp(12px,1.3vw,15px)] font-medium tracking-[0.18em] text-[#8E8E85] mb-2 max-w-2xl">
+            SEE WHAT’S HAPPENING WITHIN 3 MILES OF YOU — RIGHT NOW.
           </p>
-          <div className="flex items-center gap-4">
-             <div className="h-px w-8 bg-[#222]" />
-             <span className="text-[8px] font-black text-[#333] uppercase tracking-[0.4em]">
-                Powered by Urban Hikers — Built from the streets of Cincinnati.
-             </span>
-             <div className="h-px w-8 bg-[#222]" />
+
+          <p className="text-[clamp(13px,1.4vw,16px)] font-bold tracking-[0.16em] text-white mb-8">
+            LIVE EVENTS. REAL-TIME ENERGY. NO SEARCHING.
+          </p>
+
+          {/* CTAs */}
+          <div className="flex flex-wrap items-center justify-center gap-4">
+            <button 
+              onClick={onTapIntoPulse}
+              className="bg-[#F5E306] text-[#0A0A08] font-bold text-[11px] tracking-[0.2em] px-7 py-4 border border-[#F5E306] cursor-pointer hover:-translate-y-0.5 hover:shadow-[0_0_40px_rgba(245,227,6,0.6)] transition-all shadow-[0_0_25px_rgba(245,227,6,0.35)]"
+            >
+              EXPLORE WHAT’S HAPPENING NOW
+            </button>
+            
+            <button 
+              onClick={onLogin}
+              className="bg-transparent text-[#F7F7F2] font-semibold text-[11px] tracking-[0.2em] px-7 py-4 border border-[#232320] cursor-pointer hover:border-[#F5E306] hover:text-[#F5E306] hover:bg-[#F5E306]/5 transition-all"
+            >
+              VIEW LIVE MAP
+            </button>
           </div>
+        </main>
+
+        {/* RIGHT HUD READOUT (Hidden < 820px) */}
+        <aside className="fixed right-9 top-1/2 -translate-y-1/2 z-[2] hidden lg:flex flex-col items-end gap-1">
+          <div className="text-[11px] font-semibold tracking-[0.2em] text-[#8E8E85]">
+            {formatTime(time)}
+          </div>
+          <div className="font-['Archivo'] font-black text-[44px] text-[#F5E306] leading-none [text-shadow:0_0_20px_rgba(245,227,6,0.4)]">
+            72°
+          </div>
+        </aside>
+
+        {/* BOTTOM GLASS PANEL */}
+        <footer className="w-full max-w-5xl mx-auto bg-[rgba(18,18,15,0.66)] backdrop-blur-md border border-[#232320] p-4 md:p-5 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+          <div className="flex flex-col gap-1">
+            <div className="text-[11px] font-bold tracking-[0.2em] text-[#F7F7F2]">
+              DYNAMIC TAP VECTOR & JOURNEY TRACER
+            </div>
+            <div className="text-[9px] font-normal tracking-[0.14em] text-[#8E8E85] normal-case">
+              Differentiating NFC proximity wave taps, QR laser scans, and Direct beacons along city trails.
+            </div>
+          </div>
+
+          <div className="flex items-center bg-[#0A0A08]/80 border border-[#232320] p-1 gap-1 shrink-0 w-full md:w-auto">
+            <button 
+              onClick={() => setActiveVectorMode('nfc')}
+              className={`flex-1 md:flex-none text-[9px] font-bold tracking-[0.18em] px-3.5 py-2 cursor-pointer transition-all ${
+                activeVectorMode === 'nfc'
+                  ? 'bg-[#F5E306] text-[#0A0A08] shadow-[0_0_12px_rgba(245,227,6,0.3)]'
+                  : 'text-[#8E8E85] bg-transparent hover:text-white'
+              }`}
+            >
+              NFC WAVE
+            </button>
+
+            <button 
+              onClick={() => setActiveVectorMode('qr')}
+              className={`flex-1 md:flex-none text-[9px] font-bold tracking-[0.18em] px-3.5 py-2 cursor-pointer transition-all ${
+                activeVectorMode === 'qr'
+                  ? 'bg-[#F5E306] text-[#0A0A08] shadow-[0_0_12px_rgba(245,227,6,0.3)]'
+                  : 'text-[#8E8E85] bg-transparent hover:text-white'
+              }`}
+            >
+              QR LASER
+            </button>
+
+            <button 
+              onClick={() => setActiveVectorMode('direct')}
+              className={`flex-1 md:flex-none text-[9px] font-bold tracking-[0.18em] px-3.5 py-2 cursor-pointer transition-all ${
+                activeVectorMode === 'direct'
+                  ? 'bg-[#F5E306] text-[#0A0A08] shadow-[0_0_12px_rgba(245,227,6,0.3)]'
+                  : 'text-[#8E8E85] bg-transparent hover:text-white'
+              }`}
+            >
+              DIRECT
+            </button>
+          </div>
+        </footer>
+
+        {/* TAP JOURNEY GRAPHIC COMPONENT */}
+        <div className="w-full max-w-5xl mx-auto my-4">
+          <TapJourneyGraphic />
         </div>
 
       </div>
-
-      {/* FOOTER DASHBOARD TICKER */}
-      <footer className="border-t border-[#111] bg-[#050505] relative z-20 grid grid-cols-1 md:grid-cols-3">
-        <div className="p-8 border-r border-[#111] flex flex-col gap-2">
-           <div className="flex justify-between items-center">
-              <span className="text-[8px] font-black text-[#333] uppercase tracking-[0.3em]">Now Broadcasting</span>
-              <Terminal size={10} className="text-[#333]" />
-           </div>
-           <div className="flex flex-col">
-              <span className="text-[13px] font-black text-white hover:text-uh-yellow cursor-pointer transition-colors uppercase">50% Off Tacos — Gomez</span>
-              <span className="text-[9px] font-black text-uh-magenta italic uppercase tracking-widest mt-1">38 Min Remaining</span>
-           </div>
-        </div>
-
-        <div className="p-8 border-r border-[#111] flex flex-col gap-2">
-           <div className="flex justify-between items-center">
-              <span className="text-[8px] font-black text-[#333] uppercase tracking-[0.3em]">Vibe Check · Vine St</span>
-              <Zap size={10} className="text-[#333]" />
-           </div>
-           <div className="flex flex-col">
-              <span className="text-[13px] font-black text-uh-yellow uppercase flex items-center gap-2">Buzzing <div className="w-1.5 h-1.5 bg-uh-yellow rounded-full animate-ping" /></span>
-              <span className="text-[9px] font-black text-[#666] uppercase tracking-[0.15em] mt-1 italic">12 Taps in Last Hour</span>
-           </div>
-        </div>
-
-        <div className="p-8 flex flex-col gap-2">
-           <div className="flex justify-between items-center">
-              <span className="text-[8px] font-black text-[#333] uppercase tracking-[0.3em]">Next Signal</span>
-              <Search size={10} className="text-[#333]" />
-           </div>
-           <div className="flex flex-col">
-              <span className="text-[13px] font-black text-white uppercase">Live Jazz · Woodward</span>
-              <span className="text-[9px] font-black text-[#666] uppercase tracking-[0.15em] mt-1">Starts in 22 Min</span>
-           </div>
-        </div>
-      </footer>
     </div>
   );
 };
-

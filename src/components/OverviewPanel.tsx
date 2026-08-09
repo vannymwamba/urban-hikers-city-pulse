@@ -3,6 +3,8 @@ import { Broadcast, Tap, Partner, VibeReport, Interaction, Node } from '../types
 import { Activity, Zap, Users, Signal, Globe, Navigation, Clock, MapPin } from 'lucide-react';
 import { motion } from 'motion/react';
 
+import { parseAnyTimestamp } from '../utils/dateUtils';
+
 interface OverviewPanelProps {
   broadcasts: Broadcast[];
   taps: Tap[];
@@ -44,14 +46,14 @@ export const OverviewPanel: React.FC<OverviewPanelProps> = ({
 
   const activeSignals = safeBroadcasts.filter(b => b && parseDate(b.expires_at || b.expiresAt) > now).length;
   
-  const last24h = (timestamp: string) => {
-    if (!timestamp) return false;
-    const date = new Date(timestamp);
+  const last24h = (timestamp: any, clientTs?: any) => {
+    if (!timestamp && !clientTs) return false;
+    const date = parseAnyTimestamp(timestamp, clientTs);
     return now.getTime() - date.getTime() < 86400000;
   };
 
-  const taps24h = safeTaps.filter(t => t && t.timestamp && last24h(t.timestamp)).length;
-  const uniqueSessions24h = new Set(safeTaps.filter(t => t && t.timestamp && last24h(t.timestamp)).map(t => t.session_uuid)).size;
+  const taps24h = safeTaps.filter(t => t && (t.timestamp || t.client_timestamp) && last24h(t.timestamp, t.client_timestamp)).length;
+  const uniqueSessions24h = new Set(safeTaps.filter(t => t && (t.timestamp || t.client_timestamp) && last24h(t.timestamp, t.client_timestamp)).map(t => t.session_uuid)).size;
   const activePartners = safePartners.filter(p => p && (p.tier === 'premium' || p.tier === 'anchor')).length;
 
   const vectorStats = safeTaps.reduce((acc, tap) => {
@@ -67,10 +69,10 @@ export const OverviewPanel: React.FC<OverviewPanelProps> = ({
     ...safeTaps.map(t => ({ ...t, activityType: 'tap' as const })),
     ...safeVibeReports.map(v => ({ ...v, activityType: 'vibe' as const, timestamp: v?.reported_at || v?.reportedAt })),
     ...safeInteractions.map(i => ({ ...i, activityType: 'interaction' as const })),
-  ].filter(item => item && item.timestamp)
+  ].filter(item => item && (item.timestamp || (item as any).client_timestamp))
    .sort((a, b) => {
-     const timeA = new Date(a.timestamp).getTime();
-     const timeB = new Date(b.timestamp).getTime();
+     const timeA = parseAnyTimestamp(a.timestamp, (a as any).client_timestamp).getTime();
+     const timeB = parseAnyTimestamp(b.timestamp, (b as any).client_timestamp).getTime();
      return (isNaN(timeB) ? 0 : timeB) - (isNaN(timeA) ? 0 : timeA);
    })
    .slice(0, 15);
@@ -214,7 +216,7 @@ export const OverviewPanel: React.FC<OverviewPanelProps> = ({
                 </span>
               </div>
               <span className="text-[9px] font-mono text-uh-gray-400">
-                {new Date(item.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                {parseAnyTimestamp(item.timestamp, (item as any).client_timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
               </span>
             </div>
           ))}

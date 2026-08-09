@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { Tap, VibeReport, Broadcast } from '../types';
+import { parseAnyTimestamp } from '../utils/dateUtils';
 
 interface LiveTickerProps {
   taps: Tap[];
@@ -14,10 +15,14 @@ export const LiveTicker: React.FC<LiveTickerProps> = ({ taps, vibeReports, broad
 
   useEffect(() => {
     const tickerItems: { text: string; time: number }[] = [
-      ...taps.slice(0, 5).map(t => ({
-        text: `NFC_TAP · NODE_${t.node_id?.slice(0, 6).toUpperCase()} · ${Math.round((Date.now() - new Date(t.timestamp).getTime()) / 1000)}s ago`,
-        time: new Date(t.timestamp).getTime()
-      })),
+      ...taps.slice(0, 5).map(t => {
+        const d = parseAnyTimestamp(t.timestamp, t.client_timestamp);
+        const diffSec = Math.max(0, Math.round((Date.now() - d.getTime()) / 1000));
+        return {
+          text: `NFC_TAP · NODE_${t.node_id?.slice(0, 6).toUpperCase()} · ${diffSec}s ago`,
+          time: d.getTime()
+        };
+      }),
       ...vibeReports.slice(0, 5).map(v => ({
         text: `VIBE: ${v.vibe.toUpperCase()} · ${Math.round((Date.now() - new Date(v.reported_at || v.reportedAt).getTime()) / 1000)}s ago`,
         time: new Date(v.reported_at || v.reportedAt).getTime()

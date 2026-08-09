@@ -7,8 +7,14 @@ service cloud.firestore {
     }
 
     // ── Connection Test ───────────────────────────
+    match /test/{docId} {
+      allow read, write: if true;
+    }
+    match /_connection_test_/{docId} {
+      allow read, write: if true;
+    }
     match /nodes/connection-test {
-      allow read: if true;
+      allow read, write: if true;
     }
 
     // ── Helper functions ──────────────────────────

@@ -11,7 +11,34 @@
         "latitude": { "type": "number", "description": "WGS84 Latitude" },
         "longitude": { "type": "number", "description": "WGS84 Longitude" },
         "radius_limit": { "type": "number", "description": "Radius in meters for broadcasts" },
-        "tap_count": { "type": "integer", "description": "Total number of NFC taps recorded" }
+        "tap_count": { "type": "integer", "description": "Total number of NFC taps recorded" },
+        "address": { "type": "string", "description": "Postal or approximate street address" },
+        "partner_name": { "type": "string" },
+        "partner_type": { "type": "string", "enum": ["walk_hq", "refuel", "civic", "anchor", "discovery", "creator", "wellness", "street"] },
+        "partner_initials": { "type": "string" },
+        "partner_accent": { "type": "string" },
+        "hub_tagline": { "type": "string" },
+        "cover_image_url": { "type": "string" },
+        "logo_url": { "type": "string" },
+        "gallery_urls": { "type": "array", "items": { "type": "string" } },
+        "founder_photo_url": { "type": "string" },
+        "theme_mode": { "type": "string", "enum": ["light", "dark", "adaptive"] },
+        "logo_style": { "type": "string", "enum": ["circle", "rounded", "square"] },
+        "why_it_matters": { "type": "string" },
+        "founder_story": { "type": "string" },
+        "business_history": { "type": "string" },
+        "community_impact": { "type": "string" },
+        "recommended_experience": { "type": "string" },
+        "custom_reward": { "type": "string" },
+        "metric_walkers": { "type": "integer" },
+        "metric_visits": { "type": "integer" },
+        "metric_events": { "type": "integer" },
+        "metric_miles": { "type": "integer" },
+        "metric_conversations": { "type": "integer" },
+        "metric_stories": { "type": "integer" },
+        "partner_logo_url": { "type": "string" },
+        "sponsor_logo_url": { "type": "string" },
+        "community_logo_url": { "type": "string" }
       },
       "required": ["id", "name", "type", "latitude", "longitude", "radius_limit"]
     },
@@ -100,13 +127,20 @@
       "properties": {
         "id": { "type": "string" },
         "node_id": { "type": "string" },
+        "artist_id": { "type": "string" },
+        "uid": { "type": "string" },
         "session_uuid": { "type": "string" },
         "access_vector": { "type": "string", "enum": ["nfc", "direct", "qr"] },
         "timestamp": { "type": "string", "format": "date-time" },
+        "client_timestamp": { "type": "string", "format": "date-time" },
+        "consent_version": { "type": "string" },
+        "value_score": { "type": "number" },
         "tab": { "type": "string", "enum": ["home", "feed", "explore", "wallet", "profile", "map", "routes"] },
-        "sponsor_id": { "type": "string" }
+        "sponsor_id": { "type": "string" },
+        "walkId": { "type": "string" },
+        "eventTag": { "type": "string" }
       },
-      "required": ["id", "node_id", "session_uuid", "timestamp"]
+      "required": ["node_id", "session_uuid", "timestamp", "consent_version"]
     },
     "TabView": {
       "title": "Tab Navigation Event",

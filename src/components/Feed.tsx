@@ -144,34 +144,6 @@ export const Feed: React.FC<FeedProps> = ({
 
   return (
     <div className="flex flex-col gap-10 py-6">
-      {/* JOIN A WALK */}
-      {walkingEvents.length > 0 && !hideOtherSections && (
-        <div className="flex flex-col">
-          <SectionHeader title="JOIN A WALK" count={walkingEvents.length} status="SECURE SPOT" />
-          <div 
-            className="flex overflow-x-auto snap-x snap-mandatory px-4 gap-3"
-            style={{ WebkitOverflowScrolling: 'touch', scrollSnapType: 'x mandatory' }}
-          >
-            {walkingEvents.map((walk, idx) => (
-              <BroadcastCard 
-                key={walk.id}
-                item={walk}
-                idx={idx}
-                currentNode={currentNode}
-                onSelect={onSelect}
-                onConfirm={onConfirm}
-                onShareEvent={onShareEvent}
-                onManage={onManage}
-                partner={partnersMap[walk.partnerId || walk.partner_id || '']}
-                variant="peek"
-                canManage={canManageBroadcast(walk)}
-              />
-            ))}
-            <MoreCard label="VIEW_SCHEDULE" />
-          </div>
-        </div>
-      )}
-
       {/* HOT DEALS */}
       <div className="flex flex-col">
         <SectionHeader 
@@ -234,6 +206,34 @@ export const Feed: React.FC<FeedProps> = ({
           </div>
         )}
       </div>
+
+      {/* JOIN A WALK */}
+      {walkingEvents.length > 0 && !hideOtherSections && (
+        <div className="flex flex-col">
+          <SectionHeader title="JOIN A WALK" count={walkingEvents.length} status="SECURE SPOT" />
+          <div 
+            className="flex overflow-x-auto snap-x snap-mandatory px-4 gap-3"
+            style={{ WebkitOverflowScrolling: 'touch', scrollSnapType: 'x mandatory' }}
+          >
+            {walkingEvents.map((walk, idx) => (
+              <BroadcastCard 
+                key={walk.id}
+                item={walk}
+                idx={idx}
+                currentNode={currentNode}
+                onSelect={onSelect}
+                onConfirm={onConfirm}
+                onShareEvent={onShareEvent}
+                onManage={onManage}
+                partner={partnersMap[walk.partnerId || walk.partner_id || '']}
+                variant="peek"
+                canManage={canManageBroadcast(walk)}
+              />
+            ))}
+            <MoreCard label="VIEW_SCHEDULE" />
+          </div>
+        </div>
+      )}
 
       {/* CITY PULSE */}
       {cityPulse.length > 0 && !hideOtherSections && (

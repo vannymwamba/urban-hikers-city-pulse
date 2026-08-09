@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { auth, db } from '../firebase';
-import { signInWithPopup, GoogleAuthProvider, signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
+import { signInWithPopup, linkWithPopup, GoogleAuthProvider, signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
 import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
 import { UserRole, UserProfile } from '../types';
 import { motion } from 'motion/react';
@@ -93,11 +93,32 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
 
   const handleGoogleLogin = async () => {
     setLoading(true);
+    setError(null);
     try {
       const provider = new GoogleAuthProvider();
-      const res = await signInWithPopup(auth, provider);
-      const user = res.user;
+      let user;
 
+      // Link anonymous user in place if current user is anonymous
+      if (auth.currentUser && auth.currentUser.isAnonymous) {
+        try {
+          const res = await linkWithPopup(auth.currentUser, provider);
+          user = res.user;
+          console.log("ANONYMOUS_USER_LINKED_SUCCESSFULLY:", user.uid);
+        } catch (linkErr: any) {
+          console.warn("linkWithPopup failed, falling back to signInWithPopup:", linkErr);
+          if (linkErr.code === 'auth/credential-already-in-use' || linkErr.code === 'auth/email-already-in-use' || linkErr.code === 'auth/provider-already-linked') {
+            const res = await signInWithPopup(auth, provider);
+            user = res.user;
+          } else {
+            throw linkErr;
+          }
+        }
+      } else {
+        const res = await signInWithPopup(auth, provider);
+        user = res.user;
+      }
+
+      const sessionId = localStorage.getItem('uh_session_id') || 'session_fallback';
       let profileDoc;
       try {
         profileDoc = await getDoc(doc(db, 'users', user.uid));
@@ -105,21 +126,39 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
         handleFirestoreError(err, OperationType.GET, `users/${user.uid}`);
         return;
       }
-      
+
+      let profile: UserProfile;
       if (profileDoc.exists()) {
         const data = profileDoc.data() as UserProfile;
-        // Role Repair: Ensure bootstrap admin always has super_admin role
-        if (data.email === 'vannymwamba@gmail.com' && data.role !== 'super_admin') {
-          await updateDoc(doc(db, 'users', user.uid), { role: 'super_admin' });
-          data.role = 'super_admin';
+        const roleToSet = (data.email === 'vannymwamba@gmail.com' || user.email === 'vannymwamba@gmail.com') ? 'super_admin' : data.role;
+        profile = {
+          ...data,
+          uid: user.uid,
+          email: user.email || data.email,
+          role: roleToSet,
+          session_uuid: sessionId,
+          linked_session_uuid: sessionId,
+        };
+        try {
+          await updateDoc(doc(db, 'users', user.uid), {
+            uid: user.uid,
+            email: user.email || data.email,
+            role: roleToSet,
+            session_uuid: sessionId,
+            linked_session_uuid: sessionId,
+          });
+        } catch (err) {
+          console.error("Error updating user profile:", err);
         }
-        onLoginSuccess(data);
+        onLoginSuccess(profile);
       } else {
         const role = user.email === 'vannymwamba@gmail.com' ? 'super_admin' : 'hiker';
-        const profile: UserProfile = {
+        profile = {
           uid: user.uid,
           email: user.email!,
-          role: role
+          role: role,
+          session_uuid: sessionId,
+          linked_session_uuid: sessionId,
         };
         try {
           await setDoc(doc(db, 'users', user.uid), profile, { merge: true });
@@ -129,7 +168,8 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
         onLoginSuccess(profile);
       }
     } catch (err: any) {
-      setError(err.message);
+      console.error("Google Auth error:", err);
+      setError(err.message || "Google authentication failed");
     } finally {
       setLoading(false);
     }

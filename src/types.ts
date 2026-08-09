@@ -21,6 +21,8 @@ export interface UserProfile {
   name?: string;
   partner_id?: string; // Link to partner entity if role is partner
   partnerId?: string; // Alias for camelCase
+  session_uuid?: string;
+  linked_session_uuid?: string;
 }
 
 export interface Node {
@@ -33,11 +35,44 @@ export interface Node {
   radius_limit: number;
   capacity?: number;
   imageUrl?: string;
+  artist_id?: string;
+  artistId?: string;
   partner_name?: string;
-  partner_type?: 'walk_hq' | 'civic' | 'anchor' | 'refuel' | 'street';
+  partner_type?: 'walk_hq' | 'refuel' | 'civic' | 'anchor' | 'discovery' | 'creator' | 'wellness' | 'street';
   partner_initials?: string;
   partner_accent?: string;
   hub_tagline?: string;
+  
+  // Customizable design/media fields
+  cover_image_url?: string;
+  logo_url?: string;
+  gallery_urls?: string[];
+  founder_photo_url?: string;
+  theme_mode?: 'light' | 'dark' | 'adaptive';
+  logo_style?: 'circle' | 'rounded' | 'square';
+  
+  // Narratives & partner stories
+  why_it_matters?: string;
+  founder_story?: string;
+  business_history?: string;
+  community_impact?: string;
+  recommended_experience?: string;
+  
+  // Custom reward system
+  custom_reward?: string;
+  
+  // Community metrics
+  metric_walkers?: number;
+  metric_visits?: number;
+  metric_events?: number;
+  metric_miles?: number;
+  metric_conversations?: number;
+  metric_stories?: number;
+  
+  // Partner recognition logo URLs
+  partner_logo_url?: string;
+  sponsor_logo_url?: string;
+  community_logo_url?: string;
 }
 
 export interface Broadcast {
@@ -174,13 +209,20 @@ export interface VibeReport {
 }
 
 export interface Tap {
-  id: string;
+  id?: string;
   node_id: string;
   session_uuid: string;
   access_vector: 'nfc' | 'direct' | 'qr';
-  timestamp: string;
+  timestamp: any;
+  client_timestamp?: string;
+  uid?: string | null;
+  consent_version?: string;
+  artist_id?: string | null;
+  value_score?: number;
   tab?: 'home' | 'feed' | 'explore' | 'wallet' | 'profile';
   sponsor_id?: string | null;
+  walkId?: string | null;
+  eventTag?: string | null;
 }
 
 export interface TabView {

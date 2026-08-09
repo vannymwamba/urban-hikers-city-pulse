@@ -108,7 +108,7 @@ async function startServer() {
       }
 
       console.log(`[FIREBASE] Connecting to Firestore Instance: ${databaseId}`);
-      db = admin.firestore(databaseId);
+      db = getFirestore(databaseId);
       
       // Quick test to verify connectivity and permissions
       try {

@@ -405,7 +405,7 @@
       50% { opacity: 0.3; transform: scale(0.85); }
     }
 
-    /* RESPONSIVE */
+    /* RESPONSIVE BREASTS */
     @media (max-width: 820px) {
       .right-hud {
         display: none;
@@ -526,6 +526,7 @@
 
   <script>
     (function() {
+      // CANVAS SIMULATION SETUP
       const canvas = document.getElementById('canvas-layer');
       const ctx = canvas.getContext('2d');
 
@@ -533,15 +534,24 @@
       let height = window.innerHeight;
       let animationFrameId = null;
 
-      let activeMode = 'nfc';
+      // MODE STATE
+      let activeMode = 'nfc'; // 'nfc', 'qr', 'direct'
+
+      // NODES
       let nodes = [];
       const PROXIMITY_DIST = 95;
 
+      // QR LASER SWEEP STATE
       let scanX = 0;
-      let scanDirection = 1;
+      let scanDirection = 1; // 1 = right, -1 = left
+
+      // NFC WAVE STATE (Ripples)
       let ripples = [];
+
+      // DIRECT BEAM STATE
       let directBeams = [];
 
+      // Check prefers reduced motion
       const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
       function resize() {
@@ -554,6 +564,7 @@
 
       function initNodes() {
         nodes = [];
+        // Count proportional to viewport area (~1 node per 12000 px^2)
         const count = Math.max(25, Math.floor((width * height) / 12000));
         for (let i = 0; i < count; i++) {
           nodes.push({
@@ -564,7 +575,7 @@
             baseRadius: Math.random() * 2 + 1.5,
             phase: Math.random() * Math.PI * 2,
             twinkleSpeed: 0.02 + Math.random() * 0.03,
-            flare: 0
+            flare: 0 // temporary flare brightness
           });
         }
       }
@@ -572,15 +583,17 @@
       window.addEventListener('resize', resize);
       resize();
 
+      // MODE TOGGLE EVENT LISTENERS
       const toggleButtons = document.querySelectorAll('.toggle-segment');
       toggleButtons.forEach(btn => {
-        btn.addEventListener('click', () => {
+        btn.addEventListener('click', (e) => {
           toggleButtons.forEach(b => b.classList.remove('active'));
           btn.classList.add('active');
           activeMode = btn.getAttribute('data-mode');
         });
       });
 
+      // RIPPLE GENERATOR FOR NFC WAVE MODE
       setInterval(() => {
         if (activeMode === 'nfc' && nodes.length > 0 && !prefersReducedMotion) {
           const randomNode = nodes[Math.floor(Math.random() * nodes.length)];
@@ -594,11 +607,13 @@
         }
       }, 700);
 
+      // BEAM GENERATOR FOR DIRECT MODE
       setInterval(() => {
         if (activeMode === 'direct' && nodes.length > 1 && !prefersReducedMotion) {
           const sourceIdx = Math.floor(Math.random() * nodes.length);
           const source = nodes[sourceIdx];
 
+          // Find nearest neighbor
           let minDist = Infinity;
           let nearest = null;
           nodes.forEach((target, idx) => {
@@ -628,7 +643,8 @@
         }
       }, 800);
 
-      function render() {
+      // MAIN RENDER LOOP
+      function render(timestamp) {
         ctx.clearRect(0, 0, width, height);
         ctx.globalCompositeOperation = 'lighter';
 
@@ -636,41 +652,51 @@
         const centerY = height * 0.45;
         const centerFalloffRadius = Math.min(width, height) * 0.4;
 
+        // 1. UPDATE AND DRAW NODES
         nodes.forEach(node => {
           if (!prefersReducedMotion) {
             node.x += node.vx;
             node.y += node.vy;
 
+            // Bounce off edges
             if (node.x < 0 || node.x > width) node.vx *= -1;
             if (node.y < 0 || node.y > height) node.vy *= -1;
 
+            // Twinkle
             node.phase += node.twinkleSpeed;
           }
 
+          // Decay flare
           if (node.flare > 0) node.flare -= 0.02;
 
+          // Radial center falloff opacity (behind wordmark)
           const distToCenter = Math.hypot(node.x - centerX, node.y - centerY);
           let centerFactor = Math.min(1, Math.max(0.15, distToCenter / centerFalloffRadius));
 
           const baseAlpha = (0.3 + 0.3 * Math.sin(node.phase) + node.flare * 0.7) * centerFactor;
 
+          // Draw Node Dot
           ctx.beginPath();
           const r = node.baseRadius + node.flare * 3;
           ctx.arc(node.x, node.y, r, 0, Math.PI * 2);
           ctx.fillStyle = `rgba(245, 227, 6, ${baseAlpha.toFixed(3)})`;
           ctx.fill();
 
+          // Outer Glow
           ctx.beginPath();
           ctx.arc(node.x, node.y, r * 2.5, 0, Math.PI * 2);
           ctx.fillStyle = `rgba(245, 227, 6, ${(baseAlpha * 0.25).toFixed(3)})`;
           ctx.fill();
         });
 
+        // 2. PROXIMITY LINES BETWEEN NODES
         for (let i = 0; i < nodes.length; i++) {
           for (let j = i + 1; j < nodes.length; j++) {
             const n1 = nodes[i];
             const n2 = nodes[j];
-            const dist = Math.hypot(n2.x - n1.x, n2.y - n1.y);
+            const dx = n2.x - n1.x;
+            const dy = n2.y - n1.y;
+            const dist = Math.hypot(dx, dy);
 
             if (dist < PROXIMITY_DIST) {
               const midX = (n1.x + n2.x) / 2;
@@ -689,7 +715,9 @@
           }
         }
 
+        // 3. MODE SPECIFIC DRAWING
         if (activeMode === 'nfc') {
+          // NFC RIPPLES
           for (let i = ripples.length - 1; i >= 0; i--) {
             const rip = ripples[i];
             rip.radius += 1.2;
@@ -706,13 +734,16 @@
             ctx.lineWidth = 1.5;
             ctx.stroke();
           }
-        } else if (activeMode === 'qr') {
+        } 
+        else if (activeMode === 'qr') {
+          // QR LASER SCAN LINE
           if (!prefersReducedMotion) {
             scanX += scanDirection * 4;
             if (scanX > width) { scanX = width; scanDirection = -1; }
             if (scanX < 0) { scanX = 0; scanDirection = 1; }
           }
 
+          // Draw Scan Line
           const scanGradient = ctx.createLinearGradient(scanX - 15, 0, scanX + 15, 0);
           scanGradient.addColorStop(0, 'rgba(245, 227, 6, 0)');
           scanGradient.addColorStop(0.5, 'rgba(245, 227, 6, 0.7)');
@@ -721,12 +752,15 @@
           ctx.fillStyle = scanGradient;
           ctx.fillRect(scanX - 15, 0, 30, height);
 
+          // Flare nodes crossed by laser
           nodes.forEach(node => {
             if (Math.abs(node.x - scanX) < 15) {
               node.flare = 0.9;
             }
           });
-        } else if (activeMode === 'direct') {
+        } 
+        else if (activeMode === 'direct') {
+          // DIRECT BEAMS
           for (let i = directBeams.length - 1; i >= 0; i--) {
             const beam = directBeams[i];
             beam.progress += 0.05;
@@ -740,6 +774,7 @@
             const currentX = beam.x1 + (beam.x2 - beam.x1) * beam.progress;
             const currentY = beam.y1 + (beam.y2 - beam.y1) * beam.progress;
 
+            // Draw laser line
             ctx.beginPath();
             ctx.moveTo(beam.x1, beam.y1);
             ctx.lineTo(currentX, currentY);
@@ -747,6 +782,7 @@
             ctx.lineWidth = 2;
             ctx.stroke();
 
+            // Head sparkle
             ctx.beginPath();
             ctx.arc(currentX, currentY, 3, 0, Math.PI * 2);
             ctx.fillStyle = `rgba(245, 227, 6, ${beam.alpha.toFixed(3)})`;
@@ -760,6 +796,7 @@
 
       animationFrameId = requestAnimationFrame(render);
 
+      // MICRO-MOTION: Clock & Active Count Fluctuation
       const clockEl = document.getElementById('hud-clock');
       const countEl = document.getElementById('active-count');
 
@@ -777,6 +814,7 @@
       setInterval(updateClock, 1000);
       updateClock();
 
+      // Fluctuate active count between 12 and 19
       setInterval(() => {
         if (countEl) {
           const nextCount = Math.floor(Math.random() * (19 - 12 + 1)) + 12;

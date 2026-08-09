@@ -5,7 +5,7 @@ import { BroadcastCard } from './BroadcastCard';
 import { FlashDealCard } from './FlashDealCard';
 import { Feed } from './Feed';
 import { RouteCard } from './RouteCard';
-import { Clock, ShieldCheck, MapPin, Home, LayoutGrid, Share2, Ticket, Map as MapIcon, ArrowRight, AlertCircle, Lock, Navigation, Users, Plus } from 'lucide-react';
+import { Clock, ShieldCheck, MapPin, Home, LayoutGrid, Share2, Ticket, Map as MapIcon, ArrowRight, AlertCircle, Lock, Navigation, Users, Plus, Award, Heart, LogOut, Sparkles, CheckCircle2, Calendar, BookOpen, Star, Wifi } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { getDistance } from '../utils/geo';
 import { WalletCard } from './WalletCard';
@@ -13,6 +13,9 @@ import { getEventStatus } from '../utils/broadcastHelpers';
 import { BroadcastControlForm } from './BroadcastControlForm';
 import { BroadcastType } from '../types';
 import { PulseDropStrip } from './PulseDropStrip';
+import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import { db } from '../firebase';
+import { TapJourneyGraphic } from './TapJourneyGraphic';
 
 interface DepartureBoardProps {
   nodeName: string;
@@ -44,6 +47,11 @@ interface DepartureBoardProps {
   nfcStatus?: 'idle' | 'scanning' | 'error' | 'unsupported';
   localHubs?: LocalHub[];
   loading?: boolean;
+  xp?: number;
+  nodesVisitedCount?: number;
+  badges?: string[];
+  connectionsCount?: number;
+  onSimulateNfc?: () => void;
 }
 
 export const DepartureBoard: React.FC<DepartureBoardProps> = ({ 
@@ -76,7 +84,20 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
   nfcStatus = 'idle',
   localHubs = [],
   loading = false,
+  xp = 250,
+  nodesVisitedCount = 14,
+  badges = ["Downtown Explorer", "Coffee Hunter"],
+  connectionsCount = 3,
+  onSimulateNfc = () => {},
 }) => {
+  const navItems: Array<{ id: string; icon: any; label: string; href?: string }> = [
+    { id: 'home', icon: Home, label: 'Home' },
+    { id: 'feed', icon: Clock, label: 'Feed' },
+    { id: 'explore', icon: Navigation, label: 'Explore' },
+    { id: 'wallet', icon: Ticket, label: 'Wallet' },
+    { id: 'profile', icon: Users, label: 'Profile' }
+  ];
+
   const [time, setTime] = useState(new Date());
   const [headerTheme, setHeaderTheme] = useState<'yellow' | 'dark' | 'photo' | 'white'>(() => {
     return (localStorage.getItem('uh_header_theme') as any) || 'yellow';
@@ -103,6 +124,145 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
   const [showLogin, setShowLogin] = useState(false);
   const [scrollProgress, setScrollProgress] = useState(0);
   const [showBroadcastForm, setShowBroadcastForm] = useState(false);
+
+  // --- Dynamic Hooks and tap history and live events count from Firestore ---
+  const hooks = (currentNode as any)?.hooks || [
+    { id: 'h1', text: "Fresh artisanal coffee aromas drifting onto Vine Street." },
+    { id: 'h2', text: "Where historic OTR brickwork frames modern local experiences." },
+    { id: 'h3', text: "Uncovering Cincinnati's secret narratives, one city block at a time." },
+    { id: 'h4', text: "Connect, discover, and share the active rhythm of our streets." }
+  ];
+
+  const [activeHook, setActiveHook] = useState(0);
+
+  useEffect(() => {
+    if (!hooks || hooks.length <= 1) return;
+
+    const interval = setInterval(() => {
+      setActiveHook((prev) => (prev + 1) % hooks.length);
+    }, 8000);
+
+    return () => clearInterval(interval);
+  }, [hooks.length]);
+
+  const [tapCount, setTapCount] = useState<number>(() => {
+    if (!currentNode?.id) return 1;
+    const count = localStorage.getItem(`uh_tap_count_${currentNode.id}`);
+    return count ? Number(count) : 1; 
+  });
+
+  useEffect(() => {
+    if (currentNode?.id) {
+      const key = `uh_tap_count_${currentNode.id}`;
+      const count = localStorage.getItem(key);
+      if (!count) {
+        localStorage.setItem(key, '1');
+        setTapCount(1);
+      } else {
+        setTapCount(Number(count));
+      }
+    }
+  }, [currentNode]);
+
+  useEffect(() => {
+    const handleTapEvent = (e: any) => {
+      if (e.detail?.nodeId === currentNode?.id) {
+        setTapCount(e.detail.count);
+      }
+    };
+    window.addEventListener('uh-node-tapped', handleTapEvent as any);
+    return () => window.removeEventListener('uh-node-tapped', handleTapEvent as any);
+  }, [currentNode]);
+
+  const [isPulseDropExpanded, setIsPulseDropExpanded] = useState(false);
+
+  // Expanded on second tap or tap history > 1
+  useEffect(() => {
+    if (tapCount > 1) {
+      setIsPulseDropExpanded(true);
+    } else {
+      setIsPulseDropExpanded(false);
+    }
+  }, [tapCount, currentNode]);
+
+  const [liveEventsCount, setLiveEventsCount] = useState<number>(3); // start with a nice fallback
+
+  useEffect(() => {
+    if (!currentNode?.latitude || !currentNode?.longitude) return;
+
+    const now = new Date();
+    // Use Firestore collection `events` filtered by timestamp >= now and location within 500m
+    const q = query(
+      collection(db, 'events'),
+      where('timestamp', '>=', now)
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const docs = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }) as any);
+
+      const nearbyDocs = docs.filter(event => {
+        const evLat = event.latitude ?? event.lat ?? (event.coords?.latitude || event.coords?.lat);
+        const evLng = event.longitude ?? event.lng ?? (event.coords?.longitude || event.coords?.lng);
+        
+        if (evLat === undefined || evLng === undefined) return false;
+        
+        const dist = getDistance(
+          currentNode.latitude,
+          currentNode.longitude,
+          evLat,
+          evLng
+        );
+        return dist <= 500;
+      });
+
+      setLiveEventsCount(nearbyDocs.length);
+    }, (err) => {
+      console.warn("Firestore 'events' real-time query failed (maybe missing index), using fallback:", err);
+      try {
+        const fallbackQ = collection(db, 'events');
+        onSnapshot(fallbackQ, (snapshot) => {
+          const docs = snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+          }) as any);
+
+          const nearbyDocs = docs.filter(event => {
+            const evLat = event.latitude ?? event.lat ?? (event.coords?.latitude || event.coords?.lat);
+            const evLng = event.longitude ?? event.lng ?? (event.coords?.longitude || event.coords?.lng);
+            if (evLat === undefined || evLng === undefined) return false;
+
+            const evTimeStr = event.timestamp;
+            let evDate: Date;
+            if (evTimeStr && typeof evTimeStr.toDate === 'function') {
+              evDate = evTimeStr.toDate();
+            } else if (evTimeStr) {
+              evDate = new Date(evTimeStr);
+            } else {
+              evDate = new Date();
+            }
+
+            if (evDate < now) return false;
+
+            const dist = getDistance(
+              currentNode.latitude,
+              currentNode.longitude,
+              evLat,
+              evLng
+            );
+            return dist <= 500;
+          });
+          setLiveEventsCount(nearbyDocs.length);
+        });
+      } catch (fallbackErr) {
+        console.error("Fallback query also failed", fallbackErr);
+      }
+    });
+
+    return () => unsubscribe();
+  }, [currentNode]);
   
   const [formState, setFormState] = useState({ 
     title: '', 
@@ -202,25 +362,35 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
   return (
     <div className="flex flex-col h-full bg-[#f0f0f0] text-uh-black font-sans relative overflow-hidden">
       {/* Collapsible Header Container — New Co-branded Structure */}
-      <motion.div 
-        style={{ 
-          height: 200, 
-          backgroundColor: '#0a0a0a',
-          borderBottom: `1px solid ${currentNode?.partner_accent || '#1a1a1a'}33` 
-        }}
-        className="fixed top-0 inset-x-0 z-[100] flex flex-col overflow-hidden"
-      >
+      {activeTab !== 'home' && (
+        <motion.div 
+          style={{ 
+            height: 200, 
+            backgroundColor: '#0a0a0a',
+            borderBottom: `1px solid ${currentNode?.partner_accent || '#1a1a1a'}33` 
+          }}
+          className="fixed top-0 inset-x-0 z-[100] flex flex-col overflow-hidden"
+        >
         {/* Partner Bar */}
         <div className="px-6 py-3 flex items-center justify-between bg-[#050505] border-b border-white/5">
            <div className="flex items-center gap-3">
-             {currentNode?.partner_initials && (
+             {currentNode?.logo_url ? (
                <div 
-                 className="w-8 h-8 rounded-lg flex items-center justify-center text-[10px] font-black tracking-tighter" 
+                 className={`w-8 h-8 bg-black flex items-center justify-center p-0.5 border ${
+                   currentNode.logo_style === 'rounded' ? 'rounded-lg' : currentNode.logo_style === 'square' ? 'rounded-md' : 'rounded-full'
+                 }`}
+                 style={{ borderColor: currentNode.partner_accent || '#FFE01A' }}
+               >
+                 <img src={currentNode.logo_url} className="w-full h-full object-cover" referrerPolicy="no-referrer" style={{ borderRadius: 'inherit' }} />
+               </div>
+             ) : currentNode?.partner_initials ? (
+               <div 
+                 className="w-8 h-8 rounded-lg flex items-center justify-center text-[10px] font-black tracking-tighter shrink-0" 
                  style={{ backgroundColor: currentNode.partner_accent || '#FFE01A', color: '#000' }}
                >
                  {currentNode.partner_initials}
                </div>
-             )}
+             ) : null}
              <div className="flex flex-col">
                <div className="flex items-center gap-2">
                  <span className="text-[10px] font-black text-white/80 uppercase tracking-widest leading-none">
@@ -243,12 +413,26 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
 
         {/* Hub Header Section */}
         <div className="flex-1 px-6 pt-6 pb-4 flex flex-col justify-end relative overflow-hidden">
-          {/* Subtle gradient tint from accent */}
-          <div className="absolute inset-0 pointer-events-none opacity-10" 
-            style={{ 
-              background: `linear-gradient(to bottom, ${currentNode?.partner_accent || '#FFE01A'}, transparent)` 
-            }} 
-          />
+          {/* Subtle gradient tint from accent or Cover photo */}
+          {currentNode?.cover_image_url ? (
+            <>
+              <img 
+                src={currentNode.cover_image_url} 
+                className="absolute inset-0 w-full h-full object-cover" 
+                referrerPolicy="no-referrer" 
+                alt="Hub Cover Collapsed" 
+              />
+              <div 
+                className="absolute inset-0 bg-gradient-to-t from-[#0a0a0a] via-[#0a0a0a]/50 to-[#0a0a0a]/80"
+              />
+            </>
+          ) : (
+            <div className="absolute inset-0 pointer-events-none opacity-10" 
+              style={{ 
+                background: `linear-gradient(to bottom, ${currentNode?.partner_accent || '#FFE01A'}, transparent)` 
+              }} 
+            />
+          )}
           
           <div className="relative z-10 flex flex-col">
             <div className="flex items-center gap-3 mb-1">
@@ -292,27 +476,250 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
             </span>
           </div>
           <div className="flex items-center gap-4">
+            <button
+              onClick={onSimulateNfc}
+              className="px-2 py-0.5 rounded bg-[#FFE01A]/10 border border-[#FFE01A]/30 text-[#FFE01A] hover:bg-[#FFE01A]/30 text-[8.5px] font-black uppercase tracking-widest flex items-center gap-1 transition-all pointer-events-auto cursor-pointer"
+            >
+              <span>⚡ Simulated_Tap</span>
+            </button>
             <span className="text-[9px] font-black text-white/10 uppercase tracking-widest font-mono">Sync_active</span>
           </div>
         </div>
       </motion.div>
+      )}
 
       {/* Main Scrollable Area */}
       <div 
         onScroll={handleScroll}
-        className="flex-1 overflow-y-auto relative z-10 pt-[200px] pb-32 scroll-smooth"
+        className={`flex-1 overflow-y-auto relative z-10 ${activeTab === 'home' ? 'pt-0 pb-20' : 'pt-[200px] pb-32'} scroll-smooth`}
         style={{ WebkitOverflowScrolling: 'touch' }}
       >
-        <PulseDropStrip
-          userId={user?.uid || null}
-          nodeId={currentNode?.id || null}
-          broadcasts={broadcasts}
-          onRevealSaved={(broadcast) => onSelect(broadcast)}
-        />
         <div className="flex flex-col gap-0">
           <div className="flex flex-col">
-            {/* Feed Content */}
-            {activeTab === 'feed' ? (
+            {/* Home Node-Specific Landing Page */}
+            {activeTab === 'home' ? (
+              <div id="home_tab_landing" className="flex flex-col bg-[#0c0c0c] text-white">
+                {/* Yellow Header Cover (Height reduced by ~30% with tighter padding) */}
+                <div 
+                  id="landing_header_yellow"
+                  className={`px-8 pt-10 pb-7 flex flex-col justify-end relative overflow-hidden ${currentNode?.cover_image_url ? 'text-white' : 'text-black'}`}
+                  style={{ backgroundColor: currentNode?.partner_accent || '#FFE01A' }}
+                >
+                  {currentNode?.cover_image_url && (
+                    <>
+                      <img 
+                        src={currentNode.cover_image_url} 
+                        className="absolute inset-0 w-full h-full object-cover" 
+                        referrerPolicy="no-referrer" 
+                        alt="Hub Cover" 
+                      />
+                      <div 
+                        className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-black/60"
+                      />
+                    </>
+                  )}
+
+                  <div className="relative z-10 flex justify-between items-start gap-4">
+                    <div className="flex flex-col">
+                      <span className={`text-[10px] font-black tracking-[0.25em] uppercase ${currentNode?.cover_image_url ? 'text-[#FFE01A]/90' : 'opacity-75'}`}>
+                        URBAN HIKERS HUB · TAP DETECTED
+                      </span>
+                      <h1 className="text-3xl font-extrabold tracking-tight mt-1 mb-1 uppercase font-sans leading-tight">
+                        {nodeName.replace('_HUB', '').replace(/_/g, ' ')}
+                      </h1>
+                      <span className={`text-xs font-mono font-bold uppercase tracking-wider ${currentNode?.cover_image_url ? 'text-white/70' : 'opacity-95'}`}>
+                        {currentNode?.address || 'OTR · Cincinnati, OH'}
+                      </span>
+                    </div>
+
+                    {currentNode?.logo_url && (
+                      <div 
+                        className={`w-14 h-14 bg-black flex items-center justify-center p-1 font-black text-xs border-2 shrink-0 ${
+                          currentNode.logo_style === 'rounded' ? 'rounded-xl' : currentNode.logo_style === 'square' ? 'rounded-md' : 'rounded-full'
+                        }`}
+                        style={{ borderColor: currentNode.partner_accent || '#FFE01A', color: currentNode.partner_accent || '#FFE01A' }}
+                      >
+                        <img src={currentNode.logo_url} className="w-full h-full object-cover" referrerPolicy="no-referrer" style={{ borderRadius: 'inherit' }} />
+                      </div>
+                    )}
+                  </div>
+                  
+                  {/* Hook rotation text -italic, left-border-accented */}
+                  {hooks.length > 0 && (
+                    <div className="mt-3 min-h-[32px] flex items-center relative z-10">
+                      <AnimatePresence mode="wait">
+                        <motion.p
+                          key={activeHook}
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          exit={{ opacity: 0 }}
+                          transition={{ duration: 0.3 }}
+                          className={`italic border-l-2 pl-3 text-[11px] font-bold font-sans ${
+                            currentNode?.cover_image_url ? 'border-[#FFE01A] text-white/90' : 'border-black text-black/85'
+                          }`}
+                        >
+                          “{hooks[activeHook]?.text}”
+                        </motion.p>
+                      </AnimatePresence>
+                    </div>
+                  )}
+                </div>
+
+                {/* 3. PULSE DROP Pill Section (Collapsed/Expanded below Hero - Hidden on first tap) */}
+                {tapCount > 1 && (
+                  <div className="px-6 pt-5 pb-1">
+                    {!isPulseDropExpanded ? (
+                      <button 
+                        onClick={() => setIsPulseDropExpanded(true)}
+                        className="w-full flex items-center justify-between px-4 py-3 bg-[#111111]/90 border border-[#FFE01A]/25 hover:border-[#FFE01A]/40 rounded-2xl text-left transition-all hover:scale-[1.01] active:scale-[0.99] cursor-pointer"
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-5 h-5 rounded-md bg-[#FFE01A] flex items-center justify-center text-black shadow-md">
+                            <Sparkles size={11} className="fill-black" />
+                          </div>
+                          <div>
+                            <span className="text-[10px] font-black uppercase tracking-wider text-white">Pulse Drops Available</span>
+                            <span className="text-[8px] font-mono text-[#FFE01A] uppercase tracking-widest block leading-none mt-0.5 animate-pulse">TAP_HISTORY_DETECTED</span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1.5 bg-[#FFE01A]/10 px-2.5 py-1 rounded-lg text-[9px] text-[#FFE01A] font-bold font-mono">
+                          <span>EXPAND</span>
+                          <ArrowRight size={8} />
+                        </div>
+                      </button>
+                    ) : (
+                      <div className="bg-[#0f0f0f] border border-white/10 rounded-2xl overflow-hidden relative shadow-2xl">
+                        <button 
+                          onClick={() => setIsPulseDropExpanded(false)}
+                          className="absolute right-4 top-3.5 z-50 text-[9px] font-black text-white/40 hover:text-white font-mono uppercase tracking-widest pointer-events-auto bg-black/50 px-2 py-0.5 rounded cursor-pointer"
+                        >
+                          [Hide]
+                        </button>
+                        <PulseDropStrip
+                          userId={user?.uid || null}
+                          nodeId={currentNode?.id || null}
+                          broadcasts={broadcasts}
+                          onRevealSaved={(broadcast) => onSelect(broadcast)}
+                        />
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Dark Inner Body Section */}
+                <div className="px-6 py-6 space-y-8 flex flex-col pointer-events-auto bg-[#0a0a0a]">
+                  
+                  {/* Discover Section */}
+                  <div>
+                    <span className="text-[10px] font-black uppercase tracking-[0.25em] text-white/40 block mb-4">
+                      Discover
+                    </span>
+                    <div className="grid grid-cols-2 gap-4">
+                      
+                      {/* Grid Item 1: Events (Primary) */}
+                      <button 
+                        id="btn_tab_feed"
+                        onClick={() => onTabChange?.('feed')}
+                        className="bg-[#141414] border border-[#FFE01A]/20 shadow-[0_0_15px_rgba(255,224,26,0.02)] hover:border-[#FFE01A]/45 rounded-2xl p-5 text-left flex flex-col justify-between h-34 transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer group hover:bg-[#1a1a1a]"
+                      >
+                        <div className="w-10 h-10 rounded-xl bg-[#FFE01A]/10 border border-[#FFE01A]/30 flex items-center justify-center text-[#FFE01A]">
+                          <Calendar size={20} className="animate-pulse" />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-1.5">
+                            <h3 className="text-[14px] font-black uppercase tracking-tight text-white group-hover:text-[#FFE01A] transition-colors leading-none">Events</h3>
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />
+                          </div>
+                          <p className="text-[9px] font-mono font-bold text-[#FFE01A] uppercase tracking-wider mt-1.5">{liveEventsCount} happening now</p>
+                        </div>
+                      </button>
+
+                      {/* Grid Item 2: Walkers (Primary) */}
+                      <button 
+                        id="btn_tab_profile"
+                        onClick={() => onTabChange?.('profile')}
+                        className="bg-[#141414] border border-[#FFE01A]/20 shadow-[0_0_15px_rgba(255,224,26,0.02)] hover:border-[#FFE01A]/45 rounded-2xl p-5 text-left flex flex-col justify-between h-34 transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer group hover:bg-[#1a1a1a]"
+                      >
+                        <div className="w-10 h-10 rounded-xl bg-[#FFE01A]/10 border border-[#FFE01A]/30 flex items-center justify-center text-[#FFE01A]">
+                          <Users size={20} />
+                        </div>
+                        <div>
+                          <h3 className="text-[14px] font-black uppercase tracking-tight text-white group-hover:text-[#FFE01A] transition-colors leading-none">Walkers</h3>
+                          <p className="text-[9px] font-mono font-bold text-[#FFE01A] uppercase tracking-wider mt-1.5">12 nearby</p>
+                        </div>
+                      </button>
+
+                      {/* Grid Item 3: History (Secondary) */}
+                      <button 
+                        id="btn_tab_wallet"
+                        onClick={() => onTabChange?.('wallet')}
+                        className="bg-white/5 border border-white/10 hover:border-white/20 rounded-2xl p-5 text-left flex flex-col justify-between h-34 transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer group hover:bg-white/[0.08]"
+                      >
+                        <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-white/60">
+                          <BookOpen size={20} />
+                        </div>
+                        <div>
+                          <h3 className="text-[14px] font-black uppercase tracking-tight text-white group-hover:text-white transition-colors leading-none">History</h3>
+                          <p className="text-[9px] font-mono font-bold text-white/40 uppercase tracking-wider mt-1.5">OTR stories</p>
+                        </div>
+                      </button>
+
+                      {/* Grid Item 4: City Map (Secondary) */}
+                      <button 
+                        id="btn_tab_explore"
+                        onClick={() => onTabChange?.('explore')}
+                        className="bg-white/5 border border-white/10 hover:border-white/20 rounded-2xl p-5 text-left flex flex-col justify-between h-34 transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer group hover:bg-white/[0.08]"
+                      >
+                        <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-white/60">
+                          <MapIcon size={20} />
+                        </div>
+                        <div>
+                          <h3 className="text-[14px] font-black uppercase tracking-tight text-white group-hover:text-white transition-colors leading-none">City map</h3>
+                          <p className="text-[9px] font-mono font-bold text-white/40 uppercase tracking-wider mt-1.5">Explore nearby</p>
+                        </div>
+                      </button>
+
+                    </div>
+                  </div>
+
+                  {/* Tap Journey & Vector Dynamics Graphic */}
+                  <div>
+                    <TapJourneyGraphic />
+                  </div>
+
+                  {/* Reward Section */}
+                  <div>
+                    <span className="text-[10px] font-black uppercase tracking-[0.25em] text-white/40 block mb-4">
+                      Your Reward
+                    </span>
+                    <div id="reward_banner_card" className="bg-white/5 border border-white/10 rounded-2xl p-5 flex items-center justify-between text-white relative overflow-hidden">
+                      <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 rounded-full flex items-center justify-center text-black relative shadow-[0_0_20px_rgba(255,224,26,0.3)] bg-[#FFE01A]">
+                          <Star size={22} className="fill-black text-black" />
+                        </div>
+                        <div>
+                          <h4 className="text-[14px] font-black uppercase tracking-tight text-white">First tap here</h4>
+                          <p className="text-[9px] font-mono font-bold text-white/40 uppercase tracking-wider mt-1 leading-none">{nodeName.replace('_HUB', '').replace(/_/g, ' ')} badge unlocked</p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-xl font-mono font-black text-[#FFE01A]">+25</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Footer Ticker Branding */}
+                  <div className="flex items-center justify-between border-t border-white/5 pt-10 mt-6 pb-4">
+                    <div className="flex items-center">
+                      <span className="text-[10px] font-black text-[#FFE01A] uppercase tracking-widest leading-none">URBAN</span>
+                      <span className="text-[10px] font-black text-white/40 uppercase tracking-widest leading-none ml-1">HIKERS</span>
+                    </div>
+                    <span className="text-[8px] font-mono font-bold text-white/20 uppercase tracking-[0.25em]">TAP. WALK. INSPIRE.</span>
+                  </div>
+
+                </div>
+              </div>
+            ) : activeTab === 'feed' ? (
               <Feed 
                 broadcasts={broadcasts}
                 currentNode={currentNode}
@@ -327,7 +734,6 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
                 loading={loading}
               />
             ) : activeTab === 'explore' ? (
-              // keep your existing explore view but ensure light background compatibility if needed
               <div className="h-full flex flex-col">
                 <div className="h-[400px]">
                   <MapView 
@@ -337,7 +743,245 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
                     partnersMap={partnersMap}
                   />
                 </div>
-                {/* ... other parts handled below */}
+              </div>
+            ) : activeTab === 'wallet' ? (
+              <div className="px-6 py-8 space-y-6 flex flex-col pointer-events-auto">
+                <div className="flex items-center gap-2 mb-2">
+                  <Ticket className="text-[#FFE01A]" size={20} />
+                  <h2 className="text-[14px] font-black uppercase tracking-[0.2em] text-[#0a0a0a]">Explorer_Passport</h2>
+                </div>
+
+                {/* Tactical HUD XP progression chart */}
+                <div className="bg-[#0a0a0a] border border-white/10 p-6 rounded-2xl relative overflow-hidden shadow-xl text-white space-y-4">
+                  <div className="absolute right-4 top-4 opacity-10">
+                    <Award size={36} className="text-[#FFE01A]" />
+                  </div>
+                  <div className="flex justify-between items-baseline">
+                    <div>
+                      <span className="text-[8px] font-mono font-black tracking-widest text-[#FFE01A] uppercase block">LEVEL_04_STATUS</span>
+                      <h3 className="text-lg font-black uppercase italic tracking-tight text-white">Expert Hiker</h3>
+                    </div>
+                  </div>
+
+                  {/* Passport Stats Grid: XP & Tapped Counter */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="bg-white/5 border border-white/10 p-3 rounded-xl flex items-center justify-between">
+                      <div>
+                        <span className="text-[8px] font-mono text-white/50 block uppercase">TOTAL_EXPERIENCE</span>
+                        <span className="text-base font-mono font-black text-[#FFE01A]">{xp} XP</span>
+                      </div>
+                      <Award size={18} className="text-[#FFE01A]/60" />
+                    </div>
+
+                    {/* Tapped Count with subtle Framer Motion pulse animation */}
+                    <div className="bg-white/5 border border-white/10 p-3 rounded-xl flex items-center justify-between relative overflow-hidden">
+                      <div>
+                        <span className="text-[8px] font-mono text-white/50 block uppercase tracking-wider">NODES_TAPPED</span>
+                        <motion.div
+                          key={`tapped-count-${nodesVisitedCount}`}
+                          initial={{ scale: 1 }}
+                          animate={{
+                            scale: [1, 1.28, 0.95, 1.1, 1],
+                            color: ['#10B981', '#FFE01A', '#34D399', '#10B981'],
+                          }}
+                          transition={{ duration: 0.65, ease: 'easeOut' }}
+                          className="text-base font-mono font-black text-emerald-400 flex items-center gap-1"
+                        >
+                          <span>{nodesVisitedCount} Tapped</span>
+                        </motion.div>
+                      </div>
+
+                      {/* Expanding pulse ripple effect on tap success */}
+                      <motion.div
+                        key={`tapped-pulse-ring-${nodesVisitedCount}`}
+                        initial={{ scale: 0.5, opacity: 0.9 }}
+                        animate={{ scale: [0.5, 2.2], opacity: [0.9, 0] }}
+                        transition={{ duration: 0.85, ease: 'easeOut' }}
+                        className="absolute right-2 top-2 w-8 h-8 rounded-full bg-emerald-400/30 border border-emerald-400/50 pointer-events-none"
+                      />
+
+                      <CheckCircle2 size={18} className="text-emerald-400/80 shrink-0 z-10" />
+                    </div>
+                  </div>
+
+                  {/* Meter Progress */}
+                  <div className="space-y-1.5">
+                    <div className="h-2 bg-white/5 border border-white/10 rounded-full overflow-hidden">
+                      <motion.div 
+                        initial={{ width: 0 }}
+                        animate={{ width: `${Math.min(100, (xp / 500) * 100)}%` }}
+                        transition={{ duration: 0.8, ease: "easeOut" }}
+                        className="h-full bg-gradient-to-r from-[#FFE01A] to-emerald-400"
+                      />
+                    </div>
+                    <div className="flex justify-between text-[8px] font-mono text-white/40">
+                      <span>{xp} XP CURRENT</span>
+                      <span>500 XP TARGET</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Stamps grid list */}
+                <div className="space-y-3">
+                  <div className="flex justify-between items-baseline">
+                    <span className="text-[9px] font-black uppercase tracking-widest text-[#0a0a0a]">Physical Stamps</span>
+                    <motion.span 
+                      key={`stamps-tapped-${nodesVisitedCount}`}
+                      initial={{ scale: 1 }}
+                      animate={{ scale: [1, 1.2, 0.95, 1.08, 1] }}
+                      transition={{ duration: 0.6, ease: "easeOut" }}
+                      className="text-[9px] font-mono font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200 shadow-sm inline-flex items-center gap-1.5"
+                    >
+                      <motion.span
+                        key={`stamp-dot-${nodesVisitedCount}`}
+                        animate={{ scale: [1, 1.8, 1] }}
+                        transition={{ duration: 0.5 }}
+                        className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block"
+                      />
+                      <span>{nodesVisitedCount} Tapped & Collected</span>
+                    </motion.span>
+                  </div>
+                  
+                  <div className="bg-white border border-uh-gray-100 rounded-2xl p-5 grid grid-cols-4 gap-4 text-center">
+                    {Array.from({ length: Math.min(8, nodesVisitedCount) }).map((_, i) => (
+                      <div key={i} className="flex flex-col items-center gap-1.5">
+                        <div className="w-11 h-11 rounded-full bg-emerald-500/10 border-2 border-emerald-500 flex items-center justify-center text-emerald-600 relative">
+                          <CheckCircle2 size={16} />
+                          <div className="absolute inset-0 rounded-full bg-emerald-500/5 animate-ping opacity-30" />
+                        </div>
+                        <span className="text-[8px] font-mono text-uh-gray-500 uppercase leading-none truncate w-full">Stamp_{i+1}</span>
+                      </div>
+                    ))}
+                    {nodesVisitedCount < 8 && Array.from({ length: 8 - nodesVisitedCount }).map((_, i) => (
+                      <div key={i} className="flex flex-col items-center gap-1.5 opacity-30">
+                        <div className="w-11 h-11 rounded-full border-2 border-dashed border-uh-gray-300 flex items-center justify-center text-uh-gray-400">
+                          <Lock size={12} />
+                        </div>
+                        <span className="text-[8px] font-mono text-uh-gray-400 uppercase leading-none">Locked</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Badges presentation section */}
+                <div className="space-y-3">
+                  <span className="text-[9px] font-black uppercase tracking-widest text-[#0a0a0a]">Special Achievements</span>
+                  <div className="grid grid-cols-2 gap-3">
+                    {badges.map((b) => (
+                      <div key={b} className="bg-[#0a0a0a] border border-white/5 p-4 rounded-xl flex items-center gap-3 text-white">
+                        <div className="w-9 h-9 rounded-lg bg-[#FFE01A]/10 border border-[#FFE01A]/25 flex items-center justify-center text-[#FFE01A]">
+                          <Award size={18} />
+                        </div>
+                        <div className="truncate">
+                          <span className="text-[7px] font-mono text-white/30 uppercase block">UNLOCKED</span>
+                          <span className="text-[11px] font-black uppercase tracking-tight">{b}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Sponsor Active Refuel Coupons */}
+                <div className="space-y-3">
+                  <span className="text-[9px] font-black uppercase tracking-widest text-[#0a0a0a]">Active Partner Coupons</span>
+                  <div className="bg-[#ff2d78]/5 border border-[#ff2d78]/25 p-5 rounded-2xl space-y-3">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <span className="bg-[#ff2d78] text-white text-[7px] font-black uppercase px-1.5 py-0.5 rounded tracking-widest block w-fit mb-1">STATION_VOUCHER</span>
+                        <h4 className="text-[13px] font-bold uppercase tracking-tight text-uh-black">10% Off Deeper Roots Coffee</h4>
+                      </div>
+                      <span className="text-[12px] font-black text-[#ff2d78]">⚡ ACTIVE</span>
+                    </div>
+                    <div className="flex justify-between items-center bg-white border border-[#ff2d78]/10 p-3 rounded-lg">
+                      <div className="text-left font-mono">
+                        <span className="text-[7.5px] text-uh-gray-400 uppercase block">Voucher Code</span>
+                        <span className="text-[11px] font-black text-uh-black">UH-DR-REFUEL-99</span>
+                      </div>
+                      <button 
+                        onClick={() => alert("Show Code 'UH-DR-REFUEL-99' at check-out for 10% Discount!")}
+                        className="px-3 py-1.5 bg-[#ff2d78] text-white text-[8px] font-black uppercase tracking-widest rounded-lg hover:bg-[#ff2d78]/90 transition-all cursor-pointer"
+                      >
+                        Redeem
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : activeTab === 'profile' ? (
+              <div className="px-6 py-8 space-y-6 flex flex-col pointer-events-auto">
+                <div className="flex items-center gap-2 mb-2">
+                  <Users className="text-[#FFE01A]" size={20} />
+                  <h2 className="text-[14px] font-black uppercase tracking-[0.2em] text-[#0a0a0a]">User_Protocol</h2>
+                </div>
+
+                {/* Identity Verification Check */}
+                <div className="bg-white border border-uh-gray-100 rounded-3xl p-6 text-center space-y-4">
+                  <div className="w-16 h-16 rounded-full bg-[#FFE01A]/10 border-2 border-[#FFE01A] flex items-center justify-center text-[#FFE01A] mx-auto shadow-[0_0_20px_rgba(255,224,26,0.15)] relative">
+                    <ShieldCheck size={32} />
+                    <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-emerald-500 rounded-full border-2 border-white flex items-center justify-center text-white">
+                      <CheckCircle2 size={12} />
+                    </div>
+                  </div>
+
+                  <div>
+                    <h3 className="text-[15px] font-black uppercase italic tracking-tight text-uh-black">{user?.displayName || userProfile?.name || 'Urban Explorer'}</h3>
+                    <p className="text-[9px] font-mono text-uh-gray-400 mt-1 uppercase tracking-wider">{user?.email || 'anonymous@localpulses.com'}</p>
+                  </div>
+
+                  <div className="inline-flex items-center gap-2 px-3 py-1 bg-emerald-500/10 border border-emerald-500/20 rounded-full text-emerald-600 font-mono text-[8px] font-bold uppercase tracking-widest">
+                    <span>STATUS: SECURE IDENTITY</span>
+                  </div>
+                </div>
+
+                {/* Social connections sync counter (Reductions of Isolation!) */}
+                <div className="bg-[#0a0a0a] border border-white/5 p-6 rounded-2xl relative overflow-hidden shadow-xl text-white">
+                  <div className="absolute right-4 top-4 opacity-10">
+                    <Heart size={36} className="text-[#ff2d78]" />
+                  </div>
+                  <span className="text-[8px] font-mono font-black tracking-[0.2em] text-[#ff2d78] uppercase block mb-1">INTERPERSONAL_NETWORKING</span>
+                  <div className="flex justify-between items-center text-left">
+                    <div>
+                      <h3 className="text-[13px] font-bold uppercase tracking-tight text-white mb-1">Connections Tracked</h3>
+                      <p className="text-white/40 text-[9px] font-mono uppercase leading-tight max-w-[200px]">
+                        Proven physical encounters at Urban Hikers nodes
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-3xl font-black text-[#ff2d78]">{connectionsCount}</span>
+                      <span className="text-[8px] font-mono text-white/30 block">SYNCS</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Technical diagnostics meta-data details */}
+                <div className="bg-white border border-uh-gray-100 rounded-2xl p-5 space-y-3.5 text-left font-mono text-[9px] text-uh-gray-500">
+                  <h4 className="text-[10px] font-black uppercase text-[#0a0a0a] font-sans tracking-widest mb-2 border-b border-uh-gray-50 pb-2">Diagnostic Protocol Metadata</h4>
+                  <div className="flex justify-between">
+                    <span>CLIENT_VERSION:</span>
+                    <span className="font-bold text-[#0a0a0a]">0.9.1 // URBAN_HIKER_OS</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>SECURITY_TOKEN:</span>
+                    <span className="font-bold text-[#0a0a0a]">SEC_TLS_ACTIVE</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>ACTIVE_VECTOR:</span>
+                    <span className="font-bold text-[#0a0a0a] uppercase">{accessVector}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>PRIMARY_REGIONAL_HUB:</span>
+                    <span className="font-bold text-[#0a0a0a]">{nodeName || 'CIN_OTR'}</span>
+                  </div>
+                </div>
+
+                {/* Sign-Out button */}
+                <button 
+                  onClick={onLogin} 
+                  className="w-full py-4 bg-uh-gray-50 border border-uh-gray-200 hover:bg-uh-gray-100 text-uh-black rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] transition-all flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <LogOut size={14} />
+                  Close Identity Session
+                </button>
               </div>
             ) : null}
             {/* ... other tabs would go here, omitting for brevity of change but keeping key structure */}
@@ -375,13 +1019,7 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
     {/* Bottom Navigation — Dark version */}
     <div className="fixed bottom-0 inset-x-0 z-[110] flex flex-col pointer-events-none">
       <div className="bg-[#0a0a0a] px-8 py-6 flex justify-between items-center border-t border-white/5 pointer-events-auto shadow-[0_-10px_40px_rgba(0,0,0,0.5)]">
-        {[
-          { id: 'home', icon: Home, label: 'Home', href: '/' },
-          { id: 'feed', icon: Clock, label: 'Feed' },
-          { id: 'explore', icon: Navigation, label: 'Explore' },
-          { id: 'wallet', icon: Ticket, label: 'Wallet' },
-          { id: 'profile', icon: Users, label: 'Profile' }
-        ].map((item) => {
+        {navItems.map((item) => {
           const isActive = activeTab === item.id;
           const Icon = item.icon;
           

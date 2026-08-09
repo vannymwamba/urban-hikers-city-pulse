@@ -1,12 +1,14 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { auth, db, finalDbId } from './firebase';
-import { signInWithPopup, GoogleAuthProvider, onAuthStateChanged, User } from 'firebase/auth';
+import { signInWithPopup, signInAnonymously, GoogleAuthProvider, onAuthStateChanged, User } from 'firebase/auth';
 import { useLocation, Routes, Route } from 'react-router-dom';
-import { collection, onSnapshot, query, where, addDoc, doc, getDoc, setDoc, getDocs, orderBy, getDocFromServer, updateDoc, Timestamp } from 'firebase/firestore';
+import { collection, onSnapshot, query, where, addDoc, doc, getDoc, setDoc, getDocs, orderBy, getDocFromServer, updateDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
 import { Node, Broadcast, Vibe, UserProfile, UserRole, Partner, BroadcastType, LocalHub } from './types';
 import { BASE_URL } from './constants';
 import { DepartureBoard } from './components/DepartureBoard';
 import { BroadcastModal } from './components/BroadcastModal';
+import { NfcSuccessOverlay } from './components/NfcSuccessOverlay';
+import { ConsentModal } from './components/ConsentModal';
 import { VibeCheck } from './components/VibeCheck';
 import { VibeTrend } from './components/VibeTrend';
 import { Dashboard } from './components/Dashboard';
@@ -168,6 +170,37 @@ export default function App() {
   const [selectedBroadcastNode, setSelectedBroadcastNode] = useState<Node | null>(null);
   const [isTappedIn, setIsTappedIn] = useState(true);
   const [nfcStatus, setNfcStatus] = useState<'idle' | 'scanning' | 'error' | 'unsupported'>('idle');
+  
+  // Explorer Passport & NFC Success States
+  const [xp, setXp] = useState<number>(() => {
+    return Number(localStorage.getItem('uh_passport_xp') || '250');
+  });
+  const [nodesVisitedCount, setNodesVisitedCount] = useState<number>(() => {
+    return Number(localStorage.getItem('uh_passport_nodes_count') || '14');
+  });
+  const [badges, setBadges] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('uh_passport_badges');
+      return saved ? JSON.parse(saved) : ["Downtown Explorer", "Coffee Hunter"];
+    } catch {
+      return ["Downtown Explorer", "Coffee Hunter"];
+    }
+  });
+  const [connectionsCount, setConnectionsCount] = useState<number>(() => {
+    return Number(localStorage.getItem('uh_passport_connections') || '3');
+  });
+  const [isNfcOverlayOpen, setIsNfcOverlayOpen] = useState(false);
+  const [nfcOverlayNodeName, setNfcOverlayNodeName] = useState('Findlay Market');
+  const [nfcOverlayXpAwarded, setNfcOverlayXpAwarded] = useState(20);
+  const [nfcOverlayBadgeEarned, setNfcOverlayBadgeEarned] = useState<string | null>(null);
+
+  // Consent Gate State (v1.0)
+  const [hasConsented, setHasConsented] = useState<boolean>(() => {
+    return localStorage.getItem('uh_consent_v1.0') === 'true';
+  });
+  const [isConsentModalOpen, setIsConsentModalOpen] = useState(false);
+  const [pendingTapVector, setPendingTapVector] = useState<'nfc' | 'qr' | 'direct' | null>(null);
+
   const [loading, setLoading] = useState(true);
   const [nodeLoading, setNodeLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -212,7 +245,7 @@ export default function App() {
       localStorage.removeItem('uh_initial_tab');
       return 'explore';
     }
-    return 'feed';
+    return 'home';
   });
   const [savedHubs, setSavedHubs] = useState<Node[]>(() => {
     const saved = localStorage.getItem('uh_saved_hubs');
@@ -355,9 +388,24 @@ export default function App() {
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (u) => {
-      console.log("AUTH_STATE_CHANGED:", u?.uid || "NO_USER");
-      setUser(u);
-      if (u) {
+      console.log("AUTH_STATE_CHANGED:", u?.uid || "NO_USER", "IS_ANONYMOUS:", u?.isAnonymous);
+      if (!u) {
+        try {
+          console.log("NO_USER_FOUND: INITIATING_ANONYMOUS_AUTH...");
+          const anonRes = await signInAnonymously(auth);
+          setUser(anonRes.user);
+        } catch (err: any) {
+          if (err?.code === 'auth/admin-restricted-operation' || err?.code === 'auth/operation-not-allowed') {
+            console.warn("Anonymous Authentication is disabled in Firebase Console (auth/admin-restricted-operation). Operating in guest session mode.");
+          } else {
+            console.error("Error signing in anonymously:", err);
+          }
+          setUser(null);
+          setUserProfile(null);
+          setLoading(false);
+        }
+      } else {
+        setUser(u);
         try {
           const tokenResult = await u.getIdTokenResult();
           console.log("AUTH_TOKEN_CLAIMS:", tokenResult.claims);
@@ -365,10 +413,6 @@ export default function App() {
         } catch (err) {
           console.error("Error getting token result:", err);
         }
-      }
-      if (!u) {
-        setUserProfile(null);
-        setLoading(false);
       }
     });
     return () => unsubscribe();
@@ -630,8 +674,23 @@ export default function App() {
     console.log("PARTNERS_MAP_UPDATED:", Object.keys(partnersMap).length, "PARTNERS");
   }, [partnersMap]);
 
+  const handleConsentAccepted = useCallback(() => {
+    localStorage.setItem('uh_consent_v1.0', 'true');
+    setHasConsented(true);
+    setIsConsentModalOpen(false);
+  }, []);
+
   const recordTap = useCallback(async (vectorOverride?: 'nfc' | 'qr' | 'direct') => {
     if (!currentNode || !nodeId) return;
+
+    // Check Consent Gate
+    const consentStored = localStorage.getItem('uh_consent_v1.0');
+    if (!consentStored || consentStored !== 'true') {
+      console.log("RECORD_TAP_BLOCKED: CONSENT_REQUIRED");
+      setPendingTapVector(vectorOverride || ACCESS_VECTOR);
+      setIsConsentModalOpen(true);
+      return;
+    }
     
     try {
       const vector = vectorOverride || ACCESS_VECTOR;
@@ -650,19 +709,47 @@ export default function App() {
           sessionStorage.setItem(`uh_sponsor_${SESSION_ID}`, activeSponsor.partner_id || activeSponsor.partnerId || '');
         }
 
-        console.log(`RECORDING_TAP: NODE=${nodeId} VECTOR=${vector} SPONSOR=${activeSponsor?.partner_id || 'NONE'}`);
+        // Resolve artist_id directly from the node document
+        const artistId = currentNode.artist_id || currentNode.artistId || currentNode.partner_name || null;
+
+        // Ensure user UID is present (trigger anonymous auth if missing)
+        let currentUid = auth.currentUser?.uid;
+        if (!currentUid) {
+          try {
+            const anonRes = await signInAnonymously(auth);
+            currentUid = anonRes.user.uid;
+          } catch (authErr: any) {
+            console.warn("Could not acquire anonymous UID for tap (guest session fallback):", authErr?.message || authErr);
+          }
+        }
+
+        // Compute tap value score based on vector verification, artist attribution, sponsor backing, and trail momentum
+        const vectorWeight = vector === 'nfc' ? 1.0 : vector === 'qr' ? 0.8 : 0.5;
+        const sponsorBonus = activeSponsor?.partner_id ? 0.5 : 0;
+        const artistBonus = artistId ? 0.3 : 0;
+        const trailBonus = nodesVisitedCount > 5 ? 0.2 : 0;
+        const computedValueScore = Number((vectorWeight + sponsorBonus + artistBonus + trailBonus).toFixed(2));
+
+        console.log(`RECORDING_TAP: NODE=${nodeId} ARTIST=${artistId} UID=${currentUid} VECTOR=${vector} VALUE_SCORE=${computedValueScore} SPONSOR=${activeSponsor?.partner_id || 'NONE'}`);
+
+        const tapPayload = {
+          node_id: nodeId,
+          artist_id: artistId,
+          uid: currentUid || null,
+          session_uuid: SESSION_ID,
+          access_vector: vector,
+          timestamp: serverTimestamp(), // Authoritative server timestamp
+          client_timestamp: new Date().toISOString(), // Reference client ISO timestamp
+          consent_version: 'v1.0', // Mandatory consent version
+          value_score: computedValueScore, // Dynamic engagement value score
+          tab: currentTab,
+          sponsor_id: activeSponsor?.partner_id || null,
+          walkId: new URLSearchParams(window.location.search).get('walkId') ?? null,
+          eventTag: new URLSearchParams(window.location.search).get('eventTag') ?? null,
+        };
 
         try {
-          await addDoc(collection(db, 'taps'), {
-            node_id: nodeId,
-            session_uuid: SESSION_ID,
-            access_vector: vector,
-            timestamp: new Date().toISOString(),
-            tab: currentTab,
-            sponsor_id: activeSponsor?.partner_id || null,
-            walkId: new URLSearchParams(window.location.search).get('walkId') ?? null,
-            eventTag: new URLSearchParams(window.location.search).get('eventTag') ?? null,
-          });
+          await addDoc(collection(db, 'taps'), tapPayload);
           sessionStorage.setItem(tapKey, 'true');
         } catch (err) {
           console.error("Error adding tap doc:", err);
@@ -673,6 +760,65 @@ export default function App() {
       console.error("Error recording tap:", err);
     }
   }, [currentNode, nodeId, broadcasts, currentTab]);
+
+  useEffect(() => {
+    if (hasConsented && pendingTapVector) {
+      const vec = pendingTapVector;
+      setPendingTapVector(null);
+      recordTap(vec);
+    }
+  }, [hasConsented, pendingTapVector, recordTap]);
+
+  const triggerNfcSuccessAnimation = useCallback((nodeTitle: string) => {
+    // Increment local node tap counter for UI purposes
+    if (currentNode?.id) {
+      const key = `uh_tap_count_${currentNode.id}`;
+      const prevCount = Number(localStorage.getItem(key) || '1');
+      const nextCount = prevCount + 1;
+      localStorage.setItem(key, String(nextCount));
+      window.dispatchEvent(new CustomEvent('uh-node-tapped', { detail: { nodeId: currentNode.id, count: nextCount } }));
+    }
+
+    // Award XP
+    setXp(prev => {
+      const nextXp = prev + 25;
+      localStorage.setItem('uh_passport_xp', String(nextXp));
+      return nextXp;
+    });
+
+    // Visited Nodes increase
+    setNodesVisitedCount(prev => {
+      const nextCount = prev + 1;
+      localStorage.setItem('uh_passport_nodes_count', String(nextCount));
+      return nextCount;
+    });
+
+    // Check if new badges unlocked
+    const currentBadges = [...badges];
+    let newlyEarned: string | null = null;
+    if (nodesVisitedCount >= 14 && !currentBadges.includes("OTR Trailblazer")) {
+      newlyEarned = "OTR Trailblazer";
+      currentBadges.push("OTR Trailblazer");
+      setBadges(currentBadges);
+      localStorage.setItem('uh_passport_badges', JSON.stringify(currentBadges));
+    } else if (nodesVisitedCount >= 15 && !currentBadges.includes("Hyperlocal Guru")) {
+      newlyEarned = "Hyperlocal Guru";
+      currentBadges.push("Hyperlocal Guru");
+      setBadges(currentBadges);
+      localStorage.setItem('uh_passport_badges', JSON.stringify(currentBadges));
+    }
+
+    setNfcOverlayBadgeEarned(newlyEarned);
+    setNfcOverlayNodeName(nodeTitle);
+    setIsNfcOverlayOpen(true);
+    setHudMessage({ text: "NFC_TAP_SUCCESSFUL", type: 'info' });
+  }, [nodesVisitedCount, badges]);
+
+  const simulateNfcTap = useCallback(() => {
+    setIsTappedIn(true);
+    recordTap('nfc');
+    triggerNfcSuccessAnimation(currentNode?.name || 'Findlay Market');
+  }, [currentNode, recordTap, triggerNfcSuccessAnimation]);
 
   // NFC Support
   useEffect(() => {
@@ -695,7 +841,7 @@ export default function App() {
           console.log("NFC_TAG_DETECTED", event);
           setIsTappedIn(true);
           recordTap('nfc');
-          setHudMessage({ text: "NFC_TAP_SUCCESSFUL", type: 'info' });
+          triggerNfcSuccessAnimation(currentNode?.name || 'Findlay Market');
         };
 
         ndef.onreadingerror = () => {
@@ -774,35 +920,114 @@ export default function App() {
         setNodeLoading(true);
       }
 
-      const nodeRef = doc(db, 'nodes', activeNodeId);
+      let activeUnsubscribe: (() => void) | null = null;
+      let isCancelled = false;
       
-      // Use onSnapshot to get cached data immediately and then live updates
-      const unsubscribe = onSnapshot(nodeRef, (nodeSnap) => {
-        console.log(`NODE_SNAPSHOT_RECEIVED: ${activeNodeId}, EXISTS: ${nodeSnap.exists()}`);
+      const subscribeToId = (targetId: string, isFallback: boolean = false) => {
+        if (isCancelled) return;
+        if (activeUnsubscribe) activeUnsubscribe();
+        
+        const nodeRef = doc(db, 'nodes', targetId);
+        activeUnsubscribe = onSnapshot(nodeRef, (nodeSnap) => {
+          if (isCancelled) return;
+          console.log(`NODE_SNAPSHOT_RECEIVED: ${targetId}, EXISTS: ${nodeSnap.exists()}`);
+          if (nodeSnap.exists()) {
+            setCurrentNode({ id: nodeSnap.id, ...nodeSnap.data() } as Node);
+          } else if (isFallback) {
+            console.warn(`NODE_NOT_FOUND_EVEN_WITH_FALLBACK: ${targetId}`);
+            setCurrentNode({
+              id: targetId,
+              name: `SECTOR_${targetId.toUpperCase()}`,
+              type: 'street',
+              latitude: 39.1092,
+              longitude: -84.5125,
+              radius_limit: 5000
+            });
+          }
+          setLoading(false);
+          setNodeLoading(false);
+        }, (err) => {
+          if (isCancelled) return;
+          console.error(`NODE_SNAPSHOT_ERROR: ${targetId}`, err);
+          setLoading(false);
+          setNodeLoading(false);
+          handleFirestoreError(err, OperationType.GET, `nodes/${targetId}`);
+        });
+      };
+
+      // 1. Direct Try
+      const nodeRef = doc(db, 'nodes', activeNodeId);
+      getDoc(nodeRef).then((nodeSnap) => {
+        if (isCancelled) return;
         if (nodeSnap.exists()) {
-          setCurrentNode({ id: nodeSnap.id, ...nodeSnap.data() } as Node);
+          // Success: exact direct ID match
+          subscribeToId(activeNodeId);
         } else {
-          // Fallback discovery logic
-          console.warn(`NODE_NOT_FOUND: ${activeNodeId}, USING_FALLBACK`);
-          setCurrentNode({
-            id: activeNodeId,
-            name: `SECTOR_${activeNodeId.toUpperCase()}`,
-            type: 'street',
-            latitude: 39.1092,
-            longitude: -84.5125,
-            radius_limit: 5000
+          // 2. Collection scan for case-insensitive ID or Name-based matching
+          getDocs(collection(db, 'nodes')).then((querySnap) => {
+            if (isCancelled) return;
+            let matchedId: string | null = null;
+            const searchLower = activeNodeId.toLowerCase();
+            
+            // First pass: exact ID match (case-insensitive) or exact Name match (case-insensitive)
+            for (const d of querySnap.docs) {
+              const dIdLower = d.id.toLowerCase();
+              const nNameLower = (d.data().name || '').toLowerCase();
+              if (dIdLower === searchLower || nNameLower === searchLower) {
+                matchedId = d.id;
+                break;
+              }
+            }
+            
+            // Second pass: starts-with ID match or starts-with Name match
+            if (!matchedId) {
+              for (const d of querySnap.docs) {
+                const dIdLower = d.id.toLowerCase();
+                const nNameLower = (d.data().name || '').toLowerCase();
+                if (dIdLower.startsWith(searchLower) || nNameLower.startsWith(searchLower)) {
+                  matchedId = d.id;
+                  break;
+                }
+              }
+            }
+            
+            // Third pass: contains ID match or contains Name match
+            if (!matchedId) {
+              for (const d of querySnap.docs) {
+                const dIdLower = d.id.toLowerCase();
+                const nNameLower = (d.data().name || '').toLowerCase();
+                if (dIdLower.includes(searchLower) || nNameLower.includes(searchLower)) {
+                  matchedId = d.id;
+                  break;
+                }
+              }
+            }
+
+            if (matchedId) {
+              console.log(`RESOLVED_SLUG: "${activeNodeId}" -> REAL_NODE_ID: "${matchedId}"`);
+              // Update URL seamlessly for the user
+              window.history.replaceState({}, '', `/tap/${matchedId}`);
+              subscribeToId(matchedId);
+            } else {
+              // 3. True fallback to pseudo-node
+              subscribeToId(activeNodeId, true);
+            }
+          }).catch((err) => {
+            if (isCancelled) return;
+            console.error("COLLECTION_SCAN_FAILED", err);
+            subscribeToId(activeNodeId, true);
           });
         }
-        setLoading(false);
-        setNodeLoading(false);
-      }, (err) => {
-        console.error(`NODE_SNAPSHOT_ERROR: ${activeNodeId}`, err);
-        setLoading(false);
-        setNodeLoading(false);
-        handleFirestoreError(err, OperationType.GET, `nodes/${activeNodeId}`);
+      }).catch((err) => {
+        if (isCancelled) return;
+        console.error("DIRECT_GET_DOC_FAILED", err);
+        subscribeToId(activeNodeId, true);
       });
 
-      return unsubscribe;
+      return () => {
+        isCancelled = true;
+        if (activeUnsubscribe) activeUnsubscribe();
+      };
     };
 
     const unsubscribe = fetchNode();
@@ -1422,6 +1647,11 @@ export default function App() {
             isTappedIn={isTappedIn}
             onTapToggle={setIsTappedIn}
             accessVector={ACCESS_VECTOR}
+            xp={xp}
+            nodesVisitedCount={nodesVisitedCount}
+            badges={badges}
+            connectionsCount={connectionsCount}
+            onSimulateNfc={simulateNfcTap}
             onShareNode={() => handleShare(
               `Urban Hikers: ${currentNode?.name}`,
               `Check out what's live at ${currentNode?.name}!`,
@@ -1491,6 +1721,34 @@ export default function App() {
             confirmed={confirmedBroadcastId === selectedBroadcast?.id}
           />
         </ErrorBoundary>
+
+        <ConsentModal
+          isOpen={isConsentModalOpen}
+          onConsent={handleConsentAccepted}
+          onClose={() => setIsConsentModalOpen(false)}
+        />
+
+        <NfcSuccessOverlay
+          isOpen={isNfcOverlayOpen}
+          onClose={() => setIsNfcOverlayOpen(false)}
+          nodeName={nfcOverlayNodeName}
+          xpAwarded={nfcOverlayXpAwarded}
+          badgeEarned={nfcOverlayBadgeEarned}
+          onSocialRecord={(metSomeone) => {
+            if (metSomeone) {
+              setXp(px => {
+                const nextXp = px + 10;
+                localStorage.setItem('uh_passport_xp', String(nextXp));
+                return nextXp;
+              });
+              setConnectionsCount(pc => {
+                const nextCount = pc + 1;
+                localStorage.setItem('uh_passport_connections', String(nextCount));
+                return nextCount;
+              });
+            }
+          }}
+        />
       </div>
     </ErrorBoundary>
     </APIProvider>

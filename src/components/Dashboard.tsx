@@ -5,13 +5,15 @@ import { db, auth, storage } from '../firebase';
 import { Broadcast, Node, Partner, UserProfile, BroadcastType, Tap, VibeReport, TabView, Interaction, LocalHub } from '../types';
 import { BroadcastControlForm } from './BroadcastControlForm';
 import { handleFirestoreError, OperationType } from '../utils/firebaseErrors';
-import { RefreshCw, Trash2, Plus, Layout, Users, Activity, LogOut, Shield, Database, BarChart2, Radio, MapPin, Zap, Loader2, Upload } from 'lucide-react';
+import { RefreshCw, Trash2, Plus, Layout, Users, Activity, LogOut, Shield, Database, BarChart2, Radio, MapPin, Zap, Loader2, Upload, Calendar, BookOpen, Wifi, Star, Map, ShieldCheck } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useMapsLibrary } from '@vis.gl/react-google-maps';
 import { OverviewPanel } from './OverviewPanel';
 import { SystemHealthPanel } from './SystemHealthPanel';
 import { LiveTicker } from './LiveTicker';
+import { NfcNodeHeatmap } from './NfcNodeHeatmap';
 import { BASE_URL } from '../constants';
+import { parseAnyTimestamp } from '../utils/dateUtils';
 
 interface DashboardProps {
   user?: any;
@@ -39,6 +41,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, userProfile, nodes, 
   const [showAddPartner, setShowAddPartner] = useState(false);
   const [showAddLocalHub, setShowAddLocalHub] = useState(false);
   const [showAddSectorNode, setShowAddSectorNode] = useState(false);
+  const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
 
   const [newSectorNode, setNewSectorNode] = useState({
     name: '',
@@ -48,10 +51,41 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, userProfile, nodes, 
     radius_limit: 4828,
     type: 'street' as any,
     partner_name: '',
-    partner_type: 'walk_hq' as 'walk_hq' | 'civic' | 'anchor' | 'refuel' | 'street',
+    partner_type: 'walk_hq' as 'walk_hq' | 'refuel' | 'civic' | 'anchor' | 'discovery' | 'creator' | 'wellness' | 'street',
     partner_initials: '',
     partner_accent: '#FFE01A',
-    hub_tagline: ''
+    hub_tagline: '',
+    
+    // Customizable design/media fields
+    cover_image_url: '',
+    logo_url: '',
+    gallery_urls: [] as string[],
+    founder_photo_url: '',
+    theme_mode: 'light' as 'light' | 'dark' | 'adaptive',
+    logo_style: 'circle' as 'circle' | 'rounded' | 'square',
+    
+    // Narratives & stories
+    why_it_matters: '',
+    founder_story: '',
+    business_history: '',
+    community_impact: '',
+    recommended_experience: '',
+    
+    // Custom rewards system
+    custom_reward: '☕ Free Coffee on Check-in',
+    
+    // Community metrics fields
+    metric_walkers: 1422,
+    metric_visits: 4210,
+    metric_events: 127,
+    metric_miles: 8442,
+    metric_conversations: 340,
+    metric_stories: 85,
+    
+    // Partner recognition logo URLs
+    partner_logo_url: '',
+    sponsor_logo_url: '',
+    community_logo_url: ''
   });
 
   const [newLocalHub, setNewLocalHub] = useState({
@@ -354,19 +388,70 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, userProfile, nodes, 
     }
   };
 
+  const [uploadingStatus, setUploadingStatus] = useState<Record<string, boolean>>({});
+
+  const handleSectorNodeFileUpload = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+    fieldName: 'cover_image_url' | 'logo_url' | 'founder_photo_url' | 'gallery_urls' | 'partner_logo_url' | 'sponsor_logo_url' | 'community_logo_url'
+  ) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    setUploadingStatus(prev => ({ ...prev, [fieldName]: true }));
+    try {
+      if (fieldName === 'gallery_urls') {
+        const uploadedUrls: string[] = [...(newSectorNode.gallery_urls || [])];
+        const capacity = 8 - uploadedUrls.length;
+        const uploadCount = Math.min(files.length, capacity);
+        
+        for (let i = 0; i < uploadCount; i++) {
+          const file = files[i];
+          const storageRef = ref(storage, `nodes/gallery/${Date.now()}_hf_${file.name}`);
+          const snapshot = await uploadBytesResumable(storageRef, file);
+          const url = await getDownloadURL(snapshot.ref);
+          uploadedUrls.push(url);
+        }
+        
+        setNewSectorNode(prev => ({ ...prev, gallery_urls: uploadedUrls }));
+        setHudMessage({ text: 'GALLERY_IMAGES_UPLOADED', type: 'info' });
+      } else {
+        const file = files[0];
+        const storageRef = ref(storage, `nodes/${fieldName}/${Date.now()}_hf_${file.name}`);
+        const snapshot = await uploadBytesResumable(storageRef, file);
+        const url = await getDownloadURL(snapshot.ref);
+        setNewSectorNode(prev => ({ ...prev, [fieldName]: url }));
+        setHudMessage({ text: `${fieldName.toUpperCase().replace(/_/g, ' ')} UPLOADED`, type: 'info' });
+      }
+    } catch (err) {
+      console.error("Upload error:", err);
+      setHudMessage({ text: 'UPLOAD_FAILED', type: 'error' });
+    } finally {
+      setUploadingStatus(prev => ({ ...prev, [fieldName]: false }));
+    }
+  };
+
   const handleAddSectorNode = async () => {
     if (!newSectorNode.name) return;
     try {
-      await setDoc(doc(db, 'nodes', newSectorNode.name.replace(/\s+/g, '_').toUpperCase() + '_' + Math.floor(Math.random()*1000)), {
+      const targetId = editingNodeId || (newSectorNode.name.replace(/\s+/g, '_').toUpperCase() + '_' + Math.floor(Math.random()*1000));
+      await setDoc(doc(db, 'nodes', targetId), {
         ...newSectorNode,
+        id: targetId,
         created_at: Timestamp.now()
       });
       setShowAddSectorNode(false);
+      setEditingNodeId(null);
       setNewSectorNode({ 
         name: '', address: '', latitude: 39.1092, longitude: -84.5125, radius_limit: 4828, type: 'street' as any,
-        partner_name: '', partner_type: 'walk_hq', partner_initials: '', partner_accent: '#FFE01A', hub_tagline: ''
+        partner_name: '', partner_type: 'walk_hq' as any, partner_initials: '', partner_accent: '#FFE01A', hub_tagline: '',
+        cover_image_url: '', logo_url: '', gallery_urls: [], founder_photo_url: '',
+        theme_mode: 'light', logo_style: 'circle', why_it_matters: '', founder_story: '',
+        business_history: '', community_impact: '', recommended_experience: '',
+        custom_reward: '☕ Free Coffee on Check-in',
+        metric_walkers: 1422, metric_visits: 4210, metric_events: 127, metric_miles: 8442,
+        metric_conversations: 340, metric_stories: 85, partner_logo_url: '', sponsor_logo_url: '', community_logo_url: ''
       });
-      setHudMessage({ text: 'SECTOR_NODE_REGISTERED', type: 'info' });
+      setHudMessage({ text: editingNodeId ? 'SECTOR_NODE_UPDATED' : 'SECTOR_NODE_REGISTERED', type: 'info' });
     } catch (err) {
       setHudMessage({ text: 'NODE_REGISTRATION_FAILED', type: 'error' });
     }
@@ -728,6 +813,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, userProfile, nodes, 
               </div>
             </div>
 
+            {/* D3-based NFC Node Tap Heatmap */}
+            <NfcNodeHeatmap nodes={nodes || []} taps={taps || []} />
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
               {/* Funnel */}
               <div className="bg-white border border-uh-gray-200 rounded-2xl p-8">
@@ -789,8 +877,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, userProfile, nodes, 
               <h3 className="text-[10px] font-black uppercase tracking-widest mb-8 border-b border-uh-gray-100 pb-4 text-center">Hourly_Tap_Velocity_Matrix</h3>
               <div className="flex items-end justify-between h-32 gap-1 px-4">
                 {Array.from({ length: 24 }).map((_, hour) => {
-                  const count = taps.filter(t => new Date(t.timestamp).getHours() === hour).length;
-                  const max = Math.max(...Array.from({ length: 24 }).map((__, h) => taps.filter(t => new Date(t.timestamp).getHours() === h).length)) || 1;
+                  const count = taps.filter(t => parseAnyTimestamp(t.timestamp, t.client_timestamp).getHours() === hour).length;
+                  const max = Math.max(...Array.from({ length: 24 }).map((__, h) => taps.filter(t => parseAnyTimestamp(t.timestamp, t.client_timestamp).getHours() === h).length)) || 1;
                   const percent = (count / max) * 100;
                   return (
                     <div key={hour} className="flex-1 group relative">
@@ -972,163 +1060,921 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, userProfile, nodes, 
               </div>
 
               {showAddSectorNode && (
-                <div className="bg-white border border-uh-gray-200 rounded-2xl p-8 mb-8 animate-in fade-in slide-in-from-top-4 duration-500">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                      <label className="text-[9px] text-[#999] tracking-widest uppercase mb-2 block">Hub_Name</label>
-                      <input 
-                        className="w-full bg-uh-gray-50 border border-uh-gray-100 rounded-xl px-4 py-3 text-[12px] font-bold focus:border-uh-yellow outline-none"
-                        value={newSectorNode.name}
-                        placeholder="e.g. KINLEY_LOBBY"
-                        onChange={e => setNewSectorNode({...newSectorNode, name: e.target.value})}
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[9px] text-[#999] tracking-widest uppercase mb-2 block">Partner / Venue</label>
-                      <input 
-                        className="w-full bg-uh-gray-50 border border-uh-gray-100 rounded-xl px-4 py-3 text-[12px] font-bold focus:border-uh-yellow outline-none"
-                        value={newSectorNode.partner_name}
-                        placeholder="e.g. Kinley Hotel"
-                        onChange={e => setNewSectorNode({...newSectorNode, partner_name: e.target.value})}
-                      />
+                <div id="sector-builder-container" className="bg-[#fcfcfc] border border-uh-gray-200 rounded-3xl p-6 lg:p-10 mb-10 overflow-hidden">
+                  {/* Large Customizable Hero Header */}
+                  <div className="mb-10 rounded-2xl overflow-hidden border border-uh-gray-200 shadow-xl bg-black relative max-w-5xl mx-auto">
+                    {/* 16:9 Cover Image */}
+                    <div className="aspect-[16/9] w-full max-h-[220px] md:max-h-[300px] overflow-hidden bg-uh-black relative">
+                      {newSectorNode.cover_image_url ? (
+                        <img src={newSectorNode.cover_image_url} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                      ) : (
+                        <div className="w-full h-full bg-gradient-to-tr from-black via-[#141414] to-[#222] flex items-center justify-center">
+                          <span className="text-[10px] font-mono tracking-widest text-[#FFE01A]/30 uppercase">[ NO COVER UPLOADED · 16:9 HERO RATIO ]</span>
+                        </div>
+                      )}
+                      <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent pointer-events-none" />
                     </div>
 
-                    <div className="md:col-span-2">
-                       <label className="text-[9px] text-[#999] tracking-widest uppercase mb-3 block">Partner Type</label>
-                       <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                         {[
-                           { id: 'walk_hq', label: 'Walk HQ', color: '#FFE01A' },
-                           { id: 'civic', label: 'Civic', color: '#1D4ED8' },
-                           { id: 'anchor', label: 'Anchor', color: '#6366F1' },
-                           { id: 'refuel', label: 'Refuel', color: '#10B981' }
-                         ].map(type => (
-                           <button
-                             key={type.id}
-                             type="button"
-                             onClick={() => setNewSectorNode({
-                               ...newSectorNode, 
-                               partner_type: type.id as any,
-                               partner_accent: type.color
-                             })}
-                             className={`px-4 py-3 text-[10px] font-black uppercase tracking-widest rounded-xl border transition-all ${
-                               newSectorNode.partner_type === type.id 
-                               ? 'bg-black border-black text-[#FFE01A] shadow-lg scale-[1.02]' 
-                               : 'bg-white border-uh-gray-100 text-uh-gray-400 hover:border-uh-gray-300'
-                             }`}
-                           >
-                             {type.label}
-                           </button>
-                         ))}
-                       </div>
-                    </div>
-
-                    <div>
-                      <label className="text-[9px] text-[#999] tracking-widest uppercase mb-2 block">Partner Initials</label>
-                      <input 
-                        className="w-full bg-uh-gray-50 border border-uh-gray-100 rounded-xl px-4 py-3 text-[12px] font-bold focus:border-uh-yellow outline-none"
-                        value={newSectorNode.partner_initials}
-                        placeholder="e.g. KH"
-                        maxLength={3}
-                        onChange={e => setNewSectorNode({...newSectorNode, partner_initials: e.target.value.toUpperCase()})}
-                      />
-                    </div>
-
-                    <div>
-                      <label className="text-[9px] text-[#999] tracking-widest uppercase mb-2 block">Accent Color</label>
-                      <div className="flex items-center gap-3 h-[46px]">
-                        {['#FFE01A', '#1D4ED8', '#10B981', '#6366F1', '#E24B4A'].map(color => (
-                          <button
-                            key={color}
-                            type="button"
-                            onClick={() => setNewSectorNode({...newSectorNode, partner_accent: color})}
-                            className={`w-8 h-8 rounded-full border-2 transition-transform hover:scale-110 ${newSectorNode.partner_accent === color ? 'border-uh-black scale-110' : 'border-transparent'}`}
-                            style={{ backgroundColor: color }}
-                          />
-                        ))}
+                    {/* Overlapping Logo Transit Badge */}
+                    <div className="absolute left-4 md:left-8 bottom-3 md:bottom-4 flex items-end gap-3 md:gap-6 z-10 w-full px-2 md:px-4">
+                      <div 
+                        className={`w-14 h-14 md:w-20 md:h-20 bg-uh-black flex items-center justify-center p-1 md:p-1.5 shadow-2xl relative border-2 md:border-4 translate-y-1 transform transition-all
+                          ${newSectorNode.logo_style === 'rounded' ? 'rounded-2xl' : newSectorNode.logo_style === 'square' ? 'rounded-md' : 'rounded-full'}`}
+                        style={{ borderColor: newSectorNode.partner_accent || '#FFE01A' }}
+                      >
+                        {newSectorNode.logo_url ? (
+                          <img src={newSectorNode.logo_url} className={`w-full h-full object-cover ${newSectorNode.logo_style === 'rounded' ? 'rounded-xl' : newSectorNode.logo_style === 'square' ? 'rounded-[2px]' : 'rounded-full'}`} referrerPolicy="no-referrer" />
+                        ) : (
+                          <span className="text-sm md:text-xl font-black" style={{ color: newSectorNode.partner_accent || '#FFE01A' }}>
+                            {newSectorNode.partner_initials || (newSectorNode.name ? newSectorNode.name.slice(0,2).toUpperCase() : 'UH')}
+                          </span>
+                        )}
                       </div>
-                    </div>
 
-                    <div className="md:col-span-2">
-                      <div className="flex justify-between items-center mb-2">
-                        <label className="text-[9px] text-[#999] tracking-widest uppercase block">Address</label>
-                        <button 
-                          onClick={solveAddress}
-                          disabled={isSolvingAddress || !newSectorNode.address}
-                          className="flex items-center gap-1.5 px-3 py-1 bg-uh-yellow text-uh-black text-[8px] font-black tracking-widest uppercase rounded h-6 hover:scale-105 transition-all disabled:opacity-50 disabled:hover:scale-100"
-                        >
-                          {isSolvingAddress ? (
-                            <RefreshCw size={10} className="animate-spin" />
-                          ) : (
-                            <Zap size={10} />
-                          )}
-                          Solve to Address
-                        </button>
+                      <div className="pb-1 max-w-[calc(100%-100px)]">
+                        <div className="flex items-center gap-2">
+                          <span className="px-2 py-0.5 rounded text-[7px] md:text-[8px] font-black uppercase tracking-widest text-black" style={{ backgroundColor: newSectorNode.partner_accent || '#FFE01A' }}>
+                            {newSectorNode.partner_type ? newSectorNode.partner_type.replace('_', ' ').toUpperCase() : 'WALK HQ'}
+                          </span>
+                        </div>
+                        <h2 className="text-base md:text-2xl font-black text-white uppercase italic tracking-tighter leading-none mt-1 shadow-sm truncate">
+                          {newSectorNode.name ? newSectorNode.name.replace(/_HUB/g, '').replace(/_/g, ' ') : 'ALPHA PLAZA'}
+                        </h2>
+                        <p className="text-[8px] md:text-[10px] font-mono text-white/50 tracking-wider truncate">
+                          {newSectorNode.hub_tagline || 'Where historic brickwork meets modern local experiences.'}
+                        </p>
                       </div>
-                      <input 
-                        className="w-full bg-uh-gray-50 border border-uh-gray-100 rounded-xl px-4 py-3 text-[12px] font-bold focus:border-uh-yellow outline-none"
-                        value={newSectorNode.address}
-                        placeholder="636 Race St, Cincinnati, OH"
-                        onChange={e => setNewSectorNode({...newSectorNode, address: e.target.value})}
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[9px] text-[#999] tracking-widest uppercase mb-2 block">Latitude</label>
-                      <input 
-                        type="number"
-                        step="0.0001"
-                        className="w-full bg-uh-gray-50 border border-uh-gray-100 rounded-xl px-4 py-3 text-[12px] font-bold focus:border-uh-yellow outline-none"
-                        value={newSectorNode.latitude}
-                        onChange={e => setNewSectorNode({...newSectorNode, latitude: parseFloat(e.target.value)})}
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[9px] text-[#999] tracking-widest uppercase mb-2 block">Longitude</label>
-                      <input 
-                        type="number"
-                        step="0.0001"
-                        className="w-full bg-uh-gray-50 border border-uh-gray-100 rounded-xl px-4 py-3 text-[12px] font-bold focus:border-uh-yellow outline-none"
-                        value={newSectorNode.longitude}
-                        onChange={e => setNewSectorNode({...newSectorNode, longitude: parseFloat(e.target.value)})}
-                      />
-                    </div>
-
-                    <div className="md:col-span-2">
-                       <label className="text-[9px] text-[#999] tracking-widest uppercase mb-2 block">Hub Tagline <span className="opacity-50">(Optional)</span></label>
-                       <input 
-                         className="w-full bg-uh-gray-50 border border-uh-gray-100 rounded-xl px-4 py-3 text-[12px] font-bold focus:border-uh-yellow outline-none"
-                         value={newSectorNode.hub_tagline}
-                         placeholder="e.g. Walk HQ • 3 departures daily"
-                         onChange={e => setNewSectorNode({...newSectorNode, hub_tagline: e.target.value})}
-                       />
                     </div>
                   </div>
-                  <button 
-                    onClick={handleAddSectorNode}
-                    className="mt-8 w-full py-4 bg-black text-[#FFE01A] text-[10px] font-black tracking-widest uppercase rounded-xl hover:scale-[1.01] transition-all"
-                  >
-                    Confirm_Hub_Registration
-                  </button>
+
+                  {/* Split grid for controls and real-time simulator preview */}
+                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+                    {/* Controls Column */}
+                    <div className="lg:col-span-7 space-y-8">
+                      <div className="border-b border-uh-gray-100 pb-4 mb-2 flex items-center justify-between">
+                        <div>
+                          <h4 className="text-sm font-black uppercase tracking-widest text-black flex items-center gap-2">
+                            <Activity size={14} className="text-uh-yellow" />
+                            {editingNodeId ? 'Edit Hub Brand Configuration' : 'Branded Destination Builder'}
+                          </h4>
+                          <p className="text-[10px] text-uh-gray-400 font-mono mt-0.5 uppercase tracking-wide">
+                            {editingNodeId ? `CONFIGURING PROTOCOL: /tap/${editingNodeId}` : 'Design a unique hub destination'}
+                          </p>
+                        </div>
+                        {editingNodeId && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingNodeId(null);
+                              setNewSectorNode({
+                                name: '', address: '', latitude: 39.1092, longitude: -84.5125, radius_limit: 4828, type: 'street' as any,
+                                partner_name: '', partner_type: 'walk_hq', partner_initials: '', partner_accent: '#FFE01A', hub_tagline: '',
+                                cover_image_url: '', logo_url: '', gallery_urls: [], founder_photo_url: '',
+                                theme_mode: 'light', logo_style: 'circle', why_it_matters: '', founder_story: '',
+                                business_history: '', community_impact: '', recommended_experience: '',
+                                custom_reward: '☕ Free Coffee on Check-in',
+                                metric_walkers: 1422, metric_visits: 4210, metric_events: 127, metric_miles: 8442,
+                                metric_conversations: 340, metric_stories: 85, partner_logo_url: '', sponsor_logo_url: '', community_logo_url: ''
+                              });
+                            }}
+                            className="text-[8px] font-black text-rose-500 hover:text-rose-600 uppercase tracking-widest border border-rose-200 hover:border-rose-300 px-2 flex items-center justify-center h-8 rounded-lg transition-colors"
+                          >
+                            Reset Form
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Section 1: Identity & Coordinates */}
+                      <div className="bg-white border border-uh-gray-100 rounded-2xl p-6 shadow-sm space-y-4">
+                        <span className="text-[9px] font-black tracking-[0.2em] text-[#FFE01A] uppercase block border-b border-uh-gray-50 pb-2">01 · IDENTITY & COORDINATES</span>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <label className="text-[9px] text-[#999] tracking-widest uppercase mb-2 block">Hub Name (Firebase ID)</label>
+                            <input 
+                              className="w-full bg-uh-gray-50 border border-uh-gray-100 rounded-xl px-4 py-3 text-[12px] font-bold focus:border-uh-yellow outline-none"
+                              value={newSectorNode.name}
+                              placeholder="e.g. ALPHA_PLAZA"
+                              onChange={e => setNewSectorNode({...newSectorNode, name: e.target.value.toUpperCase()})}
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[9px] text-[#999] tracking-widest uppercase mb-2 block">Partner / Venue</label>
+                            <input 
+                              className="w-full bg-uh-gray-50 border border-uh-gray-100 rounded-xl px-4 py-3 text-[12px] font-bold focus:border-uh-yellow outline-none"
+                              value={newSectorNode.partner_name}
+                              placeholder="e.g. Alpha Plaza Building"
+                              onChange={e => setNewSectorNode({...newSectorNode, partner_name: e.target.value})}
+                            />
+                          </div>
+
+                          <div>
+                            <label className="text-[9px] text-[#999] tracking-widest uppercase mb-2 block">Partner Initials</label>
+                            <input 
+                              className="w-full bg-uh-gray-50 border border-uh-gray-100 rounded-xl px-4 py-3 text-[12px] font-bold focus:border-uh-yellow outline-none"
+                              value={newSectorNode.partner_initials}
+                              placeholder="e.g. AP"
+                              maxLength={3}
+                              onChange={e => setNewSectorNode({...newSectorNode, partner_initials: e.target.value.toUpperCase()})}
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[9px] text-[#999] tracking-widest uppercase mb-2 block">Hub Tagline</label>
+                            <input 
+                              className="w-full bg-uh-gray-50 border border-uh-gray-100 rounded-xl px-4 py-3 text-[12px] font-bold focus:border-uh-yellow outline-none"
+                              value={newSectorNode.hub_tagline}
+                              placeholder="Where historic brickframes modern experiences"
+                              onChange={e => setNewSectorNode({...newSectorNode, hub_tagline: e.target.value})}
+                            />
+                          </div>
+
+                          <div className="md:col-span-2">
+                            <div className="flex justify-between items-center mb-2">
+                              <label className="text-[9px] text-[#999] tracking-widest uppercase block">Address</label>
+                              <button 
+                                type="button"
+                                onClick={solveAddress}
+                                disabled={isSolvingAddress || !newSectorNode.address}
+                                className="flex items-center gap-1.5 px-3 py-1 bg-[#FFE01A] text-uh-black text-[8px] font-black tracking-widest uppercase rounded h-6 hover:scale-105 transition-all disabled:opacity-50 disabled:hover:scale-100"
+                              >
+                                {isSolvingAddress ? (
+                                  <RefreshCw size={10} className="animate-spin" />
+                                ) : (
+                                  <Zap size={10} />
+                                )}
+                                Solve coordinates
+                              </button>
+                            </div>
+                            <input 
+                              className="w-full bg-uh-gray-50 border border-uh-gray-100 rounded-xl px-4 py-3 text-[12px] font-bold focus:border-uh-yellow outline-none"
+                              value={newSectorNode.address}
+                              placeholder="e.g. 1201 Main St, Cincinnati, OH 45202"
+                              onChange={e => setNewSectorNode({...newSectorNode, address: e.target.value})}
+                            />
+                          </div>
+
+                          <div>
+                            <label className="text-[9px] text-[#999] tracking-widest uppercase mb-2 block">Latitude</label>
+                            <input 
+                              type="number"
+                              step="0.0001"
+                              className="w-full bg-uh-gray-50 border border-uh-gray-100 rounded-xl px-4 py-3 text-[12px] font-bold focus:border-uh-yellow outline-none"
+                              value={newSectorNode.latitude}
+                              onChange={e => setNewSectorNode({...newSectorNode, latitude: parseFloat(e.target.value)})}
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[9px] text-[#999] tracking-widest uppercase mb-2 block">Longitude</label>
+                            <input 
+                              type="number"
+                              step="0.0001"
+                              className="w-full bg-uh-gray-50 border border-uh-gray-100 rounded-xl px-4 py-3 text-[12px] font-bold focus:border-uh-yellow outline-none"
+                              value={newSectorNode.longitude}
+                              onChange={e => setNewSectorNode({...newSectorNode, longitude: parseFloat(e.target.value)})}
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Section 2: Media & Creative Customization */}
+                      <div className="bg-white border border-uh-gray-100 rounded-2xl p-6 shadow-sm space-y-6">
+                        <span className="text-[9px] font-black tracking-[0.2em] text-[#FFE01A] uppercase block border-b border-uh-gray-50 pb-2">02 · MEDIA & BRAND CONTROLS</span>
+                        
+                        {/* Hub Classifications */}
+                        <div>
+                          <label className="text-[9px] text-[#999] tracking-widest uppercase mb-3 block font-bold text-black">Hub Classification (Hub Type)</label>
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                            {[
+                              { id: 'walk_hq', label: 'WALK HQ', desc: 'HQ Hub', color: '#FFE01A' },
+                              { id: 'refuel', label: 'REFUEL', desc: 'Coffee & Food', color: '#10B981' },
+                              { id: 'civic', label: 'CIVIC', desc: 'Museum/Library', color: '#1D4ED8' },
+                              { id: 'anchor', label: 'ANCHOR', desc: 'Neighborhood Landmark', color: '#EF4444' },
+                              { id: 'discovery', label: 'DISCOVERY', desc: 'Historical Secret', color: '#F59E0B' },
+                              { id: 'creator', label: 'CREATOR', desc: 'Art & Gallery', color: '#8B5CF6' },
+                              { id: 'wellness', label: 'WELLNESS', desc: 'Fitness & Parks', color: '#EC4899' }
+                            ].map(cat => (
+                              <button
+                                key={cat.id}
+                                type="button"
+                                onClick={() => setNewSectorNode({
+                                  ...newSectorNode,
+                                  partner_type: cat.id as any,
+                                  partner_accent: cat.color
+                                })}
+                                className={`p-3 text-left rounded-xl border transition-all flex flex-col justify-between h-20 ${
+                                  newSectorNode.partner_type === cat.id
+                                    ? 'bg-black border-black text-[#FFE01A] shadow-md scale-[1.01]'
+                                    : 'bg-[#fafafa] border-uh-gray-100 text-uh-gray-500 hover:border-uh-gray-300 hover:bg-white'
+                                }`}
+                              >
+                                <div className="flex items-center gap-1.5">
+                                  <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: cat.color }} />
+                                  <span className="text-[9px] font-black uppercase tracking-wider">{cat.label}</span>
+                                </div>
+                                <span className="text-[7.5px] leading-tight opacity-70 block">{cat.desc}</span>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          {/* Theme Selection */}
+                          <div>
+                            <label className="text-[9px] text-[#999] tracking-widest uppercase mb-2 block font-bold text-black font-sans">Theme Option</label>
+                            <select
+                              className="w-full bg-uh-gray-50 border border-uh-gray-100 rounded-xl px-4 py-3 text-[12px] font-bold focus:border-uh-yellow outline-none"
+                              value={newSectorNode.theme_mode}
+                              onChange={e => setNewSectorNode({ ...newSectorNode, theme_mode: e.target.value as any })}
+                            >
+                              <option value="light font-sans">LIGHT CANVAS (HIGH CONTRAST)</option>
+                              <option value="dark font-sans">DARK IMMERSIVE (CARBON NIGHT)</option>
+                              <option value="adaptive font-sans">ADAPTIVE SYSTEM MODE</option>
+                            </select>
+                          </div>
+
+                          {/* Logo Style Selection */}
+                          <div>
+                            <label className="text-[9px] text-[#999] tracking-widest uppercase mb-2 block font-bold text-black">Badge Profile Shape</label>
+                            <div className="grid grid-cols-3 gap-2">
+                              {[
+                                { id: 'circle', label: 'Circle' },
+                                { id: 'rounded', label: 'Rounded' },
+                                { id: 'square', label: 'Square' }
+                              ].map(style => (
+                                <button
+                                  key={style.id}
+                                  type="button"
+                                  onClick={() => setNewSectorNode({ ...newSectorNode, logo_style: style.id as any })}
+                                  className={`px-3 py-3 rounded-lg border text-[10px] uppercase tracking-widest font-bold text-center ${
+                                    newSectorNode.logo_style === style.id
+                                      ? 'bg-black text-[#FFE01A] border-black'
+                                      : 'bg-uh-gray-50 text-uh-gray-400 border-uh-gray-100 hover:border-uh-gray-300'
+                                  }`}
+                                >
+                                  {style.label}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          {/* 16:9 Cover URL / Upload */}
+                          <div className="space-y-2">
+                            <label className="text-[9px] text-[#999] tracking-widest uppercase block text-uh-gray-400">Cover Banner Image (16:9)</label>
+                            <div className="flex gap-2">
+                              <input
+                                type="text"
+                                placeholder="Image URL..."
+                                className="flex-grow bg-uh-gray-50 border border-uh-gray-100 rounded-xl px-3 py-2 text-[11px] font-bold focus:border-uh-yellow outline-none"
+                                value={newSectorNode.cover_image_url}
+                                onChange={e => setNewSectorNode({ ...newSectorNode, cover_image_url: e.target.value })}
+                              />
+                              <label className="cursor-pointer px-3 bg-black hover:bg-black/85 text-[#FFE01A] rounded-xl text-[9px] font-black uppercase tracking-widest transition-all text-center flex items-center justify-center min-w-[75px] h-10">
+                                {uploadingStatus['cover_image_url'] ? (
+                                  <RefreshCw size={12} className="animate-spin" />
+                                ) : (
+                                  <span>Upload</span>
+                                )}
+                                <input
+                                  type="file"
+                                  accept="image/*"
+                                  className="hidden"
+                                  onChange={e => handleSectorNodeFileUpload(e, 'cover_image_url')}
+                                />
+                              </label>
+                            </div>
+                          </div>
+
+                          {/* Logo URL / Upload */}
+                          <div className="space-y-2">
+                            <label className="text-[9px] text-[#999] tracking-widest uppercase block text-uh-gray-400">Hub Badge Logo Overlay</label>
+                            <div className="flex gap-2">
+                              <input
+                                type="text"
+                                placeholder="Logo URL..."
+                                className="flex-grow bg-uh-gray-50 border border-uh-gray-100 rounded-xl px-3 py-2 text-[11px] font-bold focus:border-uh-yellow outline-none"
+                                value={newSectorNode.logo_url}
+                                onChange={e => setNewSectorNode({ ...newSectorNode, logo_url: e.target.value })}
+                              />
+                              <label className="cursor-pointer px-3 bg-black hover:bg-black/85 text-[#FFE01A] rounded-xl text-[9px] font-black uppercase tracking-widest transition-all text-center flex items-center justify-center min-w-[75px] h-10">
+                                {uploadingStatus['logo_url'] ? (
+                                  <RefreshCw size={12} className="animate-spin" />
+                                ) : (
+                                  <span>Upload</span>
+                                )}
+                                <input
+                                  type="file"
+                                  accept="image/*"
+                                  className="hidden"
+                                  onChange={e => handleSectorNodeFileUpload(e, 'logo_url')}
+                                />
+                              </label>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Custom Color Accent Selection */}
+                        <div>
+                          <label className="text-[9px] text-[#999] tracking-widest uppercase mb-2 block font-bold text-black">Branding Custom Color Override</label>
+                          <div className="flex items-center gap-3 h-12">
+                            {[
+                              { hex: '#FFE01A', label: 'YELLOW' },
+                              { hex: '#1D4ED8', label: 'BLUE' },
+                              { hex: '#10B981', label: 'GREEN' },
+                              { hex: '#8B5CF6', label: 'PURPLE' },
+                              { hex: '#EF4444', label: 'RED' }
+                            ].map(col => (
+                              <button
+                                key={col.hex}
+                                type="button"
+                                title={col.label}
+                                onClick={() => setNewSectorNode({...newSectorNode, partner_accent: col.hex})}
+                                className={`w-9 h-9 rounded-full border-2 transition-transform hover:scale-110 flex items-center justify-center ${newSectorNode.partner_accent === col.hex ? 'border-black scale-110 shadow-md' : 'border-transparent'}`}
+                                style={{ backgroundColor: col.hex }}
+                              >
+                                {newSectorNode.partner_accent === col.hex && (
+                                  <span className="w-2.5 h-2.5 bg-black rounded-full" />
+                                )}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Section 3: Narrative Field "Why This Place Matters" */}
+                      <div className="bg-white border border-uh-gray-100 rounded-2xl p-6 shadow-sm space-y-4">
+                        <span className="text-[9px] font-black tracking-[0.2em] text-[#FFE01A] uppercase block border-b border-uh-gray-50 pb-2">03 · NARRATIVE CAPABILITIES</span>
+                        <div>
+                          <div className="flex justify-between items-center mb-1.5">
+                            <label className="text-[9px] text-[#999] tracking-widest uppercase block">Why this Place Matters (500 limit)</label>
+                            <span className="text-[8px] font-mono text-uh-gray-400">{(newSectorNode.why_it_matters || '').length} / 500</span>
+                          </div>
+                          <textarea
+                            rows={4}
+                            maxLength={500}
+                            className="w-full bg-uh-gray-50 border border-uh-gray-100 rounded-xl px-4 py-3 text-[12px] font-bold focus:border-uh-yellow outline-none resize-none"
+                            placeholder='e.g. "Where historic OTR brickwork frames modern local experiences, bringing the neighborhood together over outstanding coffee and conversations."'
+                            value={newSectorNode.why_it_matters}
+                            onChange={e => setNewSectorNode({...newSectorNode, why_it_matters: e.target.value})}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Section 4: Station History & Partner Stories */}
+                      <div className="bg-white border border-uh-gray-100 rounded-2xl p-6 shadow-sm space-y-4">
+                        <span className="text-[9px] font-black tracking-[0.2em] text-[#FFE01A] uppercase block border-b border-uh-gray-50 pb-2">04 · STATION HISTORY & PARTNER STORIES</span>
+                        <div className="space-y-4">
+                          <div className="space-y-1">
+                            <label className="text-[9px] text-[#999] tracking-widest uppercase block text-uh-gray-400">Founder / Partner Photo URL</label>
+                            <div className="flex gap-2">
+                              <input
+                                type="text"
+                                placeholder="Founder photo URL..."
+                                className="flex-grow bg-uh-gray-50 border border-uh-gray-100 rounded-xl px-3 py-2 text-[11px] font-bold focus:border-uh-yellow outline-none"
+                                value={newSectorNode.founder_photo_url}
+                                onChange={e => setNewSectorNode({ ...newSectorNode, founder_photo_url: e.target.value })}
+                              />
+                              <label className="cursor-pointer px-3 bg-black hover:bg-black/85 text-[#FFE01A] rounded-xl text-[9px] font-black uppercase tracking-widest transition-all text-center flex items-center justify-center min-w-[75px] h-10">
+                                {uploadingStatus['founder_photo_url'] ? (
+                                  <RefreshCw size={12} className="animate-spin" />
+                                ) : (
+                                  <span>Upload</span>
+                                )}
+                                <input
+                                  type="file"
+                                  accept="image/*"
+                                  className="hidden"
+                                  onChange={e => handleSectorNodeFileUpload(e, 'founder_photo_url')}
+                                />
+                              </label>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                              <label className="text-[9px] text-[#999] tracking-widest uppercase mb-1.5 block">Founder Story Narrative</label>
+                              <textarea
+                                rows={3}
+                                className="w-full bg-uh-gray-50 border border-uh-gray-100 rounded-xl px-3 py-2 text-[11px] font-bold focus:border-uh-yellow outline-none resize-none"
+                                placeholder="..."
+                                value={newSectorNode.founder_story}
+                                onChange={e => setNewSectorNode({...newSectorNode, founder_story: e.target.value})}
+                              />
+                            </div>
+                            <div>
+                              <label className="text-[9px] text-[#999] tracking-widest uppercase mb-1.5 block">Building & Location Legacy</label>
+                              <textarea
+                                rows={3}
+                                className="w-full bg-uh-gray-50 border border-uh-gray-100 rounded-xl px-3 py-2 text-[11px] font-bold focus:border-uh-yellow outline-none resize-none"
+                                placeholder="..."
+                                value={newSectorNode.business_history}
+                                onChange={e => setNewSectorNode({...newSectorNode, business_history: e.target.value})}
+                              />
+                            </div>
+                            <div>
+                              <label className="text-[9px] text-[#999] tracking-widest uppercase mb-1.5 block">Community / Local Impact</label>
+                              <textarea
+                                rows={3}
+                                className="w-full bg-uh-gray-50 border border-uh-gray-100 rounded-xl px-3 py-2 text-[11px] font-bold focus:border-uh-yellow outline-none resize-none"
+                                placeholder="..."
+                                value={newSectorNode.community_impact}
+                                onChange={e => setNewSectorNode({...newSectorNode, community_impact: e.target.value})}
+                              />
+                            </div>
+                            <div>
+                              <label className="text-[9px] text-[#999] tracking-widest uppercase mb-1.5 block">Recommended Local Experience</label>
+                              <textarea
+                                rows={3}
+                                className="w-full bg-uh-gray-50 border border-uh-gray-100 rounded-xl px-3 py-2 text-[11px] font-bold focus:border-uh-yellow outline-none resize-none"
+                                placeholder="..."
+                                value={newSectorNode.recommended_experience}
+                                onChange={e => setNewSectorNode({...newSectorNode, recommended_experience: e.target.value})}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Section 5: Custom Rewards */}
+                      <div className="bg-white border border-uh-gray-100 rounded-2xl p-6 shadow-sm space-y-4">
+                        <span className="text-[9px] font-black tracking-[0.2em] text-[#FFE01A] uppercase block border-b border-uh-gray-50 pb-2">05 · CUSTOM STATION CO-REWARDS</span>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <label className="text-[9px] text-[#999] tracking-widest uppercase mb-2 block font-bold text-black">Preset Co-Rewards select</label>
+                            <div className="flex flex-col gap-1.5">
+                              {[
+                                '☕ Free Coffee after Check-in',
+                                '🥐 Free Baked Pastry on NFC Tap',
+                                '🎟️ Free Entry Walk Event Ticket',
+                                '📖 Secret OTR Story Unlock',
+                                '🎖️ Neighborhood Trailfinder Badge'
+                              ].map(tem => (
+                                <button
+                                  key={tem}
+                                  type="button"
+                                  onClick={() => setNewSectorNode({...newSectorNode, custom_reward: tem})}
+                                  className={`px-3 py-2 text-left rounded-lg text-[10px] font-bold border transition-all ${
+                                    newSectorNode.custom_reward === tem
+                                      ? 'bg-black text-[#FFE01A] border-black'
+                                      : 'bg-uh-gray-50 text-uh-gray-500 border-uh-gray-100 hover:border-uh-gray-200'
+                                  }`}
+                                >
+                                  {tem}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+
+                          <div>
+                            <label className="text-[9px] text-[#999] tracking-widest uppercase mb-2 block font-bold text-black font-sans">Custom Reward Text</label>
+                            <textarea
+                              rows={5}
+                              className="w-full bg-uh-gray-50 border border-uh-gray-100 rounded-xl px-3 py-2 text-[11px] font-bold focus:border-uh-yellow outline-none resize-none"
+                              placeholder="Describe customized rewards, pass offerings, or special local deals walkers unlock..."
+                              value={newSectorNode.custom_reward}
+                              onChange={e => setNewSectorNode({...newSectorNode, custom_reward: e.target.value})}
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Section 6: Community Transit Metrics */}
+                      <div className="bg-white border border-uh-gray-100 rounded-2xl p-6 shadow-sm space-y-4">
+                        <span className="text-[9px] font-black tracking-[0.2em] text-[#FFE01A] uppercase block border-b border-uh-gray-50 pb-2">06 · COMMUNITY METRICS INTEGRATION</span>
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                          <div>
+                            <label className="text-[8px] text-[#999] tracking-widest uppercase mb-1.5 block">Total Walkers</label>
+                            <input
+                              type="number"
+                              className="w-full bg-uh-gray-50 border border-uh-gray-100 rounded-xl px-3 py-2 text-[11px] font-bold focus:border-uh-yellow outline-none"
+                              value={newSectorNode.metric_walkers}
+                              onChange={e => setNewSectorNode({ ...newSectorNode, metric_walkers: parseInt(e.target.value) || 0 })}
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[8px] text-[#999] tracking-widest uppercase mb-1.5 block">Total Visits</label>
+                            <input
+                              type="number"
+                              className="w-full bg-uh-gray-50 border border-uh-gray-100 rounded-xl px-3 py-2 text-[11px] font-bold focus:border-uh-yellow outline-none"
+                              value={newSectorNode.metric_visits}
+                              onChange={e => setNewSectorNode({ ...newSectorNode, metric_visits: parseInt(e.target.value) || 0 })}
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[8px] text-[#999] tracking-widest uppercase mb-1.5 block">Events Hosted</label>
+                            <input
+                              type="number"
+                              className="w-full bg-uh-gray-50 border border-uh-gray-100 rounded-xl px-3 py-2 text-[11px] font-bold focus:border-uh-yellow outline-none"
+                              value={newSectorNode.metric_events}
+                              onChange={e => setNewSectorNode({ ...newSectorNode, metric_events: parseInt(e.target.value) || 0 })}
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[8px] text-[#999] tracking-widest uppercase mb-1.5 block font-mono animate-none">Miles Walked</label>
+                            <input
+                              type="number"
+                              className="w-full bg-uh-gray-50 border border-uh-gray-100 rounded-xl px-3 py-2 text-[11px] font-bold focus:border-uh-yellow outline-none"
+                              value={newSectorNode.metric_miles}
+                              onChange={e => setNewSectorNode({ ...newSectorNode, metric_miles: parseInt(e.target.value) || 0 })}
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[8px] text-[#999] tracking-widest uppercase mb-1.5 block">Conversations Shared</label>
+                            <input
+                              type="number"
+                              className="w-full bg-uh-gray-50 border border-uh-gray-100 rounded-xl px-3 py-2 text-[11px] font-bold focus:border-uh-yellow outline-none"
+                              value={newSectorNode.metric_conversations}
+                              onChange={e => setNewSectorNode({ ...newSectorNode, metric_conversations: parseInt(e.target.value) || 0 })}
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[8px] text-[#999] tracking-widest uppercase mb-1.5 block font-mono">Stories Documented</label>
+                            <input
+                              type="number"
+                              className="w-full bg-uh-gray-50 border border-uh-gray-100 rounded-xl px-3 py-2 text-[11px] font-bold focus:border-uh-yellow outline-none"
+                              value={newSectorNode.metric_stories}
+                              onChange={e => setNewSectorNode({ ...newSectorNode, metric_stories: parseInt(e.target.value) || 0 })}
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Section 7: Co-Branding Partner Recognition */}
+                      <div className="bg-white border border-uh-gray-100 rounded-2xl p-6 shadow-sm space-y-4">
+                        <span className="text-[9px] font-black tracking-[0.2em] text-[#FFE01A] uppercase block border-b border-uh-gray-50 pb-2">07 · CO-BRAND PARTNER RECOGNITION TRAY</span>
+                        <div className="grid grid-cols-1 gap-3 text-left">
+                          {/* Sponsor logo */}
+                          <div className="space-y-1">
+                            <label className="text-[8px] text-[#999] tracking-widest uppercase block">Sponsor Logo URL (Optional)</label>
+                            <input
+                              type="text"
+                              className="w-full bg-uh-gray-50 border border-uh-gray-100 rounded-xl px-3 py-2 text-[11px] font-bold focus:border-uh-yellow outline-none"
+                              value={newSectorNode.sponsor_logo_url}
+                              onChange={e => setNewSectorNode({ ...newSectorNode, sponsor_logo_url: e.target.value })}
+                              placeholder="URL path to sponsor logo"
+                            />
+                          </div>
+                          {/* Partner logo */}
+                          <div className="space-y-1">
+                            <label className="text-[8px] text-[#999] tracking-widest uppercase block">Station Partner Logo URL (Optional)</label>
+                            <input
+                              type="text"
+                              className="w-full bg-uh-gray-50 border border-uh-gray-100 rounded-xl px-3 py-2 text-[11px] font-bold focus:border-uh-yellow outline-none"
+                              value={newSectorNode.partner_logo_url}
+                              onChange={e => setNewSectorNode({ ...newSectorNode, partner_logo_url: e.target.value })}
+                              placeholder="URL path to partner logo"
+                            />
+                          </div>
+                          {/* Community logo */}
+                          <div className="space-y-1">
+                            <label className="text-[8px] text-[#999] tracking-widest uppercase block animate-none">Community Hub Logo URL (Optional)</label>
+                            <input
+                              type="text"
+                              className="w-full bg-uh-gray-50 border border-uh-gray-100 rounded-xl px-3 py-2 text-[11px] font-bold focus:border-uh-yellow outline-none"
+                              value={newSectorNode.community_logo_url}
+                              onChange={e => setNewSectorNode({ ...newSectorNode, community_logo_url: e.target.value })}
+                              placeholder="URL path to community alliance logo"
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Section 8: Station Graphic Gallery */}
+                      <div className="bg-white border border-uh-gray-100 rounded-2xl p-6 shadow-sm space-y-4">
+                        <span className="text-[9px] font-black tracking-[0.2em] text-[#FFE01A] uppercase block border-b border-uh-gray-50 pb-2">08 · STATION GRAPHICS GALLERY (UP TO 8)</span>
+                        <div className="space-y-4">
+                          <div className="flex items-center justify-between">
+                            <label className="text-[9px] text-[#999] tracking-widest uppercase block">Add Gallery Photos ({newSectorNode.gallery_urls?.length || 0} / 8)</label>
+                            <label className="cursor-pointer px-4 py-2 bg-black hover:bg-black/85 text-[#FFE01A] text-[9px] font-black uppercase tracking-widest rounded-xl">
+                              {uploadingStatus['gallery_urls'] ? 'Uploading...' : 'Upload Photos'}
+                              <input
+                                type="file"
+                                multiple
+                                accept="image/*"
+                                className="hidden"
+                                onChange={e => handleSectorNodeFileUpload(e, 'gallery_urls')}
+                                disabled={uploadingStatus['gallery_urls'] || (newSectorNode.gallery_urls?.length || 0) >= 8}
+                              />
+                            </label>
+                          </div>
+
+                          {newSectorNode.gallery_urls && newSectorNode.gallery_urls.length > 0 && (
+                            <div className="grid grid-cols-4 gap-2 pt-2 animate-in fade-in">
+                              {newSectorNode.gallery_urls.map((url, i) => (
+                                <div key={url} className="relative group aspect-square rounded-xl overflow-hidden border border-[#eaeaea]">
+                                  <img src={url} className="w-full h-full object-cover" />
+                                  <button
+                                    type="button"
+                                    onClick={() => setNewSectorNode({
+                                      ...newSectorNode,
+                                      gallery_urls: newSectorNode.gallery_urls.filter((_, idx) => idx !== i)
+                                    })}
+                                    className="absolute inset-0 bg-rose-600/80 text-white flex items-center justify-center text-[9px] uppercase font-black tracking-widest opacity-0 group-hover:opacity-100 transition-opacity"
+                                  >
+                                    Delete
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Action buttons list */}
+                      <div className="flex gap-4 pt-4">
+                        <button 
+                          onClick={handleAddSectorNode}
+                          className="flex-1 py-4 bg-black text-[#FFE01A] text-[10px] font-black tracking-widest uppercase rounded-2xl hover:scale-[1.01] active:scale-[0.98] transition-all shadow-lg font-sans"
+                        >
+                          {editingNodeId ? '💾 Save Hub Changes' : '✨ Confirm Destination Builders'}
+                        </button>
+                        <button 
+                          type="button"
+                          onClick={() => {
+                            setShowAddSectorNode(false);
+                            setEditingNodeId(null);
+                          }}
+                          className="px-6 bg-uh-gray-50 text-uh-gray-500 border border-uh-gray-200 text-[10px] font-black tracking-widest uppercase rounded-2xl hover:bg-uh-gray-100 transition-all font-sans"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Live Mobile Phone Device Column (Sticky!) */}
+                    <div className="lg:col-span-5 lg:sticky lg:top-8 self-start flex flex-col items-center">
+                      <span className="text-[9px] font-black tracking-widest uppercase text-uh-gray-400 mb-4 block">LIVE PREVIEW SIMULATOR</span>
+                      
+                      {/* Interactive mock smartphone framework */}
+                      <div className="w-[316px] h-[640px] bg-black rounded-[48px] p-3 shadow-2xl relative border-[6px] border-[#222] overflow-hidden flex flex-col">
+                        {/* Device Notch Speaker Capsule */}
+                        <div className="absolute top-0 left-1/2 -translate-x-1/2 h-5 w-28 bg-black rounded-b-xl z-[60] flex items-center justify-center gap-1.5 pointer-events-none">
+                          <div className="w-8 h-0.5 bg-[#2a2a2a] rounded-full" />
+                          <div className="w-1.5 h-1.5 bg-[#1f1f1f] rounded-full" />
+                        </div>
+
+                        {/* Mobile Screen Container */}
+                        <div className={`flex-1 rounded-[36px] overflow-y-auto overflow-x-hidden flex flex-col relative text-[11px] font-sans select-none scrollbar-none pb-8
+                          ${newSectorNode.theme_mode === 'dark' ? 'bg-[#0a0a0a] text-white' : 'bg-white text-uh-black'}`}
+                        >
+                          {/* Responsive Cover Background image container */}
+                          <div className="absolute inset-x-0 top-0 h-[190px] pointer-events-none z-0">
+                            {newSectorNode.cover_image_url ? (
+                              <img src={newSectorNode.cover_image_url} className="w-full h-full object-cover" />
+                            ) : (
+                              <div className="w-full h-full bg-gradient-to-br from-[#1c1c1c] to-[#222]" />
+                            )}
+                            <div className="absolute inset-0 pointer-events-none" 
+                                 style={{
+                                   backgroundImage: newSectorNode.theme_mode === 'dark' 
+                                     ? 'linear-gradient(to top, #0a0a0a, rgba(10,10,10,0.3) 75%, rgba(0,0,0,0.2))'
+                                     : 'linear-gradient(to top, #ffffff, rgba(255,255,255,0.3) 75%, rgba(0,0,0,0.2))'
+                                 }}
+                            />
+                          </div>
+
+                          {/* Top Status Indicators line */}
+                          <div className="px-5 pt-3 pb-1 flex justify-between items-center text-[8px] font-black text-white/80 z-50 pointer-events-none">
+                            <span>12:26 UTC</span>
+                            <div className="flex items-center gap-1 opacity-70">
+                              <Wifi size={8} />
+                              <span className="font-mono text-[7px]">PRESENCE_HUB</span>
+                            </div>
+                          </div>
+
+                          {/* Overlaying badge layout */}
+                          <div className="px-5 pt-20 pb-3 flex flex-col relative z-20">
+                            <div className="flex items-end gap-3.5 mb-2">
+                              <div 
+                                className={`w-12 h-12 bg-uh-black flex items-center justify-center p-1 text-[10px] font-black border-2
+                                  ${newSectorNode.logo_style === 'rounded' ? 'rounded-2xl' : newSectorNode.logo_style === 'square' ? 'rounded-sm' : 'rounded-full'}`}
+                                style={{ borderColor: newSectorNode.partner_accent || '#FFE01A' }}
+                              >
+                                {newSectorNode.logo_url ? (
+                                  <img src={newSectorNode.logo_url} className="w-full h-full object-cover rounded-inherit" />
+                                ) : (
+                                  <span style={{ color: newSectorNode.partner_accent || '#FFE01A' }}>
+                                    {newSectorNode.partner_initials || (newSectorNode.name ? newSectorNode.name.slice(0, 2).toUpperCase() : 'AP')}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="pb-0.5">
+                                <span className="px-1.5 py-0.5 rounded text-[6.5px] font-black uppercase text-black" style={{ backgroundColor: newSectorNode.partner_accent || '#FFE01A' }}>
+                                  {newSectorNode.partner_type ? newSectorNode.partner_type.replace('_', ' ').toUpperCase() : 'WALK HQ'}
+                                </span>
+                                <p className="text-[7.5px] leading-tight text-white/60 font-semibold mt-0.5">VERIFIED SATELLITE</p>
+                              </div>
+                            </div>
+
+                            {/* Hub Name text block */}
+                            <h1 className="text-base font-black uppercase tracking-tight leading-none text-white truncate max-w-[240px]">
+                              {newSectorNode.name ? newSectorNode.name.replace(/_HUB/g, '').replace(/_/g, ' ') : 'ALPHA PLAZA'}
+                            </h1>
+                            <p className="text-[9px] text-white/70 font-semibold font-mono truncate">
+                              {newSectorNode.address || 'Over-the-Rhine, Cincinnati, OH'}
+                            </p>
+                            {newSectorNode.hub_tagline && (
+                              <p className="text-[8.5px] text-white/50 italic mt-1 leading-normal max-w-[200px] line-clamp-2">
+                                "{newSectorNode.hub_tagline}"
+                              </p>
+                            )}
+                          </div>
+
+                          {/* Signal validation banner bar */}
+                          <div className={`px-4 py-1.5 border-y flex items-center justify-between text-[7px] font-semibold tracking-widest z-10
+                            ${newSectorNode.theme_mode === 'dark' ? 'border-white/5 bg-white/5 text-white/50' : 'border-uh-black/5 bg-uh-black/5 text-uh-black/50'}`}
+                          >
+                            <div className="flex items-center gap-1">
+                              <span className="w-1 h-1 rounded-full animate-pulse" style={{ backgroundColor: newSectorNode.partner_accent || '#FFE01A' }} />
+                              <span>SATELLITE BEACON: ACTIVE</span>
+                            </div>
+                            <span style={{ color: newSectorNode.partner_accent || '#FFE01A' }}>+50 XP ON DISCOVERY</span>
+                          </div>
+
+                          {/* Viewport Core Feed List */}
+                          <div className="p-4 space-y-4 relative z-10">
+                            {/* Why This Place Matters Card */}
+                            {newSectorNode.why_it_matters && (
+                              <div className={`p-3 rounded-xl border-l-2 text-[9px] leading-snug
+                                ${newSectorNode.theme_mode === 'dark' ? 'bg-white/5 border-white/10 text-white/80' : 'bg-[#fafafa] border-uh-black/10 text-uh-black/80'}`}
+                                style={{ borderLeftColor: newSectorNode.partner_accent || '#FFE01A' }}
+                              >
+                                <span className="text-[6.5px] font-black uppercase tracking-[0.2em] opacity-40 block mb-0.5">WHY THIS PLACE MATTERS</span>
+                                <p className="italic">"{newSectorNode.why_it_matters}"</p>
+                              </div>
+                            )}
+
+                            {/* Reordered card list: Events, Walkers, History, Map */}
+                            <div className="grid grid-cols-2 gap-2">
+                              {/* 1. Events (Primary Top Left) */}
+                              <div className="p-2 w-full rounded-xl border flex flex-col justify-between h-16 bg-black/35 text-white animate-none"
+                                   style={{ borderColor: `${newSectorNode.partner_accent || '#FFE01A'}22` }}
+                              >
+                                <Calendar size={10} className="text-uh-yellow" style={{ color: newSectorNode.partner_accent }} />
+                                <div>
+                                  <p className="font-bold text-[8px] uppercase tracking-wide leading-none text-white">Events</p>
+                                  <p className="text-[6px] font-mono tracking-widest mt-0.5 text-uh-yellow uppercase" style={{ color: newSectorNode.partner_accent }}>3 DEPARTURES</p>
+                                </div>
+                              </div>
+
+                              {/* 2. Walkers (Primary Top Right) */}
+                              <div className="p-2 w-full rounded-xl border flex flex-col justify-between h-16 bg-black/35 text-white"
+                                   style={{ borderColor: `${newSectorNode.partner_accent || '#FFE01A'}22` }}
+                              >
+                                <Users size={10} className="text-white/60" />
+                                <div>
+                                  <p className="font-bold text-[8px] uppercase tracking-wide leading-none text-white">Walkers</p>
+                                  <p className="text-[6px] text-white/40 uppercase tracking-widest mt-0.5">8 RESIDENT</p>
+                                </div>
+                              </div>
+
+                              {/* 3. History (Secondary Bottom Left) */}
+                              <div className={`p-2 w-full rounded-xl border flex flex-col justify-between h-16
+                                ${newSectorNode.theme_mode === 'dark' ? 'bg-[#111] border-white/5 text-white' : 'bg-uh-gray-50 border-uh-gray-100 text-uh-black'}`}
+                              >
+                                <BookOpen size={10} className="opacity-60" />
+                                <div>
+                                  <p className="font-bold text-[8px] uppercase tracking-wide leading-none">History</p>
+                                  <p className="text-[6px] opacity-40 uppercase tracking-widest mt-0.5 font-mono">STATION TALES</p>
+                                </div>
+                              </div>
+
+                              {/* 4. City Map (Secondary Bottom Right) */}
+                              <div className={`p-2 w-full rounded-xl border flex flex-col justify-between h-16
+                                ${newSectorNode.theme_mode === 'dark' ? 'bg-[#111] border-white/5 text-white' : 'bg-uh-gray-50 border-uh-gray-100 text-uh-black'}`}
+                              >
+                                <Map size={10} className="opacity-60" />
+                                <div>
+                                  <p className="font-bold text-[8px] uppercase tracking-wide leading-none">City Map</p>
+                                  <p className="text-[6px] opacity-40 uppercase tracking-widest mt-0.5 font-mono">SECTOR_LOCATOR</p>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Rewards Ticket Pass block */}
+                            {newSectorNode.custom_reward && (
+                              <div className={`p-3 rounded-xl border flex items-center justify-between text-left relative overflow-hidden transition-all
+                                ${newSectorNode.theme_mode === 'dark' ? 'bg-white/5 border-white/10 text-white' : 'bg-[#fafafa] border-uh-black/10 text-uh-black'}`}
+                                style={{ borderColor: `${newSectorNode.partner_accent || '#FFE01A'}44` }}
+                              >
+                                <div className="flex items-center gap-2">
+                                  <div className="w-6 h-6 rounded-full flex items-center justify-center text-black shadow bg-uh-yellow"
+                                       style={{ backgroundColor: newSectorNode.partner_accent || '#FFE01A' }}
+                                  >
+                                    <Star size={10} className="fill-black" />
+                                  </div>
+                                  <div className="max-w-[170px]">
+                                    <h4 className="text-[8px] font-black uppercase tracking-tight">TAP_REWARD_PASS</h4>
+                                    <p className="text-[7px] uppercase mt-0.5 font-bold tracking-wider opacity-75 truncate">
+                                      {newSectorNode.custom_reward}
+                                    </p>
+                                  </div>
+                                </div>
+                                <span className="text-[10px] font-black text-emerald-500 font-mono">+25XP</span>
+                              </div>
+                            )}
+
+                            {/* Community stats grid */}
+                            <div className={`p-3 rounded-xl space-y-2 text-left transition-all
+                              ${newSectorNode.theme_mode === 'dark' ? 'bg-[#141414] border border-white/5' : 'bg-[#fafafa] border border-uh-black/5'}`}
+                            >
+                              <span className="text-[6.5px] font-black tracking-[0.15em] opacity-40 uppercase block font-sans">NETWORK METRIC SYSTEM</span>
+                              <div className="grid grid-cols-3 gap-1">
+                                <div className="text-center">
+                                  <span className="text-[11px] font-black block leading-none" style={{ color: newSectorNode.partner_accent || '#FFE01A' }}>{newSectorNode.metric_walkers}</span>
+                                  <span className="text-[6px] text-uh-gray-400 font-mono block mt-1">WALKERS</span>
+                                </div>
+                                <div className="text-center border-x border-uh-gray-100/10">
+                                  <span className="text-[11px] font-black block leading-none" style={{ color: newSectorNode.partner_accent || '#FFE01A' }}>{newSectorNode.metric_miles}</span>
+                                  <span className="text-[6px] text-uh-gray-400 font-mono block mt-1">MILES</span>
+                                </div>
+                                <div className="text-center">
+                                  <span className="text-[11px] font-black block leading-none" style={{ color: newSectorNode.partner_accent || '#FFE01A' }}>{newSectorNode.metric_visits}</span>
+                                  <span className="text-[6px] text-uh-gray-400 font-mono block mt-1 font-sans">TAP_COUNT</span>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Additional Gallery */}
+                            {newSectorNode.gallery_urls && newSectorNode.gallery_urls.length > 0 && (
+                              <div className="space-y-1 text-left">
+                                <span className="text-[6.5px] font-black tracking-[0.15em] opacity-40 uppercase block">STATION SNAPSHOTS</span>
+                                <div className="flex gap-1 overflow-x-auto pb-1 scrollbar-none">
+                                  {newSectorNode.gallery_urls.map(imgU => (
+                                    <img key={imgU} src={imgU} className="w-14 h-10 object-cover rounded bg-black flex-shrink-0" />
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Founder Section */}
+                            {(newSectorNode.founder_story || newSectorNode.business_history) && (
+                              <div className={`p-3 rounded-xl text-left space-y-2
+                                ${newSectorNode.theme_mode === 'dark' ? 'bg-[#141414] border border-white/5' : 'bg-[#fafafa] border border-uh-black/5'}`}
+                              >
+                                <span className="text-[6.5px] font-black tracking-[0.15em] opacity-40 uppercase block">STATION_HERITAGE</span>
+                                {newSectorNode.founder_photo_url && (
+                                  <div className="flex items-center gap-2">
+                                    <img src={newSectorNode.founder_photo_url} className="w-6 h-6 rounded-full object-cover border" style={{ borderColor: newSectorNode.partner_accent }} />
+                                    <span className="text-[7.5px] font-black uppercase text-white/90">FOUNDER PROFILE</span>
+                                  </div>
+                                )}
+                                {newSectorNode.founder_story && (
+                                  <p className="text-[8px] opacity-70 leading-relaxed font-semibold">"{newSectorNode.founder_story.slice(0, 75)}..."</p>
+                                )}
+                              </div>
+                            )}
+
+                            {/* Recognition alliances tray */}
+                            {(newSectorNode.sponsor_logo_url || newSectorNode.partner_logo_url || newSectorNode.community_logo_url) && (
+                              <div className="pt-2 border-t border-uh-gray-100/10 text-center space-y-1.5 pointer-events-none">
+                                <span className="text-[6px] font-mono tracking-widest uppercase opacity-45 block">verified alliances</span>
+                                <div className="flex justify-center items-center gap-3 h-4">
+                                  {newSectorNode.sponsor_logo_url && <img src={newSectorNode.sponsor_logo_url} className="h-full max-w-[30px] object-contain opacity-60 filter invert" />}
+                                  {newSectorNode.partner_logo_url && <img src={newSectorNode.partner_logo_url} className="h-full max-w-[30px] object-contain opacity-60 filter invert" />}
+                                  {newSectorNode.community_logo_url && <img src={newSectorNode.community_logo_url} className="h-full max-w-[30px] object-contain opacity-60 filter invert" />}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               )}
               
               <div className="grid grid-cols-1 gap-4">
                 {nodes?.sort((a,b) => a.name.localeCompare(b.name)).map(node => (
-                  <div key={node.id} className="bg-white border border-[#e0e0e0] rounded-xl p-6 flex justify-between items-center group hover:border-[#FFE01A] transition-all">
-                    <div className="flex gap-6 items-center">
-                      <div className="w-12 h-12 rounded-lg bg-black flex items-center justify-center text-[#FFE01A] font-black text-xs">
-                        {node.name.slice(0, 2).toUpperCase()}
+                  <div key={node.id} className="bg-white border border-[#e0e0e0] rounded-xl p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 group hover:border-[#FFE01A] transition-all">
+                    <div className="flex gap-4 items-center">
+                      <div 
+                        className={`w-12 h-12 bg-black flex items-center justify-center p-1 font-black text-xs border-2
+                          ${node.logo_style === 'rounded' ? 'rounded-xl' : node.logo_style === 'square' ? 'rounded-md' : 'rounded-full'}`}
+                        style={{ borderColor: node.partner_accent || '#FFE01A', color: node.partner_accent || '#FFE01A' }}
+                      >
+                        {node.logo_url ? (
+                          <img src={node.logo_url} className="w-full h-full object-cover rounded-inherit" referrerPolicy="no-referrer" />
+                        ) : (
+                          <span>{node.partner_initials || node.name.slice(0, 2).toUpperCase()}</span>
+                        )}
                       </div>
                       <div>
-                        <div className="text-[12px] font-bold uppercase mb-1">{node.name}</div>
-                        <div className="text-[10px] font-mono text-[#999] mb-1">{node.address}</div>
-                        <div className="font-mono text-[9px] text-uh-gray-400 truncate max-w-[200px]"
+                        <div className="flex items-center gap-2">
+                          <span className="text-[12px] font-bold uppercase">{node.name.replace(/_/g, ' ')}</span>
+                          <span className="px-1.5 py-0.5 rounded text-[7px] font-black uppercase text-black" style={{ backgroundColor: node.partner_accent || '#FFE01A' }}>
+                            {node.partner_type ? node.partner_type.replace('_', ' ').toUpperCase() : 'STREET'}
+                          </span>
+                        </div>
+                        <div className="text-[10px] font-mono text-[#999] mt-0.5">{node.address || 'No address registered'}</div>
+                        <div className="font-mono text-[9px] text-uh-gray-400 mt-0.5 truncate max-w-[200px]"
                              title={`${BASE_URL}/tap/${node.id}`}>
                           /tap/{node.id}
                         </div>
                       </div>
                     </div>
                     
-                    <div className="flex gap-2 items-center">
+                    <div className="flex flex-wrap gap-2 items-center w-full md:w-auto">
                       <button
                         onClick={() => {
                           const url = `${BASE_URL}/tap/${node.id}`;
@@ -1137,7 +1983,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, userProfile, nodes, 
                         }}
                         className="flex items-center gap-1.5 px-3 py-2 border border-uh-gray-200 
                                    text-uh-gray-600 hover:border-uh-black hover:text-uh-black 
-                                   transition-all text-[9px] font-black tracking-widest uppercase"
+                                   transition-all text-[9px] font-black tracking-widest uppercase rounded-lg"
                       >
                         Copy URL
                       </button>
@@ -1148,7 +1994,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, userProfile, nodes, 
                         rel="noopener noreferrer"
                         className="flex items-center gap-1.5 px-3 py-2 border border-uh-gray-200 
                                    text-uh-gray-600 hover:border-uh-black hover:text-uh-black 
-                                   transition-all text-[9px] font-black tracking-widest uppercase"
+                                   transition-all text-[9px] font-black tracking-widest uppercase rounded-lg"
                       >
                         Visit
                       </a>
@@ -1157,15 +2003,64 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, userProfile, nodes, 
                         onClick={() => setPreviewNodeId(node.id)}
                         className="flex items-center gap-1.5 px-3 py-2 bg-uh-yellow text-uh-black 
                                    hover:bg-yellow-400 transition-all text-[9px] font-black 
-                                   tracking-widest uppercase"
+                                   tracking-widest uppercase rounded-lg"
                       >
                         Preview
+                      </button>
+
+                      {/* Brand Edit Button */}
+                      <button
+                        onClick={() => {
+                          setNewSectorNode({
+                            name: node.name || '',
+                            address: node.address || '',
+                            latitude: node.latitude || 39.1092,
+                            longitude: node.longitude || -84.5125,
+                            radius_limit: node.radius_limit || 4828,
+                            type: node.type || 'street' as any,
+                            partner_name: node.partner_name || '',
+                            partner_type: (node.partner_type || 'walk_hq') as any,
+                            partner_initials: node.partner_initials || '',
+                            partner_accent: node.partner_accent || '#FFE01A',
+                            hub_tagline: node.hub_tagline || '',
+                            cover_image_url: node.cover_image_url || '',
+                            logo_url: node.logo_url || '',
+                            gallery_urls: node.gallery_urls || [],
+                            founder_photo_url: node.founder_photo_url || '',
+                            theme_mode: node.theme_mode || 'light',
+                            logo_style: node.logo_style || 'circle',
+                            why_it_matters: node.why_it_matters || '',
+                            founder_story: node.founder_story || '',
+                            business_history: node.business_history || '',
+                            community_impact: node.community_impact || '',
+                            recommended_experience: node.recommended_experience || '',
+                            custom_reward: node.custom_reward || '☕ Free Coffee on Check-in',
+                            metric_walkers: node.metric_walkers || 1422,
+                            metric_visits: node.metric_visits || 4210,
+                            metric_events: node.metric_events || 127,
+                            metric_miles: node.metric_miles || 8442,
+                            metric_conversations: node.metric_conversations || 340,
+                            metric_stories: node.metric_stories || 85,
+                            partner_logo_url: node.partner_logo_url || '',
+                            sponsor_logo_url: node.sponsor_logo_url || '',
+                            community_logo_url: node.community_logo_url || ''
+                          });
+                          setEditingNodeId(node.id);
+                          setShowAddSectorNode(true);
+                          setTimeout(() => {
+                            document.getElementById('sector-builder-container')?.scrollIntoView({ behavior: 'smooth' });
+                          }, 100);
+                        }}
+                        className="flex items-center gap-1.5 px-3 py-2 border border-black text-black hover:bg-black hover:text-[#FFE01A] transition-all text-[9px] font-black tracking-widest uppercase rounded-lg"
+                      >
+                        Edit Brand
                       </button>
 
                       {isSuperAdmin && (
                         <button 
                           onClick={() => handleDeleteSectorNode(node.id, node.name)}
-                          className="p-3 text-rose-500 hover:bg-rose-50 hover:text-rose-600 rounded-lg transition-colors"
+                          className="p-2 text-rose-500 hover:bg-rose-50 hover:text-rose-600 rounded-lg transition-colors ml-auto md:ml-0"
+                          title="Erase Sector Node"
                         >
                           <Trash2 size={14} />
                         </button>
