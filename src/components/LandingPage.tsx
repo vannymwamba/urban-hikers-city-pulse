@@ -4,7 +4,6 @@ import { motion, AnimatePresence } from 'motion/react';
 import { db } from '../firebase';
 import { collection, query, where, orderBy, limit, onSnapshot, Timestamp } from 'firebase/firestore';
 import { MapPin, Thermometer, Zap, Terminal, Layers, Globe, Search } from 'lucide-react';
-import { TapJourneyGraphic } from './TapJourneyGraphic';
 
 interface LandingPageProps {
   onLogin: () => void;
@@ -432,58 +431,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             72°
           </div>
         </aside>
-
-        {/* BOTTOM GLASS PANEL */}
-        <footer className="w-full max-w-5xl mx-auto bg-[rgba(18,18,15,0.66)] backdrop-blur-md border border-[#232320] p-4 md:p-5 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-          <div className="flex flex-col gap-1">
-            <div className="text-[11px] font-bold tracking-[0.2em] text-[#F7F7F2]">
-              DYNAMIC TAP VECTOR & JOURNEY TRACER
-            </div>
-            <div className="text-[9px] font-normal tracking-[0.14em] text-[#8E8E85] normal-case">
-              Differentiating NFC proximity wave taps, QR laser scans, and Direct beacons along city trails.
-            </div>
-          </div>
-
-          <div className="flex items-center bg-[#0A0A08]/80 border border-[#232320] p-1 gap-1 shrink-0 w-full md:w-auto">
-            <button 
-              onClick={() => setActiveVectorMode('nfc')}
-              className={`flex-1 md:flex-none text-[9px] font-bold tracking-[0.18em] px-3.5 py-2 cursor-pointer transition-all ${
-                activeVectorMode === 'nfc'
-                  ? 'bg-[#F5E306] text-[#0A0A08] shadow-[0_0_12px_rgba(245,227,6,0.3)]'
-                  : 'text-[#8E8E85] bg-transparent hover:text-white'
-              }`}
-            >
-              NFC WAVE
-            </button>
-
-            <button 
-              onClick={() => setActiveVectorMode('qr')}
-              className={`flex-1 md:flex-none text-[9px] font-bold tracking-[0.18em] px-3.5 py-2 cursor-pointer transition-all ${
-                activeVectorMode === 'qr'
-                  ? 'bg-[#F5E306] text-[#0A0A08] shadow-[0_0_12px_rgba(245,227,6,0.3)]'
-                  : 'text-[#8E8E85] bg-transparent hover:text-white'
-              }`}
-            >
-              QR LASER
-            </button>
-
-            <button 
-              onClick={() => setActiveVectorMode('direct')}
-              className={`flex-1 md:flex-none text-[9px] font-bold tracking-[0.18em] px-3.5 py-2 cursor-pointer transition-all ${
-                activeVectorMode === 'direct'
-                  ? 'bg-[#F5E306] text-[#0A0A08] shadow-[0_0_12px_rgba(245,227,6,0.3)]'
-                  : 'text-[#8E8E85] bg-transparent hover:text-white'
-              }`}
-            >
-              DIRECT
-            </button>
-          </div>
-        </footer>
-
-        {/* TAP JOURNEY GRAPHIC COMPONENT */}
-        <div className="w-full max-w-5xl mx-auto my-4">
-          <TapJourneyGraphic />
-        </div>
 
       </div>
     </div>

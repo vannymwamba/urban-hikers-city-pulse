@@ -17,8 +17,8 @@
 import axios from 'axios';
 import * as cheerio from 'cheerio';
 import crypto from 'crypto';
-import admin from 'firebase-admin';
-import { getFirestore, FieldValue, Timestamp } from 'firebase-admin/firestore';
+import { initializeApp } from 'firebase/app';
+import { getFirestore, serverTimestamp, Timestamp, writeBatch, collection, getDocs, doc, addDoc, query, where, limit, setDoc } from 'firebase/firestore';
 import { GoogleGenAI } from '@google/genai';
 import dotenv from 'dotenv';
 
@@ -35,7 +35,7 @@ const LIBRARY_FALLBACK_IMAGE =
   'https://cincinnatilibrary.bibliocommons.com/events/uploads/images/full/86624327f9dd8f925da4e06c95462492/events-cooking-food.png';
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
-let db: admin.firestore.Firestore;
+let db: any;
 let ai: GoogleGenAI;
 
 function initServices() {
@@ -45,10 +45,16 @@ function initServices() {
 
   ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
-  if (!admin.apps.length) {
-    admin.initializeApp({ projectId: PROJECT_ID });
+    try {
+    const configPath = path.join(process.cwd(), 'firebase-applet-config.json');
+    if (fs.existsSync(configPath)) {
+      const firebaseConfig = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+      const app = initializeApp(firebaseConfig);
+      db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+    }
+  } catch (e) {
+    console.error("Failed to init Firebase Client SDK:", e);
   }
-  db = getFirestore(DATABASE_ID);
   console.log(`✅ Services initialized. DB: ${DATABASE_ID}, Model: ${GEMINI_MODEL}`);
 }
 
@@ -380,10 +386,7 @@ Return JSON ONLY — no markdown, no preamble. Schema:
 
 // ─── Firestore write ──────────────────────────────────────────────────────────
 async function upsertBroadcast(event: RawEvent, enriched: EnrichedData): Promise<'written' | 'skipped'> {
-  const existing = await db.collection('broadcasts')
-    .where('sourceHash', '==', event.sourceHash)
-    .limit(1)
-    .get();
+  const existing = await getDocs(query(collection(db, 'broadcasts'), where('sourceHash', '==', event.sourceHash), limit(1)));
 
   if (!existing.empty) return 'skipped';
 
@@ -443,12 +446,12 @@ async function upsertBroadcast(event: RawEvent, enriched: EnrichedData): Promise
     taps:        0,
 
     // ── Metadata ──────────────────────────────────────
-    ingestedAt: FieldValue.serverTimestamp(),
-    updatedAt:  FieldValue.serverTimestamp(),
-    created_at: FieldValue.serverTimestamp(),
+    ingestedAt: serverTimestamp(),
+    updatedAt:  serverTimestamp(),
+    created_at: serverTimestamp(),
   };
 
-  await db.collection('broadcasts').doc(event.sourceHash).set(doc, { merge: true });
+  await setDoc(doc(db, 'broadcasts', event.sourceHash), docData, { merge: true });
   return 'written';
 }
 
@@ -473,7 +476,7 @@ async function runDiagnostic() {
 
   console.log('🔍 [2/4] Testing Firestore...');
   try {
-    const snap = await db.collection('nodes').limit(1).get();
+    const snap = await getDocs(query(collection(db, 'nodes'), limit(1)));
     console.log(`✅ Firestore OK (${snap.size} node(s) found)\n`);
   } catch (err) {
     console.error('❌ Firestore unreachable:', err);
@@ -508,7 +511,7 @@ async function runDiagnostic() {
       console.log(`  ⚙️  Processing: "${event.title}" [${event.source}]`);
       const enriched = await enrichEvent(event);
 
-      await new Promise(r => setTimeout(r, 300));
+      await new Promise(r => setTimeout(r, 15000));
 
       const result = await upsertBroadcast(event, enriched);
       if (result === 'written') {
@@ -540,7 +543,7 @@ export async function runFixedCivicIngestion() {
   for (const event of events) {
     try {
       const enriched = await enrichEvent(event);
-      await new Promise(r => setTimeout(r, 300));
+      await new Promise(r => setTimeout(r, 15000));
       const result = await upsertBroadcast(event, enriched);
       result === 'written' ? written++ : skipped++;
     } catch { errors++; }
@@ -555,7 +558,7 @@ export async function runFixedLibraryIngestion() {
   for (const event of events) {
     try {
       const enriched = await enrichEvent(event);
-      await new Promise(r => setTimeout(r, 300));
+      await new Promise(r => setTimeout(r, 15000));
       const result = await upsertBroadcast(event, enriched);
       result === 'written' ? written++ : skipped++;
     } catch { errors++; }

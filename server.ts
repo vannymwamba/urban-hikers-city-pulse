@@ -5,8 +5,8 @@ import { fileURLToPath } from "url";
 import cors from "cors";
 import Stripe from "stripe";
 import { createCanvas, loadImage } from "canvas";
-import admin from "firebase-admin";
-import { getFirestore, FieldValue } from "firebase-admin/firestore";
+import { initializeApp } from "firebase/app";
+import { getFirestore, serverTimestamp, collection, addDoc, getDocs, limit, query } from "firebase/firestore";
 import dotenv from "dotenv";
 import fs from "fs";
 import { Client } from "@googlemaps/google-maps-services-js";
@@ -100,19 +100,12 @@ async function startServer() {
       const projectId = firebaseConfig.projectId || "gen-lang-client-0752567409";
       const databaseId = firebaseConfig.firestoreDatabaseId || 'ai-studio-8d3a18ac-9f60-480e-8200-f9f5e01c389a';
 
-      if (!admin.apps.length) {
-        console.log(`[FIREBASE] Initializing Admin SDK with project: ${projectId}`);
-        admin.initializeApp({
-          projectId: projectId
-        });
-      }
-
-      console.log(`[FIREBASE] Connecting to Firestore Instance: ${databaseId}`);
-      db = getFirestore(databaseId);
+            const app = initializeApp(firebaseConfig);
+      db = getFirestore(app, databaseId);
       
       // Quick test to verify connectivity and permissions
       try {
-        const testSnapshot = await db.collection('nodes').limit(1).get();
+        const testSnapshot = await getDocs(query(collection(db, 'nodes'), limit(1)));
         console.log(`[FIREBASE] Admin connectivity verified for DB: ${databaseId}. Found ${testSnapshot.size} nodes.`);
       } catch (testError: any) {
         console.error(`[FIREBASE] Connection test failed for DB ${databaseId}:`, testError);
@@ -538,7 +531,7 @@ async function startServer() {
         scope: scope || 'single_hub',
         payment_type: payment_type || 'free',
         price: parseFloat(price) || 0,
-        created_at: FieldValue.serverTimestamp(),
+        created_at: serverTimestamp(),
       };
 
       if (performanceType === 'walking_event' && walk_details) {
@@ -756,7 +749,7 @@ async function startServer() {
           scope: payload.scope || 'single_hub',
           payment_type: payload.payment_type || 'free',
           price: payload.price || 0,
-          created_at: FieldValue.serverTimestamp(),
+          created_at: serverTimestamp(),
           stripe_session_id: sessionId
         };
 
@@ -788,7 +781,7 @@ async function startServer() {
             broadcastId,
             status: 'confirmed',
             paid_amount: session.amount_total / 100,
-            created_at: FieldValue.serverTimestamp(),
+            created_at: serverTimestamp(),
             stripe_session_id: sessionId
           });
         });

@@ -188,6 +188,16 @@ const seedData = async () => {
       console.log(`SPONSOR_INITIALIZED: ${sponsor.id}`);
     }
 
+    // Seed Global Sponsors
+    const globalSponsorsConfig = {
+      hero: { name: 'ArtsWave', logoUrl: '', link: 'https://artswave.org' },
+      wayfinding: { name: 'Kroger', logoUrl: 'https://picsum.photos/seed/kroger/200/200', link: 'https://kroger.com' },
+      lostAndFound: { name: 'Medpace', logoUrl: 'https://picsum.photos/seed/medpace/200/200', link: 'https://medpace.com' },
+      footer: { name: 'City of Cincinnati', logoUrl: '', link: 'https://cincinnati-oh.gov' }
+    };
+    await setDoc(doc(db, 'globalSponsors', 'config'), globalSponsorsConfig);
+    console.log('GLOBAL_SPONSORS_INITIALIZED');
+
     // Seed Broadcasts
     const broadcasts = [
       {

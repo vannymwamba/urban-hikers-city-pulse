@@ -15,7 +15,6 @@ import { BroadcastType } from '../types';
 import { PulseDropStrip } from './PulseDropStrip';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebase';
-import { TapJourneyGraphic } from './TapJourneyGraphic';
 
 interface DepartureBoardProps {
   nodeName: string;
@@ -680,11 +679,6 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
                       </button>
 
                     </div>
-                  </div>
-
-                  {/* Tap Journey & Vector Dynamics Graphic */}
-                  <div>
-                    <TapJourneyGraphic />
                   </div>
 
                   {/* Reward Section */}

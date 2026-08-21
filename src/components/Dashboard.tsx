@@ -5,13 +5,15 @@ import { db, auth, storage } from '../firebase';
 import { Broadcast, Node, Partner, UserProfile, BroadcastType, Tap, VibeReport, TabView, Interaction, LocalHub } from '../types';
 import { BroadcastControlForm } from './BroadcastControlForm';
 import { handleFirestoreError, OperationType } from '../utils/firebaseErrors';
-import { RefreshCw, Trash2, Plus, Layout, Users, Activity, LogOut, Shield, Database, BarChart2, Radio, MapPin, Zap, Loader2, Upload, Calendar, BookOpen, Wifi, Star, Map, ShieldCheck } from 'lucide-react';
+import { RefreshCw, Trash2, Plus, Layout, Users, Activity, LogOut, Shield, Database, BarChart2, Radio, MapPin, Zap, Loader2, Upload, Calendar, BookOpen, Wifi, Star, Map, ShieldCheck, Palette } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useMapsLibrary } from '@vis.gl/react-google-maps';
 import { OverviewPanel } from './OverviewPanel';
 import { SystemHealthPanel } from './SystemHealthPanel';
 import { LiveTicker } from './LiveTicker';
 import { NfcNodeHeatmap } from './NfcNodeHeatmap';
+import { AdminArtistsPanel } from './AdminArtistsPanel';
+import { AdminGlobalSponsorsPanel } from './AdminGlobalSponsorsPanel';
 import { BASE_URL } from '../constants';
 import { parseAnyTimestamp } from '../utils/dateUtils';
 
@@ -34,7 +36,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, userProfile, nodes, 
   const [listenerHealth, setListenerHealth] = useState<Record<string, { count: number; lastUpdate: Date }>>({});
   const [systemHealth, setSystemHealth] = useState<{ firebase: 'ok' | 'degraded'; swActive: boolean }>({ firebase: 'ok', swActive: false });
 
-  const [activeTab, setActiveTab] = useState<'overview' | 'broadcasts' | 'partners' | 'hubs' | 'analytics' | 'system'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'broadcasts' | 'partners' | 'hubs' | 'analytics' | 'system' | 'artists'>('overview');
   const [loading, setLoading] = useState(true);
   const [hudMessage, setHudMessage] = useState<{ text: string; type: 'info' | 'error' } | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -600,6 +602,22 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, userProfile, nodes, 
             )}
             {isAdmin && (
               <button 
+                onClick={() => setActiveTab('artists')}
+                className={`px-5 py-2 text-[10px] font-bold tracking-widest uppercase rounded-full transition-all flex items-center gap-2 ${activeTab === 'artists' ? 'bg-black text-[#FFE01A]' : 'text-uh-gray-400 bg-white border border-uh-gray-100 hover:border-uh-yellow hover:text-uh-black'}`}
+              >
+                <Palette size={12} /> Artists
+              </button>
+            )}
+            {isAdmin && (
+              <button 
+                onClick={() => setActiveTab('global_sponsors')}
+                className={`px-5 py-2 text-[10px] font-bold tracking-widest uppercase rounded-full transition-all flex items-center gap-2 ${activeTab === 'global_sponsors' ? 'bg-black text-[#FFE01A]' : 'text-uh-gray-400 bg-white border border-uh-gray-100 hover:border-uh-yellow hover:text-uh-black'}`}
+              >
+                <Star size={12} /> Sponsors
+              </button>
+            )}
+            {isAdmin && (
+              <button 
                 onClick={() => setActiveTab('analytics')}
                 className={`px-5 py-2 text-[10px] font-bold tracking-widest uppercase rounded-full transition-all flex items-center gap-2 ${activeTab === 'analytics' ? 'bg-black text-[#FFE01A]' : 'text-uh-gray-400 bg-white border border-uh-gray-100 hover:border-uh-yellow hover:text-uh-black'}`}
               >
@@ -633,6 +651,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, userProfile, nodes, 
             nodes={nodes}
             systemStatus={systemHealth.firebase}
           />
+        )}
+
+        {activeTab === 'artists' && isAdmin && (
+          <AdminArtistsPanel setHudMessage={setHudMessage} />
+        )}
+
+        {activeTab === 'global_sponsors' && isAdmin && (
+          <AdminGlobalSponsorsPanel setHudMessage={setHudMessage} />
         )}
 
         {activeTab === 'system' && isSuperAdmin && (

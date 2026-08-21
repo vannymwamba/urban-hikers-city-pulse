@@ -1,8 +1,10 @@
+import seedData from "./seed";
+import { completeEmailLinkIfPresent } from "./utils/identityUpgrade";
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { auth, db, finalDbId } from './firebase';
 import { signInWithPopup, signInAnonymously, GoogleAuthProvider, onAuthStateChanged, User } from 'firebase/auth';
-import { useLocation, Routes, Route } from 'react-router-dom';
-import { collection, onSnapshot, query, where, addDoc, doc, getDoc, setDoc, getDocs, orderBy, getDocFromServer, updateDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
+import { useLocation, Routes, Route, useNavigate } from 'react-router-dom';
+import { collection, onSnapshot, query, where, addDoc, doc, getDoc, setDoc, getDocs, orderBy, getDocFromServer, updateDoc, serverTimestamp, Timestamp, limit } from 'firebase/firestore';
 import { Node, Broadcast, Vibe, UserProfile, UserRole, Partner, BroadcastType, LocalHub } from './types';
 import { BASE_URL } from './constants';
 import { DepartureBoard } from './components/DepartureBoard';
@@ -21,10 +23,12 @@ import { CheckoutCancel } from './components/CheckoutCancel';
 import { SponsorForm, SponsorSuccess, SponsorCancelled } from './components/SponsorForm';
 import { SignalPage } from './pages/SignalPage';
 import { WrapPage } from './pages/WrapPage';
+import { ArtistNfcPage } from './pages/ArtistNfcPage';
+import { LostFoundHub } from './pages/LostFoundHub';
 import MuralNodeAdmin from './components/MuralNodeAdmin';
 import { PartnerHeader, SignatureWalk, PartnerLogo } from './components/PartnerHeader';
+import { KeepYourNightModal } from './components/KeepYourNightModal';
 import PartnerOnboarding from './pages/admin/PartnerOnboarding';
-import seedData from './seed';
 import { getDistance } from './utils/geo';
 import { handleFirestoreError, OperationType } from './utils/firebaseErrors';
 import { toMs, isNotExpired } from './utils/timeUtils';
@@ -157,7 +161,7 @@ function broadcastMatchesHub(
   return false;
 }
 
-export default function App() {
+function AppRouter() {
   const [user, setUser] = useState<User | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [currentNode, setCurrentNode] = useState<Node | null>(null);
@@ -199,6 +203,7 @@ export default function App() {
     return localStorage.getItem('uh_consent_v1.0') === 'true';
   });
   const [isConsentModalOpen, setIsConsentModalOpen] = useState(false);
+  const [isKeepModalOpen, setIsKeepModalOpen] = useState(false);
   const [pendingTapVector, setPendingTapVector] = useState<'nfc' | 'qr' | 'direct' | null>(null);
 
   const [loading, setLoading] = useState(true);
@@ -218,7 +223,9 @@ export default function App() {
   const isLogin = pathParts.includes('login');
   const isMuralAdmin = pathParts.includes('admin') && pathParts.includes('mural');
   const isSignal = pathParts[0] === 'signal' && pathParts[1];
+  const isArtist = pathParts[0] === 'artist' && pathParts[1];
   const isWrap = pathParts[0] === 'wrap' && pathParts[1];
+  const isLostFoundHub = pathParts[0] === 'lost-and-found';
   const broadcastIdFromSignal = isSignal ? pathParts[1] : null;
   const tapIndex = pathParts.indexOf('tap');
   const creatorIndex = pathParts.indexOf('creator');
@@ -322,6 +329,12 @@ export default function App() {
           sponsor_id: activeSponsor?.partner_id || null
         }).catch(err => console.error("Error tracking wallet save:", err));
 
+        // Keep-your-night nudge: value-first, once per session, anonymous only
+        if (auth.currentUser?.isAnonymous && !sessionStorage.getItem('uh_keep_prompted')) {
+          sessionStorage.setItem('uh_keep_prompted', 'true');
+          setTimeout(() => setIsKeepModalOpen(true), 900); // let the save land first
+        }
+
         return [...prev, node];
       }
     });
@@ -377,6 +390,13 @@ export default function App() {
     };
     window.addEventListener('popstate', handleLocationChange);
     return () => window.removeEventListener('popstate', handleLocationChange);
+  }, []);
+
+  useEffect(() => {
+    completeEmailLinkIfPresent()
+      .then(p => { if (p) { setUserProfile(p); setIsKeepModalOpen(false);
+        window.history.replaceState({}, '', window.location.pathname); } })
+      .catch(err => console.warn('email-link completion skipped:', err?.message || err));
   }, []);
 
   useEffect(() => {
@@ -1601,6 +1621,26 @@ export default function App() {
     );
   }
 
+  if (isArtist) {
+    return (
+      <ErrorBoundary>
+        <Routes>
+          <Route path="/artist/:artistSlug" element={<ArtistNfcPage />} />
+        </Routes>
+      </ErrorBoundary>
+    );
+  }
+
+  if (isLostFoundHub) {
+    return (
+      <ErrorBoundary>
+        <Routes>
+          <Route path="/lost-and-found" element={<LostFoundHub />} />
+        </Routes>
+      </ErrorBoundary>
+    );
+  }
+
   if (!hasValidMapsKey && isDashboard) {
     return (
       <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100vh',fontFamily:'sans-serif', backgroundColor: '#0a0a0a', color: '#fff'}}>
@@ -1728,6 +1768,12 @@ export default function App() {
           onClose={() => setIsConsentModalOpen(false)}
         />
 
+        <KeepYourNightModal
+          isOpen={isKeepModalOpen}
+          onClose={() => setIsKeepModalOpen(false)}
+          onUpgraded={(p) => setUserProfile(p)}
+        />
+
         <NfcSuccessOverlay
           isOpen={isNfcOverlayOpen}
           onClose={() => setIsNfcOverlayOpen(false)}
@@ -1752,5 +1798,90 @@ export default function App() {
       </div>
     </ErrorBoundary>
     </APIProvider>
+  );
+}
+
+function GlobalNotificationIndicator() {
+  const navigate = useNavigate();
+  const [hasNewActivity, setHasNewActivity] = useState(false);
+
+  useEffect(() => {
+    // 1. Get last visit timestamp
+    const lastVisitStr = localStorage.getItem('last_visit_timestamp');
+    const lastVisit = lastVisitStr ? parseInt(lastVisitStr, 10) : Date.now();
+    
+    if (!lastVisitStr) {
+      localStorage.setItem('last_visit_timestamp', Date.now().toString());
+    }
+
+    let latestVibeTime = 0;
+    let latestLfTime = 0;
+
+    const checkActivity = () => {
+      const maxTime = Math.max(latestVibeTime, latestLfTime);
+      if (maxTime > lastVisit) {
+        setHasNewActivity(true);
+      } else {
+        setHasNewActivity(false);
+      }
+    };
+
+    // Listen to latest vibe
+    const qVibes = query(collection(db, 'vibe_reports'), orderBy('timestamp', 'desc'), limit(1));
+    const unsubVibes = onSnapshot(qVibes, (snap) => {
+      if (!snap.empty) {
+        const doc = snap.docs[0];
+        const data = doc.data();
+        const ts = data.timestamp?.toMillis ? data.timestamp.toMillis() : 0;
+        latestVibeTime = ts;
+        checkActivity();
+      }
+    });
+
+    // Listen to latest lost & found
+    const qLf = query(collection(db, 'lost_found'), orderBy('reportedAt', 'desc'), limit(1));
+    const unsubLf = onSnapshot(qLf, (snap) => {
+      if (!snap.empty) {
+        const doc = snap.docs[0];
+        const data = doc.data();
+        const ts = data.reportedAt?.toMillis ? data.reportedAt.toMillis() : 0;
+        latestLfTime = ts;
+        checkActivity();
+      }
+    });
+
+    return () => {
+      unsubVibes();
+      unsubLf();
+    };
+  }, []);
+
+  if (!hasNewActivity) return null;
+
+  return (
+    <div className="fixed top-0 left-0 right-0 z-[9999] pointer-events-none flex justify-center mt-3">
+      <button
+        onClick={() => {
+          localStorage.setItem('last_visit_timestamp', Date.now().toString());
+          setHasNewActivity(false);
+          navigate('/lost-and-found');
+        }}
+        className="bg-[#E24A3B] text-white px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-widest shadow-2xl pointer-events-auto flex items-center gap-2 hover:scale-105 transition-transform"
+      >
+        <div className="w-2 h-2 rounded-full bg-white animate-pulse" />
+        New Activity Detected
+      </button>
+    </div>
+  );
+}
+
+import { GlobalSponsorsProvider } from './contexts/GlobalSponsorsContext';
+
+export default function App() {
+  return (
+    <GlobalSponsorsProvider>
+      <GlobalNotificationIndicator />
+      <AppRouter />
+    </GlobalSponsorsProvider>
   );
 }

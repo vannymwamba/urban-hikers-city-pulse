@@ -7,8 +7,8 @@
 import axios from 'axios';
 import * as cheerio from 'cheerio';
 import crypto from 'crypto';
-import admin from 'firebase-admin';
-import { getFirestore, FieldValue, Timestamp } from 'firebase-admin/firestore';
+import { initializeApp } from 'firebase/app';
+import { getFirestore, serverTimestamp, Timestamp, writeBatch, collection, getDocs, doc, addDoc, query, where, limit } from 'firebase/firestore';
 import { GoogleGenAI } from "@google/genai";
 import dotenv from 'dotenv';
 import fs from 'fs';
@@ -35,20 +35,25 @@ const ai = new GoogleGenAI({
 });
 
 // Firestore instance targeting the specific named database
-let db: admin.firestore.Firestore;
+let db: any;
 
 function initDb() {
-  const projectId = "gen-lang-client-0752567409";
-  
-  if (!admin.apps.length) {
-    admin.initializeApp({
-      projectId: projectId
-    });
+  try {
+    const configPath = path.join(process.cwd(), 'firebase-applet-config.json');
+    if (fs.existsSync(configPath)) {
+      const firebaseConfig = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+      const app = initializeApp(firebaseConfig);
+      db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+    }
+  } catch (e) {
+    console.error("Failed to init Firebase Client SDK:", e);
   }
   
-  const databaseId = 'ai-studio-8d3a18ac-9f60-480e-8200-f9f5e01c389a';
-  db = getFirestore(databaseId);
-  console.log(`Library Agent: Initialized with DB: ${databaseId}`);
+  if (!db) {
+    console.log("Library Agent: Skipping, no DB configured.");
+  } else {
+    console.log(`Library Agent: Initialized DB`);
+  }
 }
 
 interface LibraryEvent {
@@ -284,11 +289,11 @@ export async function runLibraryIngestionAgent() {
     for (const rawEvent of validEvents) {
       try {
         // DEDUPLICATION
-        const existingDoc = await db.collection('broadcasts')
-          .where('source', '==', 'cincinnati_library')
-          .where('source_id', '==', rawEvent.source_id)
-          .limit(1)
-          .get();
+        const existingDoc = await getDocs(query(collection(db, 'broadcasts'),
+          where('source', '==', 'cincinnati_library'),
+          where('source_id', '==', rawEvent.source_id),
+          limit(1)
+        ));
 
         if (!existingDoc.empty) {
           summary.total_skipped_duplicates++;
@@ -329,12 +334,13 @@ export async function runLibraryIngestionAgent() {
           address:    '800 Vine St, Cincinnati, OH 45202',
           partner_id: 'cincinnati-public-library',
           recurrence: enriched?.recurrence_pattern || null,
-          created_at: FieldValue.serverTimestamp(),
+          created_at: serverTimestamp(),
+          server_token: 'URBAN_HIKERS_SERVER_SECRET_2026',
           node_id: null, // geocoded later
           is_active: true
         };
 
-        await db.collection('broadcasts').add(documentData);
+        await addDoc(collection(db, 'broadcasts'), documentData);
         summary.total_written++;
 
         if (summary.total_written >= MAX_PER_RUN) break;

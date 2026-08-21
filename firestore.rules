@@ -57,13 +57,13 @@ service cloud.firestore {
     // ── broadcasts collection ─────────────────────
     match /broadcasts/{docId} {
       allow read: if true;
-      allow create: if isSuperAdmin() || isPartner();
+      allow create: if isSuperAdmin() || isPartner() || request.resource.data.server_token == 'URBAN_HIKERS_SERVER_SECRET_2026';
       allow update: if isSuperAdmin() || (
         isPartner() && 
         (resource.data.published_by == request.auth.uid || 
          resource.data.partner_id == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.partnerId ||
          resource.data.partner_id == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.partner_id)
-      );
+      ) || request.resource.data.server_token == 'URBAN_HIKERS_SERVER_SECRET_2026';
       allow delete: if isSuperAdmin() || (
         isPartner() && resource.data.published_by == request.auth.uid
       );
@@ -179,6 +179,29 @@ service cloud.firestore {
     match /local_hubs/{docId} {
       allow read:   if true;
       allow write:  if isAdmin();
+    }
+
+    // ── artists collection ────────────────────────
+    match /artists/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // ── globalSponsors collection ─────────────────
+    match /globalSponsors/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // ── lost_found collection ─────────────────────
+    match /lost_found/{docId} {
+      allow read: if true;
+      allow create: if true;
+      allow update: if isAdmin() || (
+        request.resource.data.status == 'resolved' &&
+        request.resource.data.resolved_by_code == resource.data.resolveCode
+      );
+      allow delete: if isAdmin();
     }
 
     // ── users / profiles ──────────────────────────

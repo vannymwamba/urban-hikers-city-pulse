@@ -7,12 +7,13 @@
 import axios from 'axios';
 import * as cheerio from 'cheerio';
 import crypto from 'crypto';
-import admin from 'firebase-admin';
-import { getFirestore, FieldValue } from 'firebase-admin/firestore';
+import { initializeApp } from 'firebase/app';
+import { getFirestore, serverTimestamp, Timestamp, writeBatch, collection, getDocs, doc, addDoc } from 'firebase/firestore';
 import { Client } from "@googlemaps/google-maps-services-js";
 import { GoogleGenAI } from "@google/genai";
 import dotenv from 'dotenv';
 import fs from 'fs';
+import path from 'path';
 import { fetchAndProcessCHPLEvents } from '../shared/chplIngestion.ts';
 
 dotenv.config();
@@ -27,7 +28,7 @@ const ai = new GoogleGenAI({
   }
 });
 
-import { Timestamp } from 'firebase-admin/firestore';
+
 
 function parseCivicDate(dateStr: string | null): Date | null {
   if (!dateStr) return null;
@@ -332,14 +333,14 @@ function haversineMeters(lat1: number, lon1: number, lat2: number, lon2: number)
 async function findAllHubsInRadius(
   lat: number,
   lng: number,
-  db: admin.firestore.Firestore,
+  db: any,
   maxMeters = 4828  // 3 miles
 ): Promise<{ node_id: string | null; node_ids: string[] }> {
   if (!lat || !lng) return { node_id: null, node_ids: [] }
 
   // Use cached nodes if available
   if (!cachedNodes) {
-    const snap = await db.collection('nodes').get()
+    const snap = await getDocs(collection(db, 'nodes'));
     cachedNodes = snap.docs.map(d => ({
       id: d.id,
       ...d.data()
@@ -372,7 +373,7 @@ function toFirestoreTimestamp(val: string | null, fallback: Date): Timestamp {
   return isNaN(d.getTime()) ? Timestamp.fromDate(fallback) : Timestamp.fromDate(d)
 }
 
-async function writeEventToFirestore(event: RawEvent, enriched: EnrichedEvent, hubMatch: { node_id: string | null, node_ids: string[] }, db: admin.firestore.Firestore, batch: admin.firestore.WriteBatch) {
+async function writeEventToFirestore(event: RawEvent, enriched: EnrichedEvent, hubMatch: { node_id: string | null, node_ids: string[] }, db: any, batch: any) {
   // Skip if event has already ended
   const expiresMs = new Date(event.expires_at).getTime()
   if (expiresMs < Date.now()) {
@@ -440,29 +441,37 @@ async function writeEventToFirestore(event: RawEvent, enriched: EnrichedEvent, h
     taps:                 0,
 
     // ── Metadata ─────────────────────────────
-    ingestedAt:           FieldValue.serverTimestamp(),
-    updatedAt:            FieldValue.serverTimestamp(),
+    ingestedAt:           serverTimestamp(),
+    updatedAt:            serverTimestamp(),
+    server_token:         'URBAN_HIKERS_SERVER_SECRET_2026'
   }
 
   // Doc ID = sourceHash (MD5 of title + date + source)
   // merge:true → update if exists, create if new
-  batch.set(db.collection('broadcasts').doc(event.sourceHash), eventData, { merge: true })
+  batch.set(doc(db, 'broadcasts', event.sourceHash), eventData, { merge: true })
 }
 
 export async function runCivicIngestionEngine() {
   console.log("Civic Ingestion Engine: Starting...");
   
-  const projectId = "gen-lang-client-0752567409";
-
-  if (!admin.apps.length) {
-    admin.initializeApp({
-      projectId: projectId
-    });
+  let db: any = null;
+  try {
+    const configPath = path.join(process.cwd(), 'firebase-applet-config.json');
+    if (fs.existsSync(configPath)) {
+      const firebaseConfig = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+      const app = initializeApp(firebaseConfig);
+      db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+    }
+  } catch (e) {
+    console.error("Failed to init Firebase Client SDK:", e);
   }
-
-  const databaseId = 'ai-studio-8d3a18ac-9f60-480e-8200-f9f5e01c389a';
-  const db = getFirestore(databaseId);
-  console.log(`Civic Ingestion Engine: Using database ${databaseId}`);
+  
+  if (!db) {
+    console.log("Civic Ingestion Engine: Skipping, no DB configured.");
+    return;
+  }
+  
+  console.log(`Civic Ingestion Engine: Using database.`);
   
   const [visitCincyRaw, chplRaw] = await Promise.all([
     fetchVisitCincyEvents(),
@@ -475,7 +484,7 @@ export async function runCivicIngestionEngine() {
   let visitCincyCount = 0;
   let chplCount = 0;
   let errorCount = 0;
-  let batch = db.batch();
+  let batch = writeBatch(db);
   let batchCount = 0;
 
   for (const event of allRawEvents) {
@@ -506,7 +515,7 @@ export async function runCivicIngestionEngine() {
 
       // 2. AI Enrichment
       const enriched = await enrichEventWithAI(event);
-      await new Promise(resolve => setTimeout(resolve, 200)); // Rate limit
+      await new Promise(resolve => setTimeout(resolve, 15000)); // Rate limit
 
       // 3. Node Matching
       const hubMatch = await findAllHubsInRadius(event.latitude, event.longitude, db);
@@ -521,7 +530,7 @@ export async function runCivicIngestionEngine() {
 
       if (batchCount >= 400) {
         await batch.commit();
-        batch = db.batch();
+        batch = writeBatch(db);
         batchCount = 0;
       }
     } catch (err) {
@@ -537,7 +546,7 @@ export async function runCivicIngestionEngine() {
   console.log(`Civic Ingestion Engine: Complete. VisitCincy: ${visitCincyCount}, CHPL: ${chplCount}, Errors: ${errorCount}`);
   
   const syncResult = {
-    timestamp: FieldValue.serverTimestamp(),
+    timestamp: serverTimestamp(),
     visitCincy: visitCincyCount,
     chpl: chplCount,
     total: visitCincyCount + chplCount,
@@ -546,7 +555,7 @@ export async function runCivicIngestionEngine() {
   };
 
   try {
-    await db.collection('sync_logs').add(syncResult);
+    await addDoc(collection(db, 'sync_logs'), syncResult);
   } catch (e) {
     console.error("Failed to write sync log:", e);
   }

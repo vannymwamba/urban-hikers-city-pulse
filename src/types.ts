@@ -335,3 +335,66 @@ export interface Booking {
   created_at?: any;
   error?: string;
 }
+
+export interface LostFoundReport {
+  id: string;
+  node_id: string;
+  type: 'lost' | 'found';
+  category: string;
+  description: string;
+  location: string;
+  contact: string;
+  publicContact: boolean;
+  status: 'open' | 'resolved';
+  resolveCode: string;
+  reportedAt: any; // Firestore Timestamp
+}
+
+export type DisplaySponsor = {
+  name: string;
+  logoUrl: string;
+  link: string;
+} | null;
+
+export interface GlobalSponsors {
+  hero?: DisplaySponsor;
+  wayfinding?: DisplaySponsor;
+  lostAndFound?: DisplaySponsor;
+  footer?: DisplaySponsor;
+}
+
+export interface Artist {
+  id?: string;
+  artist_name: string;
+  blink_artist_url: string;
+  cover_art_url: string;
+  nfc_destination: string;
+  instagram_url: string;
+  instagram_followers: number;
+  artist_slug: string;
+  nfc_id: string;
+  instagram_last_updated: string;
+  nfc_tap_count: number;
+  sponsor_name?: string;
+  sponsor_url?: string;
+  sponsor_logo_url?: string;
+  audioSponsor?: DisplaySponsor;
+  nodeSponsor?: DisplaySponsor;
+
+  // Design update fields
+  hometown?: string;
+  artwork_title?: string;
+  artwork_year?: string;
+  location_string?: string;
+  latitude?: number;
+  longitude?: number;
+  instagram_handle?: string;
+  
+  audio_url?: string;
+  audio_duration_str?: string;
+  
+  next_story_id?: string;
+  next_story_name?: string;
+  next_story_distance_mi?: number;
+  next_story_time_mins?: number;
+}

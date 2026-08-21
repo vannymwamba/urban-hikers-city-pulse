@@ -1,4 +1,4 @@
-import * as admin from 'firebase-admin';
+
 import axios from 'axios';
 import * as cheerio from 'cheerio';
 import crypto from 'crypto';
@@ -48,7 +48,7 @@ export const CHPL_BRANCHES: Record<string, { lat: number, lng: number }> = {
   'Symmes Township': { lat: 39.2667, lng: -84.3167 },
 };
 
-import { Timestamp } from 'firebase-admin/firestore';
+import { Timestamp } from 'firebase/firestore';
 
 function toFirestoreTimestamp(
   val: string | null | undefined,
@@ -61,7 +61,7 @@ function toFirestoreTimestamp(
     : Timestamp.fromDate(d);
 }
 
-export async function fetchAndProcessCHPLEvents(db: admin.firestore.Firestore): Promise<any[]> {
+export async function fetchAndProcessCHPLEvents(db: any): Promise<any[]> {
   // Try API first
   const API_URL = 'https://cincinnatilibrary.bibliocommons.com/v2/events?locations=1&featured=true';
   const events: any[] = [];
