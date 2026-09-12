@@ -5,7 +5,7 @@ import { auth, db, finalDbId } from './firebase';
 import { signInWithPopup, signInAnonymously, GoogleAuthProvider, onAuthStateChanged, User } from 'firebase/auth';
 import { useLocation, Routes, Route, useNavigate } from 'react-router-dom';
 import { collection, onSnapshot, query, where, addDoc, doc, getDoc, setDoc, getDocs, orderBy, getDocFromServer, updateDoc, serverTimestamp, Timestamp, limit } from 'firebase/firestore';
-import { Node, Broadcast, Vibe, UserProfile, UserRole, Partner, BroadcastType, LocalHub } from './types';
+import { Node, Broadcast, Vibe, UserProfile, UserRole, Partner, BroadcastType, LocalHub, TapPoint } from './types';
 import { BASE_URL } from './constants';
 import { DepartureBoard } from './components/DepartureBoard';
 import { BroadcastModal } from './components/BroadcastModal';
@@ -732,16 +732,19 @@ function AppRouter() {
         // Resolve artist_id directly from the node document
         const artistId = currentNode.artist_id || currentNode.artistId || currentNode.partner_name || null;
 
-        // Ensure user UID is present (trigger anonymous auth if missing)
-        let currentUid = auth.currentUser?.uid;
-        if (!currentUid) {
+        // Ensure user auth session is present (await anonymous auth before firing write)
+        let currentUser = auth.currentUser;
+        if (!currentUser) {
           try {
             const anonRes = await signInAnonymously(auth);
-            currentUid = anonRes.user.uid;
+            currentUser = anonRes.user;
           } catch (authErr: any) {
-            console.warn("Could not acquire anonymous UID for tap (guest session fallback):", authErr?.message || authErr);
+            console.error("Could not acquire auth session for tap:", authErr?.message || authErr);
+            return; // Abort write: unauthenticated tap will fail security rules
           }
         }
+        const currentUid = currentUser?.uid;
+        if (!currentUid) return;
 
         // Compute tap value score based on vector verification, artist attribution, sponsor backing, and trail momentum
         const vectorWeight = vector === 'nfc' ? 1.0 : vector === 'qr' ? 0.8 : 0.5;
@@ -752,20 +755,21 @@ function AppRouter() {
 
         console.log(`RECORDING_TAP: NODE=${nodeId} ARTIST=${artistId} UID=${currentUid} VECTOR=${vector} VALUE_SCORE=${computedValueScore} SPONSOR=${activeSponsor?.partner_id || 'NONE'}`);
 
-        const tapPayload = {
+        const tapPayload: TapPoint = {
           node_id: nodeId,
           artist_id: artistId,
-          uid: currentUid || null,
+          uid: currentUid,
           session_uuid: SESSION_ID,
           access_vector: vector,
-          timestamp: serverTimestamp(), // Authoritative server timestamp
-          client_timestamp: new Date().toISOString(), // Reference client ISO timestamp
-          consent_version: 'v1.0', // Mandatory consent version
-          value_score: computedValueScore, // Dynamic engagement value score
+          timestamp: serverTimestamp(),
+          client_timestamp: new Date().toISOString(),
+          consent_version: 'v1.0',
+          value_score: computedValueScore,
           tab: currentTab,
           sponsor_id: activeSponsor?.partner_id || null,
           walkId: new URLSearchParams(window.location.search).get('walkId') ?? null,
           eventTag: new URLSearchParams(window.location.search).get('eventTag') ?? null,
+          verified: false,
         };
 
         try {
@@ -779,7 +783,7 @@ function AppRouter() {
     } catch (err) {
       console.error("Error recording tap:", err);
     }
-  }, [currentNode, nodeId, broadcasts, currentTab]);
+  }, [currentNode, nodeId, broadcasts, currentTab, nodesVisitedCount]);
 
   useEffect(() => {
     if (hasConsented && pendingTapVector) {

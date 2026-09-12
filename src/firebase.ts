@@ -5,12 +5,10 @@ import { getStorage } from 'firebase/storage';
 import { getFunctions } from 'firebase/functions';
 import firebaseConfig from '../firebase-applet-config.json';
 
-// Allow environment variables to override the config, but prevent database ID from being used as project ID
-const envProjectId = import.meta.env.VITE_FIREBASE_PROJECT_ID;
 const config = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY || firebaseConfig.apiKey,
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || firebaseConfig.authDomain,
-  projectId: (envProjectId && !envProjectId.startsWith('ai-studio-')) ? envProjectId : firebaseConfig.projectId,
+  projectId: firebaseConfig.projectId,
   storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || firebaseConfig.storageBucket,
   messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || firebaseConfig.messagingSenderId,
   appId: import.meta.env.VITE_FIREBASE_APP_ID || firebaseConfig.appId,

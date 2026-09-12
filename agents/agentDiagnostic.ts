@@ -17,8 +17,10 @@
 import axios from 'axios';
 import * as cheerio from 'cheerio';
 import crypto from 'crypto';
+import path from 'path';
+import fs from 'fs';
 import { initializeApp } from 'firebase/app';
-import { getFirestore, serverTimestamp, Timestamp, writeBatch, collection, getDocs, doc, addDoc, query, where, limit, setDoc } from 'firebase/firestore';
+import { getFirestore, serverTimestamp, Timestamp, writeBatch, collection, getDocs, doc as firestoreDoc, addDoc, query, where, limit, setDoc } from 'firebase/firestore';
 import { GoogleGenAI } from '@google/genai';
 import dotenv from 'dotenv';
 
@@ -393,7 +395,7 @@ async function upsertBroadcast(event: RawEvent, enriched: EnrichedData): Promise
   const now      = new Date();
   const midnight = new Date(); midnight.setHours(23, 59, 0, 0);
 
-  const doc: Record<string, unknown> = {
+  const docData: Record<string, unknown> = {
     // ── Identity ──────────────────────────────────────
     title:        event.title,
     type:         'civic_event',
@@ -451,7 +453,7 @@ async function upsertBroadcast(event: RawEvent, enriched: EnrichedData): Promise
     created_at: serverTimestamp(),
   };
 
-  await setDoc(doc(db, 'broadcasts', event.sourceHash), docData, { merge: true });
+  await setDoc(firestoreDoc(db, 'broadcasts', event.sourceHash), docData, { merge: true });
   return 'written';
 }
 

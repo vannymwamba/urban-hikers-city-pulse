@@ -430,9 +430,9 @@ const seedData = async () => {
 
     // Seed Taps
     const sampleTaps = [
-      { node_id: 'ALPHA_PLAZA_HUB', session_uuid: 's1', access_vector: 'nfc', timestamp: new Date().toISOString(), sponsor_id: 'partner-kroger' },
-      { node_id: 'ALPHA_PLAZA_HUB', session_uuid: 's2', access_vector: 'qr', timestamp: new Date().toISOString(), sponsor_id: 'partner-kroger' },
-      { node_id: 'SECTOR-BETA', session_uuid: 's3', access_vector: 'nfc', timestamp: new Date().toISOString(), sponsor_id: 'partner-medpace' },
+      { node_id: 'ALPHA_PLAZA_HUB', session_uuid: 's1', access_vector: 'nfc', timestamp: new Date().toISOString(), sponsor_id: 'partner-kroger', verified: false },
+      { node_id: 'ALPHA_PLAZA_HUB', session_uuid: 's2', access_vector: 'qr', timestamp: new Date().toISOString(), sponsor_id: 'partner-kroger', verified: false },
+      { node_id: 'SECTOR-BETA', session_uuid: 's3', access_vector: 'nfc', timestamp: new Date().toISOString(), sponsor_id: 'partner-medpace', verified: false },
     ];
 
     for (const tap of sampleTaps) {

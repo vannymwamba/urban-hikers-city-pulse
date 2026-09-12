@@ -1,22 +1,6 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // ── Global Safety Net ──────────────────────────
-    match /{document=**} {
-      allow read, write: if false;
-    }
-
-    // ── Connection Test ───────────────────────────
-    match /test/{docId} {
-      allow read, write: if true;
-    }
-    match /_connection_test_/{docId} {
-      allow read, write: if true;
-    }
-    match /nodes/connection-test {
-      allow read, write: if true;
-    }
-
     // ── Helper functions ──────────────────────────
     function isSignedIn() {
       return request.auth != null;
@@ -26,7 +10,7 @@ service cloud.firestore {
       return isSignedIn() && (
         (exists(/databases/$(database)/documents/admins/$(request.auth.uid)) &&
          get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.role == 'super_admin') ||
-        (request.auth.token.keys().hasAll(['email']) && request.auth.token.email != null && request.auth.token.email == 'vannymwamba@gmail.com')
+        (request.auth.token.keys().hasAll(['email']) && request.auth.token.email != null && request.auth.token.email_verified == true && request.auth.token.email == 'vannymwamba@gmail.com')
       );
     }
 
@@ -35,7 +19,7 @@ service cloud.firestore {
         isSignedIn() && (
           (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
            get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin') ||
-          (request.auth.token.keys().hasAll(['email']) && request.auth.token.email != null && request.auth.token.email.lower().endsWith('@urban-hikers.com'))
+          (request.auth.token.keys().hasAll(['email']) && request.auth.token.email != null && request.auth.token.email_verified == true && request.auth.token.email.lower().endsWith('@urban-hikers.com'))
         )
       );
     }
@@ -57,13 +41,13 @@ service cloud.firestore {
     // ── broadcasts collection ─────────────────────
     match /broadcasts/{docId} {
       allow read: if true;
-      allow create: if isSuperAdmin() || isPartner() || request.resource.data.server_token == 'URBAN_HIKERS_SERVER_SECRET_2026';
+      allow create: if isSuperAdmin() || isPartner();
       allow update: if isSuperAdmin() || (
         isPartner() && 
         (resource.data.published_by == request.auth.uid || 
          resource.data.partner_id == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.partnerId ||
          resource.data.partner_id == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.partner_id)
-      ) || request.resource.data.server_token == 'URBAN_HIKERS_SERVER_SECRET_2026';
+      );
       allow delete: if isSuperAdmin() || (
         isPartner() && resource.data.published_by == request.auth.uid
       );
@@ -85,8 +69,28 @@ service cloud.firestore {
     // ── taps collection ───────────────────────────
     match /taps/{docId} {
       allow read: if isAdmin();
-      allow create: if true; // Anonymous taps allowed
-      allow update, delete: if isAdmin();
+      allow create: if isSignedIn() &&
+                    request.resource.data.verified == false &&
+                    request.resource.data.consent_version == 'v1.0' &&
+                    request.resource.data.uid == request.auth.uid &&
+                    request.resource.data.timestamp == request.time &&
+                    request.resource.data.keys().hasOnly([
+                      'node_id',
+                      'artist_id',
+                      'uid',
+                      'session_uuid',
+                      'access_vector',
+                      'timestamp',
+                      'client_timestamp',
+                      'consent_version',
+                      'value_score',
+                      'tab',
+                      'sponsor_id',
+                      'walkId',
+                      'eventTag',
+                      'verified'
+                    ]);
+      allow update, delete: if false;
     }
 
     // ── tab_views collection ──────────────────────
@@ -152,8 +156,7 @@ service cloud.firestore {
     match /mail/{docId} {
       allow read:   if isSignedIn() &&
                        resource.data.to == request.auth.token.email;
-      allow create: if isSignedIn();
-      allow update, delete: if false;
+      allow create, update, delete: if false;
     }
 
     // ── bookings collection ───────────────────────
@@ -198,6 +201,7 @@ service cloud.firestore {
       allow read: if true;
       allow create: if true;
       allow update: if isAdmin() || (
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'resolved_by_code']) &&
         request.resource.data.status == 'resolved' &&
         request.resource.data.resolved_by_code == resource.data.resolveCode
       );
@@ -207,7 +211,11 @@ service cloud.firestore {
     // ── users / profiles ──────────────────────────
     match /users/{uid} {
       allow read:   if isSignedIn() && request.auth.uid == uid;
-      allow write:  if isSignedIn() && request.auth.uid == uid;
+      allow create: if isSignedIn() && request.auth.uid == uid &&
+                    !request.resource.data.keys().hasAny(['role', 'partnerId', 'partner_id']);
+      allow update: if isSignedIn() && request.auth.uid == uid &&
+                    !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'partnerId', 'partner_id']);
+      allow delete: if false;
 
       match /pulse_drops/{dateId} {
         allow read, write: if isSignedIn() && request.auth.uid == uid;

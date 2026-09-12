@@ -36,7 +36,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, userProfile, nodes, 
   const [listenerHealth, setListenerHealth] = useState<Record<string, { count: number; lastUpdate: Date }>>({});
   const [systemHealth, setSystemHealth] = useState<{ firebase: 'ok' | 'degraded'; swActive: boolean }>({ firebase: 'ok', swActive: false });
 
-  const [activeTab, setActiveTab] = useState<'overview' | 'broadcasts' | 'partners' | 'hubs' | 'analytics' | 'system' | 'artists'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'broadcasts' | 'partners' | 'hubs' | 'analytics' | 'system' | 'artists' | 'global_sponsors'>('overview');
   const [loading, setLoading] = useState(true);
   const [hudMessage, setHudMessage] = useState<{ text: string; type: 'info' | 'error' } | null>(null);
   const [submitting, setSubmitting] = useState(false);

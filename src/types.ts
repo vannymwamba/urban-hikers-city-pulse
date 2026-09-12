@@ -208,12 +208,31 @@ export interface VibeReport {
   access_vector?: 'nfc' | 'direct' | 'qr';
 }
 
-export interface Tap {
+export interface TapPoint {
   id?: string;
   node_id: string;
+  artist_id?: string | null;
+  uid: string;
   session_uuid: string;
   access_vector: 'nfc' | 'direct' | 'qr';
   timestamp: any;
+  client_timestamp?: string;
+  consent_version: string;
+  value_score: number;
+  tab?: 'home' | 'feed' | 'explore' | 'wallet' | 'profile';
+  sponsor_id?: string | null;
+  walkId?: string | null;
+  eventTag?: string | null;
+  verified: boolean;
+}
+
+export interface Tap {
+  id?: string;
+  node_id?: string;
+  session_uuid?: string;
+  access_vector?: 'nfc' | 'direct' | 'qr';
+  timestamp?: any;
+  serverTimestamp?: any;
   client_timestamp?: string;
   uid?: string | null;
   consent_version?: string;
@@ -223,6 +242,7 @@ export interface Tap {
   sponsor_id?: string | null;
   walkId?: string | null;
   eventTag?: string | null;
+  verified: boolean;
 }
 
 export interface TabView {
