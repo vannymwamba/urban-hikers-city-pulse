@@ -376,11 +376,22 @@ export type DisplaySponsor = {
   link: string;
 } | null;
 
+export interface PromotedBookConfig {
+  author_name: string;
+  book_title: string;
+  copy: string;
+  duration_str: string;
+  cover_url: string;
+  audio_url?: string;
+  purchase_url?: string;
+}
+
 export interface GlobalSponsors {
   hero?: DisplaySponsor;
   wayfinding?: DisplaySponsor;
   lostAndFound?: DisplaySponsor;
   footer?: DisplaySponsor;
+  promotedBook?: PromotedBookConfig;
 }
 
 export interface Artist {

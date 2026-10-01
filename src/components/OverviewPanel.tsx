@@ -8,6 +8,7 @@ import { parseAnyTimestamp } from '../utils/dateUtils';
 interface OverviewPanelProps {
   broadcasts: Broadcast[];
   taps: Tap[];
+  nodeTapCounts?: Record<string, number>;
   partners: Partner[];
   vibeReports: VibeReport[];
   interactions: Interaction[];
@@ -18,6 +19,7 @@ interface OverviewPanelProps {
 export const OverviewPanel: React.FC<OverviewPanelProps> = ({ 
   broadcasts = [], 
   taps = [], 
+  nodeTapCounts = {},
   partners = [], 
   vibeReports = [], 
   interactions = [], 
@@ -169,7 +171,9 @@ export const OverviewPanel: React.FC<OverviewPanelProps> = ({
           </div>
           <div className="divide-y divide-uh-gray-50 max-h-[280px] overflow-y-auto">
             {nodes.sort((a,b) => a.name.localeCompare(b.name)).map(node => {
-              const nodeTaps = taps.filter(t => t.node_id === node.id).length;
+              const nodeTaps = nodeTapCounts[node.id] !== undefined
+                ? nodeTapCounts[node.id]
+                : taps.filter(t => t.node_id === node.id).length;
               const nodeVibes = vibeReports.filter(v => ((v as any).node_id || (v as any).nodeId) === node.id).length;
               return (
                 <div key={node.id} className="px-6 py-3 flex items-center justify-between hover:bg-uh-gray-50 flex-wrap gap-2">

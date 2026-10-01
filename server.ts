@@ -86,7 +86,8 @@ async function startServer() {
     }
   );
 
-  app.use(express.json());
+  app.use(express.json({ limit: '10mb' }));
+  app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
     // Firebase initialization for server-side stats
     try {
@@ -184,6 +185,45 @@ async function startServer() {
   // API Routes
   app.get("/api/health", (req, res) => {
     res.json({ status: "URBAN HIKERS OS: ONLINE" });
+  });
+
+  // Media Upload Endpoint (Audio & Covers under 5MB)
+  app.post("/api/upload-media", async (req, res) => {
+    try {
+      const { filename, base64Data, contentType, folder = 'audio' } = req.body;
+      if (!base64Data || !filename) {
+        return res.status(400).json({ error: "filename and base64Data are required" });
+      }
+
+      // Check size (base64 string length to approx byte size)
+      const buffer = Buffer.from(base64Data.replace(/^data:[^;]+;base64,/, ''), 'base64');
+      const MAX_BYTES = 5 * 1024 * 1024; // 5MB strict limit
+      if (buffer.length > MAX_BYTES) {
+        return res.status(400).json({ 
+          error: `File exceeds maximum allowed size of 5MB. Current size: ${(buffer.length / (1024 * 1024)).toFixed(2)}MB` 
+        });
+      }
+
+      const targetFolder = folder === 'covers' ? 'covers' : 'audio';
+      const safeName = `${Date.now()}_${filename.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+      const uploadDir = path.join(process.cwd(), 'public', 'uploads', targetFolder);
+      if (!fs.existsSync(uploadDir)) {
+        fs.mkdirSync(uploadDir, { recursive: true });
+      }
+
+      const filePath = path.join(uploadDir, safeName);
+      fs.writeFileSync(filePath, buffer);
+
+      const publicUrl = `/uploads/${targetFolder}/${safeName}`;
+      return res.json({
+        url: publicUrl,
+        sizeBytes: buffer.length,
+        filename: safeName
+      });
+    } catch (err: any) {
+      console.error("Upload error:", err);
+      return res.status(500).json({ error: "Failed to upload file", details: err?.message });
+    }
   });
 
   app.get("/api/og", async (req, res) => {

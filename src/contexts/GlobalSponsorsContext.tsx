@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebase';
 import type { GlobalSponsors } from '../types';
 
@@ -9,21 +9,23 @@ export function GlobalSponsorsProvider({ children }: { children: React.ReactNode
   const [sponsors, setSponsors] = useState<GlobalSponsors | null>(null);
 
   useEffect(() => {
-    const fetchSponsors = async () => {
-      try {
-        const docRef = doc(db, 'globalSponsors', 'config');
-        const snap = await getDoc(docRef);
+    const docRef = doc(db, 'globalSponsors', 'config');
+    const unsubscribe = onSnapshot(
+      docRef,
+      (snap) => {
         if (snap.exists()) {
           setSponsors(snap.data() as GlobalSponsors);
         } else {
           setSponsors({});
         }
-      } catch (err) {
-        console.error("Failed to load global sponsors", err);
+      },
+      (err) => {
+        console.error("Failed to listen to global sponsors / promoted book:", err);
         setSponsors({});
       }
-    };
-    fetchSponsors();
+    );
+
+    return () => unsubscribe();
   }, []);
 
   return (

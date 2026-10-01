@@ -10,6 +10,8 @@ import {
   Share, 
   MoreHorizontal, 
   Play, 
+  Pause,
+  ChevronRight,
   MapPin, 
   Heart, 
   Footprints,
@@ -17,6 +19,7 @@ import {
 } from 'lucide-react';
 import { QuickReportSheet } from '../components/QuickReportSheet';
 import { SponsorSlot } from '../components/SponsorSlot';
+import { PromotedBook } from '../components/PromotedBook';
 import { useGlobalSponsors } from '../contexts/GlobalSponsorsContext';
 
 function getDistanceFromLatLonInMi(lat1: number, lon1: number, lat2: number, lon2: number) {
@@ -201,33 +204,9 @@ export function ArtistNfcPage() {
           </div>
         )}
 
-        {/* Audio Player Component (Floating on bottom right of image) */}
-        <div className="relative z-20 px-5 pb-4 flex justify-end w-full">
-          <div className="flex items-center gap-3">
-            <button className="w-12 h-12 rounded-full border border-[#F2C94C] flex items-center justify-center bg-black/20 backdrop-blur-md hover:bg-[#F2C94C]/20 transition-colors">
-              <Play size={20} fill="#F2C94C" className="text-[#F2C94C] ml-1" />
-            </button>
-            <div className="flex flex-col">
-              {artist.audioSponsor ? (
-                <SponsorSlot variant="audio" sponsor={artist.audioSponsor} />
-              ) : (
-                <span className="font-mono text-[10px] font-bold text-[#F2C94C] tracking-widest uppercase mb-1">
-                  HEAR THE ARTIST
-                </span>
-              )}
-              <div className="flex items-center gap-2 mt-1">
-                <span className="font-mono text-xs text-[#8A928B]">
-                  {artist.audio_duration_str || "0:48"}
-                </span>
-                {/* Mock Waveform */}
-                <div className="flex items-end gap-[2px] h-4">
-                  {[4, 8, 6, 12, 16, 10, 6, 14, 12, 8, 16, 14, 6, 10, 8, 4, 12, 10].map((h, i) => (
-                    <div key={i} className="w-[2px] bg-white/40 rounded-full" style={{ height: `${h}px` }} />
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
+        {/* Promoted Local Writer Feature Card (Floating on bottom right of image) */}
+        <div className="relative z-20 px-4 sm:px-5 pb-3 flex justify-end w-full">
+          <PromotedBook config={globalSponsors?.promotedBook} />
         </div>
       </div>
 

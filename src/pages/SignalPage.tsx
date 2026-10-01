@@ -2,8 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import {
   doc, getDoc,
-  collection, addDoc, increment,
-  updateDoc, Timestamp
+  collection, addDoc,
+  Timestamp, query, where, getCountFromServer
 } from 'firebase/firestore';
 import { db } from '../firebase';
 import { toMs, getTimeState, getTimeLabel } from '../utils/timeUtils';
@@ -13,6 +13,7 @@ import type { Broadcast } from '../types';
 export function SignalPage() {
   const { broadcastId } = useParams<{ broadcastId: string }>();
   const [broadcast, setBroadcast] = useState<Broadcast | null>(null);
+  const [serverTapCount, setServerTapCount] = useState<number | null>(null);
   const [loading,   setLoading]   = useState(true);
   const [notFound,  setNotFound]  = useState(false);
   const [countdown, setCountdown] = useState('');
@@ -27,18 +28,26 @@ export function SignalPage() {
         setNotFound(true);
       } else {
         const data = snap.data();
-        setBroadcast({ id: snap.id, ...data } as Broadcast);
-        // Log impression
+        const loadedBroadcast = { id: snap.id, ...data } as Broadcast;
+        setBroadcast(loadedBroadcast);
+
+        // Fetch authoritative tap count from taps collection if associated with a node
+        const targetNodeId = loadedBroadcast.node_id || loadedBroadcast.nodeId;
+        if (targetNodeId) {
+          getCountFromServer(query(collection(db, 'taps'), where('node_id', '==', targetNodeId)))
+            .then(countSnap => setServerTapCount(countSnap.data().count))
+            .catch(() => {
+              // Silently ignore if visitor does not have read permissions under security rules
+            });
+        }
+
+        // Log impression (individual document write, no hot document contention)
         addDoc(collection(db, 'impressions'), {
           broadcast_id: broadcastId,
           event:        'signal_page_view',
           source:       'public_link',
           ts:           Timestamp.now(),
         }).catch(err => console.error("Error logging impression:", err));
-        
-        updateDoc(doc(db, 'broadcasts', broadcastId), {
-          impressions: increment(1)
-        }).catch(err => console.error("Error updating impressions:", err));
       }
       setLoading(false);
     }).catch(err => {
@@ -103,11 +112,7 @@ export function SignalPage() {
 
   const handleCTA = () => {
     if (broadcast?.booking_url && broadcastId) {
-      // Log tap
-      updateDoc(doc(db, 'broadcasts', broadcastId), {
-        taps: increment(1)
-      }).catch(err => console.error("Error updating taps:", err));
-      
+      // Log tap impression as an independent document (no contention on broadcast document)
       addDoc(collection(db, 'impressions'), {
         broadcast_id: broadcastId,
         event:        'cta_tap',
@@ -273,12 +278,12 @@ export function SignalPage() {
               <div style={{ fontSize: 8, color: '#555', letterSpacing: '0.06em' }}>
                 {locationShort}
               </div>
-              {broadcast.taps && (
+              {(serverTapCount !== null ? serverTapCount > 0 : !!broadcast.taps) && (
                 <div style={{
                   fontSize: 8, color: '#1D9E75', marginTop: 4,
                   letterSpacing: '0.06em',
                 }}>
-                  {broadcast.taps} people tapped this
+                  {serverTapCount ?? broadcast.taps} people tapped this
                 </div>
               )}
             </div>

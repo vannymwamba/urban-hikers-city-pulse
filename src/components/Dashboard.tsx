@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { collection, onSnapshot, query, where, doc, deleteDoc, addDoc, setDoc, Timestamp, getDocFromServer, orderBy, limit, updateDoc } from 'firebase/firestore';
+import { collection, onSnapshot, query, where, doc, deleteDoc, addDoc, setDoc, Timestamp, getDocFromServer, orderBy, limit, updateDoc, getDocs, getCountFromServer } from 'firebase/firestore';
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { db, auth, storage } from '../firebase';
 import { Broadcast, Node, Partner, UserProfile, BroadcastType, Tap, VibeReport, TabView, Interaction, LocalHub } from '../types';
@@ -14,6 +14,7 @@ import { LiveTicker } from './LiveTicker';
 import { NfcNodeHeatmap } from './NfcNodeHeatmap';
 import { AdminArtistsPanel } from './AdminArtistsPanel';
 import { AdminGlobalSponsorsPanel } from './AdminGlobalSponsorsPanel';
+import { AdminPromotedBookPanel } from './AdminPromotedBookPanel';
 import { BASE_URL } from '../constants';
 import { parseAnyTimestamp } from '../utils/dateUtils';
 
@@ -35,8 +36,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, userProfile, nodes, 
   const [syncLogs, setSyncLogs] = useState<any[]>([]);
   const [listenerHealth, setListenerHealth] = useState<Record<string, { count: number; lastUpdate: Date }>>({});
   const [systemHealth, setSystemHealth] = useState<{ firebase: 'ok' | 'degraded'; swActive: boolean }>({ firebase: 'ok', swActive: false });
+  const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
+  const [nodeTapCounts, setNodeTapCounts] = useState<Record<string, number>>({});
 
-  const [activeTab, setActiveTab] = useState<'overview' | 'broadcasts' | 'partners' | 'hubs' | 'analytics' | 'system' | 'artists' | 'global_sponsors'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'broadcasts' | 'partners' | 'hubs' | 'analytics' | 'system' | 'artists' | 'global_sponsors' | 'promoted_book'>('overview');
   const [loading, setLoading] = useState(true);
   const [hudMessage, setHudMessage] = useState<{ text: string; type: 'info' | 'error' } | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -180,29 +184,70 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, userProfile, nodes, 
     return () => unsub();
   }, [userProfile, isAdmin, isPartner]);
 
+  const fetchTelemetry = async () => {
+    if (!isAdmin) return;
+    setIsRefreshing(true);
+    try {
+      const [tapsSnap, tabViewsSnap, interactionsSnap] = await Promise.all([
+        getDocs(query(collection(db, 'taps'), orderBy('timestamp', 'desc'), limit(1000))),
+        getDocs(query(collection(db, 'tab_views'), orderBy('timestamp', 'desc'), limit(1000))),
+        getDocs(query(collection(db, 'interactions'), orderBy('timestamp', 'desc'), limit(500))),
+      ]);
+
+      const now = new Date();
+      setTaps(tapsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }) as Tap));
+      setTabViews(tabViewsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }) as TabView));
+      setInteractions(interactionsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }) as Interaction));
+
+      setListenerHealth(prev => ({
+        ...prev,
+        taps: { count: tapsSnap.size, lastUpdate: now },
+        tab_views: { count: tabViewsSnap.size, lastUpdate: now },
+        interactions: { count: interactionsSnap.size, lastUpdate: now },
+      }));
+
+      // In addition, compute authoritative per-node tap counts using Firestore aggregation
+      if (nodes && nodes.length > 0) {
+        const counts: Record<string, number> = {};
+        await Promise.all(
+          nodes.map(async (node) => {
+            try {
+              const countSnap = await getCountFromServer(
+                query(collection(db, 'taps'), where('node_id', '==', node.id))
+              );
+              counts[node.id] = countSnap.data().count;
+            } catch (e) {
+              console.warn(`Could not get count for node ${node.id}:`, e);
+            }
+          })
+        );
+        setNodeTapCounts(counts);
+      }
+
+      setLastRefreshed(now);
+    } catch (err) {
+      console.error("Error fetching telemetry:", err);
+      setHudMessage({ text: "FAILED_TELEMETRY_REFRESH", type: "error" });
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
   useEffect(() => {
     if (!isAdmin) return;
     
+    // One-shot fetch for telemetry on dashboard mount
+    fetchTelemetry();
+
+    // Operational listeners kept for critical live configuration & reports
     const unsubs = [
       onSnapshot(collection(db, 'partners'), (snap) => {
         setPartners(snap.docs.map(doc => ({ id: doc.id, ...doc.data() }) as Partner));
         setListenerHealth(prev => ({ ...prev, partners: { count: snap.size, lastUpdate: new Date() } }));
       }),
-      onSnapshot(query(collection(db, 'taps'), orderBy('timestamp', 'desc'), limit(1000)), (snap) => {
-        setTaps(snap.docs.map(doc => ({ id: doc.id, ...doc.data() }) as Tap));
-        setListenerHealth(prev => ({ ...prev, taps: { count: snap.size, lastUpdate: new Date() } }));
-      }),
       onSnapshot(query(collection(db, 'vibe_reports'), orderBy('reported_at', 'desc'), limit(500)), (snap) => {
         setVibeReports(snap.docs.map(doc => ({ id: doc.id, ...doc.data() }) as VibeReport));
         setListenerHealth(prev => ({ ...prev, vibe_reports: { count: snap.size, lastUpdate: new Date() } }));
-      }),
-      onSnapshot(query(collection(db, 'tab_views'), orderBy('timestamp', 'desc'), limit(1000)), (snap) => {
-        setTabViews(snap.docs.map(doc => ({ id: doc.id, ...doc.data() }) as TabView));
-        setListenerHealth(prev => ({ ...prev, tab_views: { count: snap.size, lastUpdate: new Date() } }));
-      }),
-      onSnapshot(query(collection(db, 'interactions'), orderBy('timestamp', 'desc'), limit(500)), (snap) => {
-        setInteractions(snap.docs.map(doc => ({ id: doc.id, ...doc.data() }) as Interaction));
-        setListenerHealth(prev => ({ ...prev, interactions: { count: snap.size, lastUpdate: new Date() } }));
       }),
       onSnapshot(query(collection(db, 'sync_logs'), orderBy('timestamp', 'desc'), limit(10)), (snap) => {
         setSyncLogs(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
@@ -566,12 +611,32 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, userProfile, nodes, 
       </AnimatePresence>
 
       <div className="max-w-6xl mx-auto px-6 py-12">
-        <div className="flex justify-between items-end mb-12 border-b border-[#e0e0e0] pb-6">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-12 border-b border-[#e0e0e0] pb-6 gap-4">
           <div>
             <h1 className="text-3xl font-black tracking-tighter mb-2">SYSTEM_OPERATIONS</h1>
-            <p className="text-[10px] text-[#999] tracking-widest uppercase">Operator: {user?.email} [{userProfile?.role}]</p>
+            <div className="flex items-center gap-4 flex-wrap text-[10px] text-[#999] tracking-widest uppercase">
+              <span>Operator: {user?.email} [{userProfile?.role}]</span>
+              {lastRefreshed && (
+                <span className="flex items-center gap-1.5 text-uh-black font-semibold bg-[#e8e8e5] px-2.5 py-0.5 rounded-full">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  Synced: {lastRefreshed.toLocaleTimeString()}
+                </span>
+              )}
+            </div>
           </div>
-          <div className="flex flex-wrap gap-3">
+          <div className="flex flex-wrap items-center gap-3">
+            {isAdmin && (
+              <button 
+                id="refresh-telemetry-btn"
+                onClick={() => fetchTelemetry()}
+                disabled={isRefreshing}
+                className="px-4 py-2 text-[10px] font-bold tracking-widest uppercase rounded-full transition-all flex items-center gap-2 bg-white border border-uh-gray-200 text-uh-black hover:border-black disabled:opacity-50 shadow-sm"
+                title="Refresh high-frequency telemetry on demand (taps, views, interactions)"
+              >
+                <RefreshCw size={12} className={isRefreshing ? "animate-spin text-uh-yellow" : ""} />
+                {isRefreshing ? "Refreshing..." : "Refresh Metrics"}
+              </button>
+            )}
             <button 
               onClick={() => setActiveTab('overview')}
               className={`px-5 py-2 text-[10px] font-bold tracking-widest uppercase rounded-full transition-all flex items-center gap-2 ${activeTab === 'overview' ? 'bg-black text-[#FFE01A]' : 'text-uh-gray-400 bg-white border border-uh-gray-100 hover:border-uh-yellow hover:text-uh-black'}`}
@@ -618,6 +683,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, userProfile, nodes, 
             )}
             {isAdmin && (
               <button 
+                onClick={() => setActiveTab('promoted_book')}
+                className={`px-5 py-2 text-[10px] font-bold tracking-widest uppercase rounded-full transition-all flex items-center gap-2 ${activeTab === 'promoted_book' ? 'bg-black text-[#FFE01A]' : 'text-uh-gray-400 bg-white border border-uh-gray-100 hover:border-uh-yellow hover:text-uh-black'}`}
+              >
+                <BookOpen size={12} /> Promoted Book
+              </button>
+            )}
+            {isAdmin && (
+              <button 
                 onClick={() => setActiveTab('analytics')}
                 className={`px-5 py-2 text-[10px] font-bold tracking-widest uppercase rounded-full transition-all flex items-center gap-2 ${activeTab === 'analytics' ? 'bg-black text-[#FFE01A]' : 'text-uh-gray-400 bg-white border border-uh-gray-100 hover:border-uh-yellow hover:text-uh-black'}`}
               >
@@ -645,6 +718,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, userProfile, nodes, 
           <OverviewPanel 
             broadcasts={broadcasts}
             taps={taps}
+            nodeTapCounts={nodeTapCounts}
             partners={partners}
             vibeReports={vibeReports}
             interactions={interactions}
@@ -659,6 +733,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, userProfile, nodes, 
 
         {activeTab === 'global_sponsors' && isAdmin && (
           <AdminGlobalSponsorsPanel setHudMessage={setHudMessage} />
+        )}
+
+        {activeTab === 'promoted_book' && isAdmin && (
+          <AdminPromotedBookPanel setHudMessage={setHudMessage} />
         )}
 
         {activeTab === 'system' && isSuperAdmin && (
