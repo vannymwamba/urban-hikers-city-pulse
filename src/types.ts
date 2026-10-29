@@ -394,6 +394,15 @@ export interface GlobalSponsors {
   promotedBook?: PromotedBookConfig;
 }
 
+export interface ArtistSocialProfile {
+  name: string;
+  instagram_handle: string;
+  instagram_url: string;
+  instagram_followers: number;
+  hometown?: string;
+  role?: string;
+}
+
 export interface Artist {
   id?: string;
   artist_name: string;
@@ -411,6 +420,9 @@ export interface Artist {
   sponsor_logo_url?: string;
   audioSponsor?: DisplaySponsor;
   nodeSponsor?: DisplaySponsor;
+
+  // Multi-artist & Instagram accounts support
+  featured_artists?: ArtistSocialProfile[];
 
   // Design update fields
   hometown?: string;

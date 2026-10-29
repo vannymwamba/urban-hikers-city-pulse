@@ -170,18 +170,28 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, userProfile, nodes, 
   const isPartner = userProfile?.role === 'partner';
 
   useEffect(() => {
+    let isMounted = true;
     let q = query(collection(db, 'broadcasts'));
     if (isPartner && !isAdmin) {
       q = query(collection(db, 'broadcasts'), where('partner_id', '==', userProfile?.partner_id || userProfile?.partnerId || ''));
     }
 
-    const unsub = onSnapshot(q, (snap) => {
-      setBroadcasts(snap.docs.map(doc => ({ id: doc.id, ...doc.data() }) as Broadcast));
-      setListenerHealth(prev => ({ ...prev, broadcasts: { count: snap.size, lastUpdate: new Date() } }));
-      setLoading(false);
-    });
+    getDocs(q)
+      .then((snap) => {
+        if (!isMounted) return;
+        setBroadcasts(snap.docs.map(doc => ({ id: doc.id, ...doc.data() }) as Broadcast));
+        setListenerHealth(prev => ({ ...prev, broadcasts: { count: snap.size, lastUpdate: new Date() } }));
+        setLoading(false);
+      })
+      .catch((err) => {
+        if (!isMounted) return;
+        setLoading(false);
+        handleFirestoreError(err, OperationType.LIST, 'broadcasts');
+      });
 
-    return () => unsub();
+    return () => {
+      isMounted = false;
+    };
   }, [userProfile, isAdmin, isPartner]);
 
   const fetchTelemetry = async () => {
@@ -189,9 +199,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, userProfile, nodes, 
     setIsRefreshing(true);
     try {
       const [tapsSnap, tabViewsSnap, interactionsSnap] = await Promise.all([
-        getDocs(query(collection(db, 'taps'), orderBy('timestamp', 'desc'), limit(1000))),
-        getDocs(query(collection(db, 'tab_views'), orderBy('timestamp', 'desc'), limit(1000))),
-        getDocs(query(collection(db, 'interactions'), orderBy('timestamp', 'desc'), limit(500))),
+        getDocs(query(collection(db, 'taps'), orderBy('timestamp', 'desc'), limit(100))),
+        getDocs(query(collection(db, 'tab_views'), orderBy('timestamp', 'desc'), limit(100))),
+        getDocs(query(collection(db, 'interactions'), orderBy('timestamp', 'desc'), limit(100))),
       ]);
 
       const now = new Date();
@@ -225,9 +235,15 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, userProfile, nodes, 
       }
 
       setLastRefreshed(now);
-    } catch (err) {
-      console.error("Error fetching telemetry:", err);
-      setHudMessage({ text: "FAILED_TELEMETRY_REFRESH", type: "error" });
+    } catch (err: any) {
+      const msg = err?.message || String(err);
+      if (err?.code === 'resource-exhausted' || msg.includes('Quota limit exceeded')) {
+        setSystemHealth(prev => ({ ...prev, firebase: 'degraded' }));
+        setHudMessage({ text: "FIRESTORE_DAILY_QUOTA_REACHED", type: "error" });
+      } else {
+        console.warn("Telemetry refresh warning:", msg);
+        setHudMessage({ text: "FAILED_TELEMETRY_REFRESH", type: "error" });
+      }
     } finally {
       setIsRefreshing(false);
     }
@@ -235,50 +251,67 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, userProfile, nodes, 
 
   useEffect(() => {
     if (!isAdmin) return;
+    let isMounted = true;
     
     // One-shot fetch for telemetry on dashboard mount
     fetchTelemetry();
 
-    // Operational listeners kept for critical live configuration & reports
-    const unsubs = [
-      onSnapshot(collection(db, 'partners'), (snap) => {
-        setPartners(snap.docs.map(doc => ({ id: doc.id, ...doc.data() }) as Partner));
-        setListenerHealth(prev => ({ ...prev, partners: { count: snap.size, lastUpdate: new Date() } }));
-      }),
-      onSnapshot(query(collection(db, 'vibe_reports'), orderBy('reported_at', 'desc'), limit(500)), (snap) => {
-        setVibeReports(snap.docs.map(doc => ({ id: doc.id, ...doc.data() }) as VibeReport));
-        setListenerHealth(prev => ({ ...prev, vibe_reports: { count: snap.size, lastUpdate: new Date() } }));
-      }),
-      onSnapshot(query(collection(db, 'sync_logs'), orderBy('timestamp', 'desc'), limit(10)), (snap) => {
-        setSyncLogs(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-        setListenerHealth(prev => ({ ...prev, sync_logs: { count: snap.size, lastUpdate: new Date() } }));
-      }),
-      onSnapshot(collection(db, 'local_hubs'), (snap) => {
-        setLocalHubs(snap.docs.map(doc => ({ id: doc.id, ...doc.data() }) as LocalHub));
-        setListenerHealth(prev => ({ ...prev, local_hubs: { count: snap.size, lastUpdate: new Date() } }));
-      }),
-      onSnapshot(collection(db, 'nodes'), (snap) => {
-        setListenerHealth(prev => ({ ...prev, nodes: { count: snap.size, lastUpdate: new Date() } }));
-      })
-    ];
+    const fetchOperationalData = async () => {
+      try {
+        const [partnersSnap, vibeSnap, syncSnap, hubsSnap, nodesSnap] = await Promise.all([
+          getDocs(collection(db, 'partners')).catch(() => null),
+          getDocs(query(collection(db, 'vibe_reports'), orderBy('reported_at', 'desc'), limit(100))).catch(() => null),
+          getDocs(query(collection(db, 'sync_logs'), orderBy('timestamp', 'desc'), limit(10))).catch(() => null),
+          getDocs(collection(db, 'local_hubs')).catch(() => null),
+          getDocs(collection(db, 'nodes')).catch(() => null),
+        ]);
+        if (!isMounted) return;
+        const now = new Date();
+        if (partnersSnap) {
+          setPartners(partnersSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }) as Partner));
+          setListenerHealth(prev => ({ ...prev, partners: { count: partnersSnap.size, lastUpdate: now } }));
+        }
+        if (vibeSnap) {
+          setVibeReports(vibeSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }) as VibeReport));
+          setListenerHealth(prev => ({ ...prev, vibe_reports: { count: vibeSnap.size, lastUpdate: now } }));
+        }
+        if (syncSnap) {
+          setSyncLogs(syncSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+          setListenerHealth(prev => ({ ...prev, sync_logs: { count: syncSnap.size, lastUpdate: now } }));
+        }
+        if (hubsSnap) {
+          setLocalHubs(hubsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }) as LocalHub));
+          setListenerHealth(prev => ({ ...prev, local_hubs: { count: hubsSnap.size, lastUpdate: now } }));
+        }
+        if (nodesSnap) {
+          setListenerHealth(prev => ({ ...prev, nodes: { count: nodesSnap.size, lastUpdate: now } }));
+        }
+      } catch {
+        // Handled per-promise
+      }
+    };
+
+    fetchOperationalData();
 
     // Health Check
     const checkHealth = async () => {
       try {
         await getDocFromServer(doc(db, 'nodes', 'connection-test'));
-        setSystemHealth(prev => ({ ...prev, firebase: 'ok' }));
-      } catch (e) {
-        setSystemHealth(prev => ({ ...prev, firebase: 'degraded' }));
+        if (isMounted) setSystemHealth(prev => ({ ...prev, firebase: 'ok' }));
+      } catch {
+        if (isMounted) setSystemHealth(prev => ({ ...prev, firebase: 'degraded' }));
       }
       
       if ('serviceWorker' in navigator) {
         const registration = await navigator.serviceWorker.getRegistration();
-        setSystemHealth(prev => ({ ...prev, swActive: !!registration?.active }));
+        if (isMounted) setSystemHealth(prev => ({ ...prev, swActive: !!registration?.active }));
       }
     };
     checkHealth();
 
-    return () => unsubs.forEach(unsub => unsub());
+    return () => {
+      isMounted = false;
+    };
   }, [isAdmin]);
 
   const handleDeleteBroadcast = async (id: string, title: string) => {

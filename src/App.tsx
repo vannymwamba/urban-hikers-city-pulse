@@ -268,18 +268,25 @@ function AppRouter() {
       setSignatureWalks([]);
       return;
     }
+    let isMounted = true;
     const q = query(
       collection(db, 'walks'),
       where('hub_id', '==', nodeId),
       where('active', '==', true)
     );
-    const unsub = onSnapshot(q, (snap) => {
-      const walks = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as SignatureWalk));
-      setSignatureWalks(walks);
-    }, (err) => {
-      handleFirestoreError(err, OperationType.LIST, 'walks');
-    });
-    return () => unsub();
+    getDocs(q)
+      .then((snap) => {
+        if (!isMounted) return;
+        const walks = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as SignatureWalk));
+        setSignatureWalks(walks);
+      })
+      .catch((err) => {
+        if (!isMounted) return;
+        handleFirestoreError(err, OperationType.LIST, 'walks');
+      });
+    return () => {
+      isMounted = false;
+    };
   }, [nodeId]);
 
   const hubPartners = useMemo(() => {
@@ -344,16 +351,26 @@ function AppRouter() {
   const [nodes, setNodes] = useState<Node[]>([]);
 
   useEffect(() => {
-    const unsub = onSnapshot(collection(db, 'nodes'), (snap) => {
-      setNodes(snap.docs.map(doc => ({ id: doc.id, ...doc.data() }) as Node));
-    });
-    return () => unsub();
+    let isMounted = true;
+    getDocs(collection(db, 'nodes'))
+      .then((snap) => {
+        if (!isMounted) return;
+        setNodes(snap.docs.map(doc => ({ id: doc.id, ...doc.data() }) as Node));
+      })
+      .catch((err) => {
+        if (!isMounted) return;
+        handleFirestoreError(err, OperationType.LIST, 'nodes');
+      });
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   useEffect(() => {
-    const unsub = onSnapshot(
-      query(collection(db, 'local_hubs'), where('is_active', '==', true)),
-      (snap) => {
+    let isMounted = true;
+    getDocs(query(collection(db, 'local_hubs'), where('is_active', '==', true)))
+      .then((snap) => {
+        if (!isMounted) return;
         const hubs = snap.docs.map(d => {
           const hub = { id: d.id, ...d.data() } as LocalHub;
           if (currentNode && hub.latitude && hub.longitude) {
@@ -371,9 +388,14 @@ function AppRouter() {
         const filteredHubs = hubs.filter(h => (h.distance_mi ?? 0) <= 3);
         const tierOrder: Record<string, number> = { premium: 0, paid: 1, free: 2 };
         setLocalHubs(filteredHubs.sort((a, b) => tierOrder[a.tier] - tierOrder[b.tier]));
-      }
-    );
-    return () => unsub();
+      })
+      .catch((err) => {
+        if (!isMounted) return;
+        handleFirestoreError(err, OperationType.LIST, 'local_hubs');
+      });
+    return () => {
+      isMounted = false;
+    };
   }, [currentNode]);
 
   // Update current time every 10 seconds for precise expiry tracking
@@ -440,162 +462,140 @@ function AppRouter() {
 
   useEffect(() => {
     if (!user) return;
+    let isMounted = true;
 
-    const profileRef = doc(db, 'users', user.uid);
-    const unsubProfile = onSnapshot(profileRef, async (docSnap) => {
-      console.log("USER_PROFILE_SNAPSHOT_RECEIVED, EXISTS:", docSnap.exists());
-      let profile: UserProfile | null = null;
+    const loadUserProfile = async () => {
+      const profileRef = doc(db, 'users', user.uid);
+      try {
+        const docSnap = await getDoc(profileRef);
+        if (!isMounted) return;
+        let profile: UserProfile | null = null;
 
-      if (docSnap.exists()) {
-        profile = docSnap.data() as UserProfile;
+        if (docSnap.exists()) {
+          profile = docSnap.data() as UserProfile;
+          const email = user.email?.toLowerCase().trim() || '';
+          const isInternal = email.endsWith('@urban-hikers.com');
+
+          const currentPartnerId = profile.partnerId || profile.partner_id;
+          if ((profile.role as string) === 'user' || (profile.role === 'admin' && !currentPartnerId) || (isInternal && (profile.role as string) === 'user')) {
+            if (email) {
+              const partnerQuery = query(collection(db, 'partners'), where('owner_email', '==', email));
+              try {
+                const partnerSnap = await getDocs(partnerQuery);
+                if (!partnerSnap.empty) {
+                  const partnerDoc = partnerSnap.docs[0];
+                  const partnerData = partnerDoc.data() as Partner;
+                  const partnerId = partnerDoc.id;
+
+                  const needsRoleUpgrade = (profile.role as string) === 'user' && partnerData.role && profile.role !== partnerData.role;
+                  const needsPartnerLink = currentPartnerId !== partnerId;
+
+                  if (needsPartnerLink || needsRoleUpgrade || (isInternal && (profile.role as string) === 'user')) {
+                    const updates: any = {};
+                    if (needsPartnerLink) {
+                      updates.partnerId = partnerId;
+                    }
+                    if (isInternal && (profile.role as string) === 'user') {
+                      updates.role = 'admin';
+                    } else if (needsRoleUpgrade) {
+                      updates.role = partnerData.role;
+                    } else if ((profile.role as string) === 'user' && !isInternal) {
+                      updates.role = 'partner';
+                    }
+
+                    if (partnerData.associated_owner_uid !== user.uid) {
+                      try {
+                        await updateDoc(doc(db, 'partners', partnerId), {
+                          associated_owner_uid: user.uid
+                        });
+                      } catch {
+                        // Ignore quota or permission errors
+                      }
+                    }
+
+                    try {
+                      await updateDoc(profileRef, updates);
+                      profile = { ...profile, ...updates };
+                    } catch {
+                      // Ignore quota or permission errors
+                    }
+                  }
+                } else if (isInternal && (profile.role as string) === 'user') {
+                  try {
+                    await updateDoc(profileRef, { role: 'admin' });
+                    profile = { ...profile, role: 'admin' };
+                  } catch {
+                    // Ignore quota or permission errors
+                  }
+                }
+              } catch {
+                // Ignore partner lookup failure when quota reached
+              }
+            }
+          }
+        } else {
+          const email = user.email?.toLowerCase().trim();
+          if (email) {
+            const isInternal = email.endsWith('@urban-hikers.com');
+            profile = {
+              uid: user.uid,
+              email: user.email!,
+              role: (user.email === 'vannymwamba@gmail.com' || isInternal) ? 'admin' : 'user'
+            };
+            try {
+              await setDoc(profileRef, profile);
+            } catch {
+              // Ignore if quota reached
+            }
+          }
+        }
+
+        if (isMounted) {
+          setUserProfile(profile);
+          setLoading(false);
+        }
+      } catch (err: any) {
+        if (!isMounted) return;
         const email = user.email?.toLowerCase().trim() || '';
         const isInternal = email.endsWith('@urban-hikers.com');
-
-        // If they are currently a 'user' or 'admin' without a partner link, check if they should be linked
-        const currentPartnerId = profile.partnerId || profile.partner_id;
-        if ((profile.role as string) === 'user' || (profile.role === 'admin' && !currentPartnerId) || (isInternal && (profile.role as string) === 'user')) {
-          if (!email) return;
-
-          const partnerQuery = query(collection(db, 'partners'), where('owner_email', '==', email));
-          let partnerSnap;
-          try {
-            partnerSnap = await getDocs(partnerQuery);
-          } catch (err) {
-            console.error("Error querying partners:", err);
-            // Don't call handleFirestoreError here to avoid spamming if quota is already hit
-            return;
-          }
-          
-          if (!partnerSnap.empty) {
-            const partnerDoc = partnerSnap.docs[0];
-            const partnerData = partnerDoc.data() as Partner;
-            const partnerId = partnerDoc.id;
-            
-            // Only update if partnerId is missing or role needs upgrading
-            const needsRoleUpgrade = (profile.role as string) === 'user' && partnerData.role && profile.role !== partnerData.role;
-            const needsPartnerLink = currentPartnerId !== partnerId;
-
-            if (needsPartnerLink || needsRoleUpgrade || (isInternal && (profile.role as string) === 'user')) {
-              const updates: any = {};
-              if (needsPartnerLink) {
-                updates.partnerId = partnerId;
-              }
-              
-              if (isInternal && (profile.role as string) === 'user') {
-                updates.role = 'admin';
-              } else if (needsRoleUpgrade) {
-                updates.role = partnerData.role;
-              } else if ((profile.role as string) === 'user' && !isInternal) {
-                updates.role = 'partner';
-              }
-              
-              // Ensure partner has associated_owner_uid for storage rules
-              if (partnerData.associated_owner_uid !== user.uid) {
-                try {
-                  await updateDoc(doc(db, 'partners', partnerId), {
-                    associated_owner_uid: user.uid
-                  });
-                } catch (err) {
-                  console.error("Error updating partner owner UID:", err);
-                }
-              }
-
-              try {
-                await updateDoc(profileRef, updates);
-              } catch (err) {
-                console.error("Error updating user profile:", err);
-              }
-              return;
-            }
-          } else if (isInternal && (profile.role as string) === 'user') {
-            try {
-              await updateDoc(profileRef, { role: 'admin' });
-            } catch (err) {
-              console.error("Error auto-upgrading internal user:", err);
-            }
-          }
-        }
-      } else {
-        // Profile doesn't exist yet, check if they are a partner first
-        const email = user.email?.toLowerCase().trim();
-        if (!email) return;
-
-        const partnerQuery = query(collection(db, 'partners'), where('owner_email', '==', email));
-        let partnerSnap;
-        try {
-          partnerSnap = await getDocs(partnerQuery);
-        } catch (err) {
-          console.error("Error querying partners for new profile:", err);
-          return;
-        }
-        
-        if (!partnerSnap.empty) {
-          const partnerDoc = partnerSnap.docs[0];
-          const partnerData = partnerDoc.data() as Partner;
-          const partnerId = partnerDoc.id;
-          
-          if (partnerData.associated_owner_uid !== user.uid) {
-            try {
-              await updateDoc(doc(db, 'partners', partnerId), {
-                associated_owner_uid: user.uid
-              });
-            } catch (err) {
-              console.error("Error updating partner owner UID:", err);
-            }
-          }
-
-          profile = {
-            uid: user.uid,
-            email: user.email!,
-            role: (email.endsWith('@urban-hikers.com')) ? 'admin' : (partnerData.role || 'partner'),
-            partnerId: partnerId
-          };
-        } else {
-          const isInternal = email.endsWith('@urban-hikers.com');
-          profile = {
+        if (email) {
+          setUserProfile({
             uid: user.uid,
             email: user.email!,
             role: (user.email === 'vannymwamba@gmail.com' || isInternal) ? 'admin' : 'user'
-          };
+          });
         }
-        try {
-          await setDoc(profileRef, profile);
-        } catch (err) {
-          console.error("Error creating user profile:", err);
-        }
+        setLoading(false);
+        handleFirestoreError(err, OperationType.GET, `users/${user.uid}`);
       }
+    };
 
-      setUserProfile(profile);
-      setLoading(false);
-    }, (err) => {
-      setLoading(false);
-      handleFirestoreError(err, OperationType.GET, `users/${user.uid}`);
-    });
+    loadUserProfile();
 
-    return () => unsubProfile();
+    return () => {
+      isMounted = false;
+    };
   }, [user]);
 
   useEffect(() => {
+    let isMounted = true;
     const q = query(collection(db, 'partners'), where('active', '==', true));
-    const unsub = onSnapshot(
-      q,
-      (snap) => {
-        try {
-          const map: Record<string, Partner> = {};
-          snap.docs.forEach(doc => {
-            map[doc.id] = { id: doc.id, ...doc.data() } as Partner;
-          });
-          setPartnersMap(map);
-        } catch (err) {
-          console.error("PARTNERS_SNAPSHOT_PROCESSING_ERROR", err);
-          setPartnersMap({});
-        }
-      },
-      (err) => {
+    getDocs(q)
+      .then((snap) => {
+        if (!isMounted) return;
+        const map: Record<string, Partner> = {};
+        snap.docs.forEach(doc => {
+          map[doc.id] = { id: doc.id, ...doc.data() } as Partner;
+        });
+        setPartnersMap(map);
+      })
+      .catch((err) => {
+        if (!isMounted) return;
         handleFirestoreError(err, OperationType.LIST, 'partners');
-      }
-    );
-    return () => unsub();
+      });
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   const handleLogin = (isPartner = false) => {
@@ -952,13 +952,26 @@ function AppRouter() {
         if (activeUnsubscribe) activeUnsubscribe();
         
         const nodeRef = doc(db, 'nodes', targetId);
-        activeUnsubscribe = onSnapshot(nodeRef, (nodeSnap) => {
-          if (isCancelled) return;
-          console.log(`NODE_SNAPSHOT_RECEIVED: ${targetId}, EXISTS: ${nodeSnap.exists()}`);
-          if (nodeSnap.exists()) {
-            setCurrentNode({ id: nodeSnap.id, ...nodeSnap.data() } as Node);
-          } else if (isFallback) {
-            console.warn(`NODE_NOT_FOUND_EVEN_WITH_FALLBACK: ${targetId}`);
+        getDoc(nodeRef)
+          .then((nodeSnap) => {
+            if (isCancelled) return;
+            if (nodeSnap.exists()) {
+              setCurrentNode({ id: nodeSnap.id, ...nodeSnap.data() } as Node);
+            } else if (isFallback) {
+              setCurrentNode({
+                id: targetId,
+                name: `SECTOR_${targetId.toUpperCase()}`,
+                type: 'street',
+                latitude: 39.1092,
+                longitude: -84.5125,
+                radius_limit: 5000
+              });
+            }
+            setLoading(false);
+            setNodeLoading(false);
+          })
+          .catch((err) => {
+            if (isCancelled) return;
             setCurrentNode({
               id: targetId,
               name: `SECTOR_${targetId.toUpperCase()}`,
@@ -967,16 +980,10 @@ function AppRouter() {
               longitude: -84.5125,
               radius_limit: 5000
             });
-          }
-          setLoading(false);
-          setNodeLoading(false);
-        }, (err) => {
-          if (isCancelled) return;
-          console.error(`NODE_SNAPSHOT_ERROR: ${targetId}`, err);
-          setLoading(false);
-          setNodeLoading(false);
-          handleFirestoreError(err, OperationType.GET, `nodes/${targetId}`);
-        });
+            setLoading(false);
+            setNodeLoading(false);
+            handleFirestoreError(err, OperationType.GET, `nodes/${targetId}`);
+          });
       };
 
       // 1. Direct Try
@@ -1086,86 +1093,78 @@ function AppRouter() {
 
   useEffect(() => {
     if (!currentNode) {
-      console.log("BROADCASTS_EFFECT_SKIPPED: NO_CURRENT_NODE");
       return;
     }
 
-    console.log(`SUBSCRIBING_TO_BROADCASTS_FOR_NODE: ${currentNode.id}`);
-    
-    // Real-time subscription to broadcasts
-    // Optimization: We use targeted queries to reduce payload size and speed up scan-to-display
+    let isMounted = true;
     const sessionStartTime = Timestamp.fromDate(new Date(Date.now() - 3600000));
     
     const q = query(
       collection(db, 'broadcasts'),
       where('expires_at', '>', sessionStartTime)
-      // Note: We'd love to query by node directly, 
-      // but scope='all_nodes' broadcasts wouldn't show.
-      // For now we keep the city-wide fetch but we'll optimize 
-      // by separating it if it becomes a major bottleneck.
     );
 
-    // Speed optimization: Parallel fetch node and broadcasts
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      console.log(`BROADCASTS_SNAPSHOT_RECEIVED: ${snapshot.size} DOCS`);
-      const data = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as Broadcast[];
-      
-      setRawBroadcasts(data);
-      
-      const civicCount = data.filter(b => b.type === 'civic_event').length;
-      console.log(`BROADCASTS_PROCESSED: ${data.length} TOTAL, ${civicCount} CIVIC_EVENTS_FOUND`);
-      
-      // Removed mandatory setLoading(false) here because node fetch also manages it
-    }, (err) => {
-      console.error("BROADCASTS_SNAPSHOT_ERROR:", err);
-      handleFirestoreError(err, OperationType.LIST, 'broadcasts');
-    });
+    getDocs(q)
+      .then((snapshot) => {
+        if (!isMounted) return;
+        const data = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        })) as Broadcast[];
+        setRawBroadcasts(data);
+      })
+      .catch((err) => {
+        if (!isMounted) return;
+        handleFirestoreError(err, OperationType.LIST, 'broadcasts');
+      });
 
-    return () => unsubscribe();
-  }, [currentNode]); // Removed 'now' and 'partnersMap' from dependencies
+    return () => {
+      isMounted = false;
+    };
+  }, [currentNode]);
 
   // Fetch POIs (Murals)
   useEffect(() => {
     if (!currentNode) return;
 
-    console.log(`SUBSCRIBING_TO_POIS_FOR_HUB: ${currentNode.id}`);
+    let isMounted = true;
     const q = query(
       collection(db, 'pois'),
       where('active', '==', true)
     );
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      console.log(`POIS_SNAPSHOT_RECEIVED: ${snapshot.size} DOCS`);
-      const data = snapshot.docs.map(doc => {
-        const poi = doc.data();
-        // Map POI to Broadcast structure
-        return {
-          id: doc.id,
-          title: poi.name,
-          type: BroadcastType.MURAL,
-          latitude: poi.latitude,
-          longitude: poi.longitude,
-          description: poi.description,
-          imageUrl: poi.imageUrl,
-          venue: poi.artist, // Use venue field for artist name
-          address: poi.address,
-          expires_at: '2099-12-31T23:59:59Z', // Murals are permanent
-          starts_at: poi.createdAt,
-          current_vibe: 'chill',
-          active: true,
-          partner_id: 'admin' // Mark as admin/civic content
-        } as Broadcast;
+    getDocs(q)
+      .then((snapshot) => {
+        if (!isMounted) return;
+        const data = snapshot.docs.map(doc => {
+          const poi = doc.data();
+          return {
+            id: doc.id,
+            title: poi.name,
+            type: BroadcastType.MURAL,
+            latitude: poi.latitude,
+            longitude: poi.longitude,
+            description: poi.description,
+            imageUrl: poi.imageUrl,
+            venue: poi.artist,
+            address: poi.address,
+            expires_at: '2099-12-31T23:59:59Z',
+            starts_at: poi.createdAt,
+            current_vibe: 'chill',
+            active: true,
+            partner_id: 'admin'
+          } as Broadcast;
+        });
+        setRawPois(data);
+      })
+      .catch((err) => {
+        if (!isMounted) return;
+        handleFirestoreError(err, OperationType.LIST, 'pois');
       });
-      setRawPois(data);
-    }, (err) => {
-      console.error("POIS_SNAPSHOT_ERROR:", err);
-      handleFirestoreError(err, OperationType.LIST, 'pois');
-    });
 
-    return () => unsubscribe();
+    return () => {
+      isMounted = false;
+    };
   }, [currentNode]);
 
   // Client-side filtering and sorting
@@ -1830,33 +1829,36 @@ function GlobalNotificationIndicator() {
       }
     };
 
-    // Listen to latest vibe
-    const qVibes = query(collection(db, 'vibe_reports'), orderBy('timestamp', 'desc'), limit(1));
-    const unsubVibes = onSnapshot(qVibes, (snap) => {
-      if (!snap.empty) {
-        const doc = snap.docs[0];
-        const data = doc.data();
-        const ts = data.timestamp?.toMillis ? data.timestamp.toMillis() : 0;
-        latestVibeTime = ts;
-        checkActivity();
-      }
-    });
+    let isMounted = true;
 
-    // Listen to latest lost & found
-    const qLf = query(collection(db, 'lost_found'), orderBy('reportedAt', 'desc'), limit(1));
-    const unsubLf = onSnapshot(qLf, (snap) => {
-      if (!snap.empty) {
-        const doc = snap.docs[0];
-        const data = doc.data();
-        const ts = data.reportedAt?.toMillis ? data.reportedAt.toMillis() : 0;
-        latestLfTime = ts;
+    const fetchLatestActivity = async () => {
+      try {
+        const qVibes = query(collection(db, 'vibe_reports'), orderBy('timestamp', 'desc'), limit(1));
+        const qLf = query(collection(db, 'lost_found'), orderBy('reportedAt', 'desc'), limit(1));
+        const [snapVibes, snapLf] = await Promise.all([
+          getDocs(qVibes).catch(() => null),
+          getDocs(qLf).catch(() => null),
+        ]);
+        if (!isMounted) return;
+
+        if (snapVibes && !snapVibes.empty) {
+          const data = snapVibes.docs[0].data();
+          latestVibeTime = data.timestamp?.toMillis ? data.timestamp.toMillis() : 0;
+        }
+        if (snapLf && !snapLf.empty) {
+          const data = snapLf.docs[0].data();
+          latestLfTime = data.reportedAt?.toMillis ? data.reportedAt.toMillis() : 0;
+        }
         checkActivity();
+      } catch {
+        // Ignore activity check failure when quota is reached
       }
-    });
+    };
+
+    fetchLatestActivity();
 
     return () => {
-      unsubVibes();
-      unsubLf();
+      isMounted = false;
     };
   }, []);
 

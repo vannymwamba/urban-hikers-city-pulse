@@ -1,31 +1,36 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { doc, onSnapshot } from 'firebase/firestore';
+import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import type { GlobalSponsors } from '../types';
 
 const GlobalSponsorsContext = createContext<GlobalSponsors | null>(null);
 
 export function GlobalSponsorsProvider({ children }: { children: React.ReactNode }) {
-  const [sponsors, setSponsors] = useState<GlobalSponsors | null>(null);
+  const [sponsors, setSponsors] = useState<GlobalSponsors | null>({});
 
   useEffect(() => {
-    const docRef = doc(db, 'globalSponsors', 'config');
-    const unsubscribe = onSnapshot(
-      docRef,
-      (snap) => {
+    let isMounted = true;
+    const fetchSponsors = async () => {
+      try {
+        const docRef = doc(db, 'globalSponsors', 'config');
+        const snap = await getDoc(docRef);
+        if (!isMounted) return;
         if (snap.exists()) {
           setSponsors(snap.data() as GlobalSponsors);
         } else {
           setSponsors({});
         }
-      },
-      (err) => {
-        console.error("Failed to listen to global sponsors / promoted book:", err);
+      } catch (err: any) {
+        if (!isMounted) return;
         setSponsors({});
       }
-    );
+    };
 
-    return () => unsubscribe();
+    fetchSponsors();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   return (

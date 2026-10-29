@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { collection, query, where, orderBy, onSnapshot, updateDoc, doc, getDocs } from 'firebase/firestore';
+import { collection, query, where, orderBy, updateDoc, doc, getDocs } from 'firebase/firestore';
 import { db } from '../firebase';
 import { Phone, Mail, CheckCircle2, Tag, Search, Loader2, ArrowLeft } from 'lucide-react';
 
@@ -23,43 +23,40 @@ export function LostFoundHub() {
   const [filter, setFilter] = useState<'all' | 'lost' | 'found'>('all');
   const [resolvingId, setResolvingId] = useState<string | null>(null);
 
-  useEffect(() => {
-    // Fetch artists once to map IDs to Names
-    const fetchArtists = async () => {
-      try {
-        const snap = await getDocs(collection(db, 'artists'));
-        const artistMap: Record<string, string> = {};
-        snap.forEach(doc => {
-          artistMap[doc.id] = doc.data().artist_name;
-        });
-        setArtists(artistMap);
-      } catch (err) {
-        console.error("Failed to fetch artists for hub", err);
-      }
-    };
-    fetchArtists();
+  const fetchHubData = useCallback(async () => {
+    try {
+      const snap = await getDocs(collection(db, 'artists'));
+      const artistMap: Record<string, string> = {};
+      snap.forEach(d => {
+        artistMap[d.id] = d.data().artist_name;
+      });
+      setArtists(artistMap);
+    } catch {
+      // Ignore if quota reached
+    }
 
-    // Listen to live open reports
-    const q = query(
-      collection(db, 'lost_found'),
-      where('status', '==', 'open'),
-      orderBy('reportedAt', 'desc')
-    );
-
-    const unsubscribe = onSnapshot(q, (snap) => {
+    try {
+      const q = query(
+        collection(db, 'lost_found'),
+        where('status', '==', 'open'),
+        orderBy('reportedAt', 'desc')
+      );
+      const snap = await getDocs(q);
       const fetched: LfItem[] = [];
       snap.forEach(d => {
         fetched.push({ id: d.id, ...d.data() } as LfItem);
       });
       setReports(fetched);
+    } catch {
+      // Ignore if quota reached
+    } finally {
       setLoading(false);
-    }, (err) => {
-      console.error("Live feed error:", err);
-      setLoading(false);
-    });
-
-    return () => unsubscribe();
+    }
   }, []);
+
+  useEffect(() => {
+    fetchHubData();
+  }, [fetchHubData]);
 
   const handleResolve = async (id: string, resolveCode?: string) => {
     const code = window.prompt("Enter the 6-character resolve code to close this report:");

@@ -29,8 +29,11 @@ export interface FirestoreErrorInfo {
 }
 
 export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
+  const message = error instanceof Error ? error.message : String(error);
+  const code = (error as any)?.code || '';
+
   const errInfo: FirestoreErrorInfo = {
-    error: error instanceof Error ? error.message : String(error),
+    error: message,
     authInfo: {
       userId: auth.currentUser?.uid,
       email: auth.currentUser?.email,
@@ -46,7 +49,15 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
     },
     operationType,
     path
+  };
+
+  if (code === 'resource-exhausted' || message.includes('Quota limit exceeded') || message.includes('Quota exceeded')) {
+    console.warn('Firestore Quota Reached:', path, message);
+    return;
   }
+
   console.error('Firestore Error: ', JSON.stringify(errInfo));
-  throw new Error(JSON.stringify(errInfo));
+  if (message.includes('Missing or insufficient permissions') || code === 'permission-denied') {
+    throw new Error(JSON.stringify(errInfo));
+  }
 }
