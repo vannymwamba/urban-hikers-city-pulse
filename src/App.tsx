@@ -1,5 +1,6 @@
 import seedData from "./seed";
 import { completeEmailLinkIfPresent } from "./utils/identityUpgrade";
+import { recordVisitorTapTransaction } from "./utils/visitorProfile";
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { auth, db, finalDbId } from './firebase';
 import { signInWithPopup, signInAnonymously, GoogleAuthProvider, onAuthStateChanged, User } from 'firebase/auth';
@@ -476,6 +477,10 @@ function AppRouter() {
           const email = user.email?.toLowerCase().trim() || '';
           const isInternal = email.endsWith('@urban-hikers.com');
 
+          if (!profile.role) {
+            profile.role = (user.email === 'vannymwamba@gmail.com' || isInternal) ? 'admin' : 'user';
+          }
+
           const currentPartnerId = profile.partnerId || profile.partner_id;
           if ((profile.role as string) === 'user' || (profile.role === 'admin' && !currentPartnerId) || (isInternal && (profile.role as string) === 'user')) {
             if (email) {
@@ -491,16 +496,13 @@ function AppRouter() {
                   const needsPartnerLink = currentPartnerId !== partnerId;
 
                   if (needsPartnerLink || needsRoleUpgrade || (isInternal && (profile.role as string) === 'user')) {
-                    const updates: any = {};
-                    if (needsPartnerLink) {
-                      updates.partnerId = partnerId;
-                    }
+                    let newRole = profile.role;
                     if (isInternal && (profile.role as string) === 'user') {
-                      updates.role = 'admin';
-                    } else if (needsRoleUpgrade) {
-                      updates.role = partnerData.role;
+                      newRole = 'admin';
+                    } else if (needsRoleUpgrade && partnerData.role) {
+                      newRole = partnerData.role;
                     } else if ((profile.role as string) === 'user' && !isInternal) {
-                      updates.role = 'partner';
+                      newRole = 'partner';
                     }
 
                     if (partnerData.associated_owner_uid !== user.uid) {
@@ -513,20 +515,15 @@ function AppRouter() {
                       }
                     }
 
-                    try {
-                      await updateDoc(profileRef, updates);
-                      profile = { ...profile, ...updates };
-                    } catch {
-                      // Ignore quota or permission errors
-                    }
+                    // Keep role and partnerId in local React state only
+                    profile = {
+                      ...profile,
+                      role: newRole,
+                      partnerId: partnerId,
+                    };
                   }
                 } else if (isInternal && (profile.role as string) === 'user') {
-                  try {
-                    await updateDoc(profileRef, { role: 'admin' });
-                    profile = { ...profile, role: 'admin' };
-                  } catch {
-                    // Ignore quota or permission errors
-                  }
+                  profile = { ...profile, role: 'admin' };
                 }
               } catch {
                 // Ignore partner lookup failure when quota reached
@@ -543,7 +540,11 @@ function AppRouter() {
               role: (user.email === 'vannymwamba@gmail.com' || isInternal) ? 'admin' : 'user'
             };
             try {
-              await setDoc(profileRef, profile);
+              // Never write role/partnerId/partner_id to Firestore users doc
+              await setDoc(profileRef, {
+                uid: user.uid,
+                email: user.email!,
+              });
             } catch {
               // Ignore if quota reached
             }
@@ -703,14 +704,9 @@ function AppRouter() {
   const recordTap = useCallback(async (vectorOverride?: 'nfc' | 'qr' | 'direct') => {
     if (!currentNode || !nodeId) return;
 
-    // Check Consent Gate
-    const consentStored = localStorage.getItem('uh_consent_v1.0');
-    if (!consentStored || consentStored !== 'true') {
-      console.log("RECORD_TAP_BLOCKED: CONSENT_REQUIRED");
-      setPendingTapVector(vectorOverride || ACCESS_VECTOR);
-      setIsConsentModalOpen(true);
-      return;
-    }
+    // Immediately record anonymous tap under consent version v1.0
+    localStorage.setItem('uh_consent_v1.0', 'true');
+    setHasConsented(true);
     
     try {
       const vector = vectorOverride || ACCESS_VECTOR;
@@ -779,6 +775,15 @@ function AppRouter() {
           console.error("Error adding tap doc:", err);
           // handleFirestoreError(err, OperationType.CREATE, 'taps');
         }
+
+        // Update visitor profile in runTransaction
+        recordVisitorTapTransaction(currentUid, {
+          artist_id: artistId,
+          location_id: nodeId,
+          neighborhood: (currentNode as any)?.neighborhood || null,
+          lat: currentNode?.latitude || null,
+          lng: currentNode?.longitude || null,
+        }).catch(err => console.warn("Error updating visitor profile on tap:", err));
       }
     } catch (err) {
       console.error("Error recording tap:", err);
@@ -1718,6 +1723,8 @@ function AppRouter() {
             nfcStatus={nfcStatus}
             localHubs={localHubs}
             loading={loading || nodeLoading}
+            onOpenConsent={() => setIsConsentModalOpen(true)}
+            onProfileUpdate={(p) => setUserProfile(p)}
           />
           </div>
         </ErrorBoundary>

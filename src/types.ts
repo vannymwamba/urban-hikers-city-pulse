@@ -42,6 +42,7 @@ export interface Node {
   partner_initials?: string;
   partner_accent?: string;
   hub_tagline?: string;
+  neighborhood?: string;
   
   // Customizable design/media fields
   cover_image_url?: string;
@@ -72,6 +73,7 @@ export interface Node {
   // Partner recognition logo URLs
   partner_logo_url?: string;
   sponsor_logo_url?: string;
+  sponsor_name?: string;
   community_logo_url?: string;
 }
 
@@ -440,4 +442,31 @@ export interface Artist {
   next_story_name?: string;
   next_story_distance_mi?: number;
   next_story_time_mins?: number;
+  neighborhood?: string;
+  location_id?: string;
+}
+
+export interface JourneyStop {
+  artist_id?: string | null;
+  location_id?: string | null;
+  neighborhood?: string | null;
+  lat?: number | null;
+  lng?: number | null;
+  first_tapped_at: string;
+}
+
+export interface VisitorProfile {
+  uid?: string;
+  artists_discovered_ids: string[];
+  locations_visited_ids: string[];
+  neighborhoods_visited: string[];
+  total_miles_explored: number;
+  journey_stops: JourneyStop[];
+  favorite_artist_id?: string | null;
+  first_tap_at?: string | null;
+  last_tap_at?: string | null;
+  email?: string | null;
+  consent_given?: boolean;
+  consent_timestamp?: string | null;
+  consent_version?: string | null;
 }

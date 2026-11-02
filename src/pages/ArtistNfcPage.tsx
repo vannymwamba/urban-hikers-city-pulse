@@ -1,8 +1,10 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { collection, query, where, getDocs } from 'firebase/firestore';
-import { db } from '../firebase';
-import type { Artist, ArtistSocialProfile } from '../types';
+import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
+import { signInAnonymously } from 'firebase/auth';
+import { auth, db } from '../firebase';
+import type { Artist, ArtistSocialProfile, VisitorProfile } from '../types';
+import { recordVisitorTapTransaction } from '../utils/visitorProfile';
 import { 
   ArrowRight, 
   Instagram, 
@@ -91,6 +93,7 @@ export function ArtistNfcPage() {
   const [copiedLink, setCopiedLink] = useState(false);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [showAllArtists, setShowAllArtists] = useState(false);
+  const [visitorProfile, setVisitorProfile] = useState<VisitorProfile | null>(null);
 
   const handleShare = async () => {
     if (navigator.share) {
@@ -126,6 +129,32 @@ export function ArtistNfcPage() {
           const artistDoc = querySnapshot.docs[0];
           const artistData = { id: artistDoc.id, ...artistDoc.data() } as Artist;
           setArtist(artistData);
+
+          // Record tap in runTransaction and read visitor profile with one getDoc
+          try {
+            let currentUid = auth.currentUser?.uid;
+            if (!currentUid) {
+              const anonRes = await signInAnonymously(auth);
+              currentUid = anonRes.user.uid;
+            }
+            if (currentUid) {
+              await recordVisitorTapTransaction(currentUid, {
+                artist_id: artistData.id || artistSlug,
+                location_id: artistData.location_id || null,
+                neighborhood: artistData.neighborhood || null,
+                lat: artistData.latitude || null,
+                lng: artistData.longitude || null,
+              });
+
+              // Read it with one getDoc
+              const snap = await getDoc(doc(db, 'visitor_profiles', currentUid));
+              if (snap.exists() && isMounted) {
+                setVisitorProfile(snap.data() as VisitorProfile);
+              }
+            }
+          } catch (profileErr) {
+            console.warn('Could not record or load visitor profile:', profileErr);
+          }
           
           // One-time fetch for open reports at this node
           if (artistData.id) {
@@ -623,6 +652,66 @@ export function ArtistNfcPage() {
             </button>
             <SponsorSlot variant="wayfinding" sponsor={globalSponsors?.wayfinding} />
           </div>
+        </div>
+
+        {/* Your Walk So Far Card */}
+        <div className="bg-[#141417] rounded-2xl border border-white/10 p-5 mb-5 flex flex-col">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex flex-col">
+              <span className="font-mono text-[10px] font-bold tracking-[0.15em] text-[#F2C94C] uppercase">
+                YOUR WALK SO FAR
+              </span>
+              <div className="w-6 h-[2px] bg-[#F2C94C] mt-1" />
+            </div>
+            <span className="font-mono text-[10px] font-bold text-[#8A928B] uppercase tracking-wider">
+              BLINK 2026
+            </span>
+          </div>
+
+          <div className="grid grid-cols-4 gap-2 text-center py-3 px-2 bg-white/[0.03] rounded-xl border border-white/5 mb-3">
+            <div>
+              <div className="text-xl font-black text-white tabular-nums">
+                {visitorProfile?.artists_discovered_ids?.length || 0}
+              </div>
+              <div className="text-[9px] font-mono uppercase tracking-wider text-[#8A928B] mt-0.5">
+                Artists
+              </div>
+            </div>
+            <div>
+              <div className="text-xl font-black text-white tabular-nums">
+                {visitorProfile?.locations_visited_ids?.length || 0}
+              </div>
+              <div className="text-[9px] font-mono uppercase tracking-wider text-[#8A928B] mt-0.5">
+                Locations
+              </div>
+            </div>
+            <div>
+              <div className="text-xl font-black text-[#F2C94C] tabular-nums">
+                {(visitorProfile?.total_miles_explored || 0).toFixed(1)}
+              </div>
+              <div className="text-[9px] font-mono uppercase tracking-wider text-[#8A928B] mt-0.5">
+                Miles
+              </div>
+            </div>
+            <div>
+              <div className="text-xl font-black text-white tabular-nums">
+                {visitorProfile?.neighborhoods_visited?.length || 0}
+              </div>
+              <div className="text-[9px] font-mono uppercase tracking-wider text-[#8A928B] mt-0.5">
+                Hoods
+              </div>
+            </div>
+          </div>
+
+          {nextArtist && (
+            <Link
+              to={`/artist/${nextArtist.artist_slug}`}
+              className="w-full bg-[#F2C94C]/15 border border-[#F2C94C]/35 hover:bg-[#F2C94C]/25 text-[#F2C94C] text-xs font-black uppercase tracking-wider py-2.5 px-4 rounded-xl flex justify-between items-center transition-colors"
+            >
+              <span>Keep walking to {nextArtist.artist_name}</span>
+              <ArrowRight size={14} />
+            </Link>
+          )}
         </div>
 
         {/* Action Bar (Lost & Found) */}

@@ -1,10 +1,10 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ShieldCheck, MapPin, Zap, Lock, CheckCircle2 } from 'lucide-react';
+import { ShieldCheck, MapPin, Zap, Lock, CheckCircle2, X } from 'lucide-react';
 
 interface ConsentModalProps {
   isOpen: boolean;
-  onConsent: () => void;
+  onConsent?: () => void;
   onClose?: () => void;
 }
 
@@ -15,18 +15,41 @@ export const ConsentModal: React.FC<ConsentModalProps> = ({
 }) => {
   if (!isOpen) return null;
 
+  const handleClose = () => {
+    if (onConsent) onConsent();
+    if (onClose) onClose();
+  };
+
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+      <div 
+        className="fixed inset-0 z-50 flex items-end justify-center bg-black/80 backdrop-blur-md"
+        onClick={onClose}
+      >
         <motion.div
-          initial={{ opacity: 0, scale: 0.95, y: 10 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.95, y: 10 }}
-          transition={{ duration: 0.2 }}
-          className="w-full max-w-md bg-[#121212] border border-white/10 rounded-2xl p-6 shadow-2xl relative text-white font-sans overflow-hidden"
+          initial={{ opacity: 0, y: '100%' }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: '100%' }}
+          transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+          onClick={(e) => e.stopPropagation()}
+          className="w-full max-w-md bg-[#121212] border-t border-x border-white/10 rounded-t-3xl p-6 shadow-2xl relative text-white font-sans overflow-hidden max-h-[85vh] overflow-y-auto"
         >
           {/* Top Decorative Glow */}
           <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-teal-500 via-uh-yellow to-hud-magenta" />
+
+          {/* Visual Drag / Handle Bar */}
+          <div className="w-10 h-1 bg-white/20 rounded-full mx-auto mb-4 shrink-0" />
+
+          {/* Close Icon Button */}
+          {onClose && (
+            <button
+              onClick={onClose}
+              className="absolute top-4 right-4 p-2 rounded-full bg-white/5 text-white/50 hover:text-white transition-colors cursor-pointer"
+              aria-label="Close"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
 
           {/* Header */}
           <div className="flex items-center gap-3 mb-4">
@@ -79,22 +102,12 @@ export const ConsentModal: React.FC<ConsentModalProps> = ({
           <div className="flex flex-col gap-2">
             <button
               id="consent-modal-agree-btn"
-              onClick={onConsent}
-              className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-teal-500 to-teal-600 hover:from-teal-400 hover:to-teal-500 text-black font-bold text-xs tracking-wider uppercase flex items-center justify-center gap-2 transition-all shadow-lg active:scale-[0.98]"
+              onClick={handleClose}
+              className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-teal-500 to-teal-600 hover:from-teal-400 hover:to-teal-500 text-black font-bold text-xs tracking-wider uppercase flex items-center justify-center gap-2 transition-all shadow-lg active:scale-[0.98] cursor-pointer"
             >
               <CheckCircle2 className="w-4 h-4" />
-              I Agree & Continue Tapping
+              Got It
             </button>
-
-            {onClose && (
-              <button
-                id="consent-modal-cancel-btn"
-                onClick={onClose}
-                className="w-full py-2 text-center text-xs text-white/40 hover:text-white/70 transition-colors uppercase font-mono tracking-wider"
-              >
-                Cancel
-              </button>
-            )}
           </div>
         </motion.div>
       </div>

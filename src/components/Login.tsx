@@ -41,7 +41,8 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
           role: role
         };
         try {
-          await setDoc(doc(db, 'users', user.uid), profile, { merge: true });
+          // Never write role/partnerId/partner_id to Firestore users doc
+          await setDoc(doc(db, 'users', user.uid), { uid: user.uid, email: user.email! }, { merge: true });
         } catch (err) {
           handleFirestoreError(err, OperationType.WRITE, `users/${user.uid}`);
         }
@@ -61,10 +62,11 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
         
         if (profileDoc.exists()) {
           const data = profileDoc.data() as UserProfile;
-          // Role Repair: Ensure bootstrap admin always has super_admin role
-          if (data.email === 'vannymwamba@gmail.com' && data.role !== 'super_admin') {
-            await updateDoc(doc(db, 'users', user.uid), { role: 'super_admin' });
+          // Role Repair: Ensure bootstrap admin always has super_admin role in local state
+          if (data.email === 'vannymwamba@gmail.com' || user.email === 'vannymwamba@gmail.com') {
             data.role = 'super_admin';
+          } else if (!data.role) {
+            data.role = 'hiker';
           }
           onLoginSuccess(data);
         } else {
@@ -76,7 +78,7 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
             role: role
           };
           try {
-            await setDoc(doc(db, 'users', user.uid), profile, { merge: true });
+            await setDoc(doc(db, 'users', user.uid), { uid: user.uid, email: user.email! }, { merge: true });
           } catch (err) {
             handleFirestoreError(err, OperationType.WRITE, `users/${user.uid}`);
           }
@@ -143,7 +145,6 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
           await updateDoc(doc(db, 'users', user.uid), {
             uid: user.uid,
             email: user.email || data.email,
-            role: roleToSet,
             session_uuid: sessionId,
             linked_session_uuid: sessionId,
           });
@@ -161,7 +162,13 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
           linked_session_uuid: sessionId,
         };
         try {
-          await setDoc(doc(db, 'users', user.uid), profile, { merge: true });
+          // Never write role/partnerId/partner_id to Firestore users doc
+          await setDoc(doc(db, 'users', user.uid), {
+            uid: user.uid,
+            email: user.email!,
+            session_uuid: sessionId,
+            linked_session_uuid: sessionId,
+          }, { merge: true });
         } catch (err) {
           handleFirestoreError(err, OperationType.WRITE, `users/${user.uid}`);
         }

@@ -1,11 +1,14 @@
 import React, { useState } from 'react';
 import { upgradeWithGoogle, sendKeepLink } from '../utils/identityUpgrade';
+import { saveVisitorConsent } from '../utils/visitorProfile';
+import { auth } from '../firebase';
 import type { UserProfile } from '../types';
 
 export function KeepYourNightModal({ isOpen, onClose, onUpgraded }: {
   isOpen: boolean; onClose: () => void; onUpgraded?: (p: UserProfile) => void;
 }) {
   const [email, setEmail] = useState('');
+  const [recapOptIn, setRecapOptIn] = useState(false);
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -13,16 +16,34 @@ export function KeepYourNightModal({ isOpen, onClose, onUpgraded }: {
 
   const google = async () => {
     setLoading(true); setError(null);
-    try { const p = await upgradeWithGoogle(); onUpgraded?.(p); onClose(); }
-    catch (e: any) { if (e?.code !== 'auth/popup-closed-by-user') setError('Could not connect Google — try the email option.'); }
-    finally { setLoading(false); }
+    try {
+      const p = await upgradeWithGoogle();
+      if (auth.currentUser?.uid) {
+        await saveVisitorConsent(auth.currentUser.uid, p.email || email, recapOptIn);
+      }
+      onUpgraded?.(p);
+      onClose();
+    } catch (e: any) {
+      if (e?.code !== 'auth/popup-closed-by-user') setError('Could not connect Google — try the email option.');
+    } finally {
+      setLoading(false);
+    }
   };
+
   const emailLink = async () => {
     if (!email.includes('@')) { setError('Enter a valid email.'); return; }
     setLoading(true); setError(null);
-    try { await sendKeepLink(email); setSent(true); }
-    catch { setError('Could not send the link — try again.'); }
-    finally { setLoading(false); }
+    try {
+      await sendKeepLink(email);
+      if (auth.currentUser?.uid) {
+        await saveVisitorConsent(auth.currentUser.uid, email, recapOptIn);
+      }
+      setSent(true);
+    } catch {
+      setError('Could not send the link — try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -45,6 +66,17 @@ export function KeepYourNightModal({ isOpen, onClose, onUpgraded }: {
               <button disabled={loading} onClick={emailLink}
                 className="rounded-full border border-white/15 text-[#EDEFE9] px-4 text-sm disabled:opacity-60">Send</button>
             </div>
+            <label className="mt-3 flex items-start gap-2.5 cursor-pointer text-left select-none">
+              <input
+                type="checkbox"
+                checked={recapOptIn}
+                onChange={e => setRecapOptIn(e.target.checked)}
+                className="mt-0.5 w-4 h-4 rounded border-white/20 bg-black/40 text-[#B8E62E] focus:ring-0 focus:ring-offset-0 cursor-pointer accent-[#B8E62E]"
+              />
+              <span className="text-xs text-[#EDEFE9]/85 leading-snug">
+                Send me my BLINK Wrapped recap and event updates
+              </span>
+            </label>
             <button onClick={onClose} className="mt-4 w-full text-center text-xs text-[#8A928B]">Maybe later</button>
           </>
         )}

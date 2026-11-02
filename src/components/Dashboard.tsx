@@ -61,6 +61,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, userProfile, nodes, 
     partner_initials: '',
     partner_accent: '#FFE01A',
     hub_tagline: '',
+    neighborhood: '',
     
     // Customizable design/media fields
     cover_image_url: '',
@@ -523,7 +524,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, userProfile, nodes, 
       setEditingNodeId(null);
       setNewSectorNode({ 
         name: '', address: '', latitude: 39.1092, longitude: -84.5125, radius_limit: 4828, type: 'street' as any,
-        partner_name: '', partner_type: 'walk_hq' as any, partner_initials: '', partner_accent: '#FFE01A', hub_tagline: '',
+        partner_name: '', partner_type: 'walk_hq' as any, partner_initials: '', partner_accent: '#FFE01A', hub_tagline: '', neighborhood: '',
         cover_image_url: '', logo_url: '', gallery_urls: [], founder_photo_url: '',
         theme_mode: 'light', logo_style: 'circle', why_it_matters: '', founder_story: '',
         business_history: '', community_impact: '', recommended_experience: '',
@@ -1265,7 +1266,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, userProfile, nodes, 
                               setEditingNodeId(null);
                               setNewSectorNode({
                                 name: '', address: '', latitude: 39.1092, longitude: -84.5125, radius_limit: 4828, type: 'street' as any,
-                                partner_name: '', partner_type: 'walk_hq', partner_initials: '', partner_accent: '#FFE01A', hub_tagline: '',
+                                partner_name: '', partner_type: 'walk_hq', partner_initials: '', partner_accent: '#FFE01A', hub_tagline: '', neighborhood: '',
                                 cover_image_url: '', logo_url: '', gallery_urls: [], founder_photo_url: '',
                                 theme_mode: 'light', logo_style: 'circle', why_it_matters: '', founder_story: '',
                                 business_history: '', community_impact: '', recommended_experience: '',
@@ -1321,6 +1322,15 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, userProfile, nodes, 
                               value={newSectorNode.hub_tagline}
                               placeholder="Where historic brickframes modern experiences"
                               onChange={e => setNewSectorNode({...newSectorNode, hub_tagline: e.target.value})}
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[9px] text-[#999] tracking-widest uppercase mb-2 block">Neighborhood</label>
+                            <input 
+                              className="w-full bg-uh-gray-50 border border-uh-gray-100 rounded-xl px-4 py-3 text-[12px] font-bold focus:border-uh-yellow outline-none"
+                              value={newSectorNode.neighborhood || ''}
+                              placeholder="e.g. Over-the-Rhine, Downtown"
+                              onChange={e => setNewSectorNode({...newSectorNode, neighborhood: e.target.value})}
                             />
                           </div>
 
@@ -2160,6 +2170,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, userProfile, nodes, 
                             partner_initials: node.partner_initials || '',
                             partner_accent: node.partner_accent || '#FFE01A',
                             hub_tagline: node.hub_tagline || '',
+                            neighborhood: node.neighborhood || '',
                             cover_image_url: node.cover_image_url || '',
                             logo_url: node.logo_url || '',
                             gallery_urls: node.gallery_urls || [],

@@ -48,6 +48,8 @@ export function AdminArtistsPanel({ setHudMessage }: AdminArtistsPanelProps) {
     audioSponsor_logoUrl: '',
     audioSponsor_link: '',
     hometown: '',
+    neighborhood: '',
+    location_id: '',
     location_string: '',
     latitude: 0,
     longitude: 0,
@@ -264,6 +266,8 @@ export function AdminArtistsPanel({ setHudMessage }: AdminArtistsPanelProps) {
       audioSponsor_logoUrl: artist.audioSponsor?.logoUrl || '',
       audioSponsor_link: artist.audioSponsor?.link || '',
       hometown: artist.hometown || '',
+      neighborhood: artist.neighborhood || '',
+      location_id: artist.location_id || '',
       location_string: artist.location_string || '',
       latitude: artist.latitude || 0,
       longitude: artist.longitude || 0,
@@ -295,6 +299,8 @@ export function AdminArtistsPanel({ setHudMessage }: AdminArtistsPanelProps) {
       audioSponsor_logoUrl: '',
       audioSponsor_link: '',
       hometown: '',
+      neighborhood: '',
+      location_id: '',
       location_string: '',
       latitude: 0,
       longitude: 0,
@@ -484,10 +490,20 @@ export function AdminArtistsPanel({ setHudMessage }: AdminArtistsPanelProps) {
             </div>
 
             <div>
+              <label className="text-[9px] text-[#999] tracking-widest uppercase mb-2 block">Neighborhood</label>
+              <input value={formData.neighborhood} onChange={e => setFormData({...formData, neighborhood: e.target.value})} className="w-full bg-[#f5f5f5] text-black border border-[#e0e0e0] rounded-lg px-4 py-3 text-sm" placeholder="e.g. Over-the-Rhine / Downtown" />
+            </div>
+
+            <div>
+              <label className="text-[9px] text-[#999] tracking-widest uppercase mb-2 block">Location ID</label>
+              <input value={formData.location_id} onChange={e => setFormData({...formData, location_id: e.target.value})} className="w-full bg-[#f5f5f5] text-black border border-[#e0e0e0] rounded-lg px-4 py-3 text-sm" placeholder="e.g. LOC-OTR-01 or node_id" />
+            </div>
+
+            <div>
               <label className="text-[9px] text-[#999] tracking-widest uppercase mb-2 block">Address / Location Name</label>
               <input value={formData.location_string} onChange={e => setFormData({...formData, location_string: e.target.value})} className="w-full bg-[#f5f5f5] text-black border border-[#e0e0e0] rounded-lg px-4 py-3 text-sm" placeholder="e.g. Walnut St + 13th St" />
             </div>
-            <div>
+            <div className="md:col-span-2">
               <label className="text-[9px] text-[#999] tracking-widest uppercase mb-2 block">Latitude, Longitude</label>
               <div className="flex gap-2">
                 <input type="number" step="any" value={formData.latitude} onChange={e => setFormData({...formData, latitude: parseFloat(e.target.value) || 0})} className="w-full bg-[#f5f5f5] text-black border border-[#e0e0e0] rounded-lg px-4 py-3 text-sm" placeholder="Lat" />

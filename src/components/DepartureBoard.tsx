@@ -5,16 +5,20 @@ import { BroadcastCard } from './BroadcastCard';
 import { FlashDealCard } from './FlashDealCard';
 import { Feed } from './Feed';
 import { RouteCard } from './RouteCard';
-import { Clock, ShieldCheck, MapPin, Home, LayoutGrid, Share2, Ticket, Map as MapIcon, ArrowRight, AlertCircle, Lock, Navigation, Users, Plus, Award, Heart, LogOut, Sparkles, CheckCircle2, Calendar, BookOpen, Star, Wifi } from 'lucide-react';
+import { Clock, ShieldCheck, MapPin, Home, LayoutGrid, Share2, Ticket, Map as MapIcon, ArrowRight, AlertCircle, Lock, Navigation, Users, User, Plus, Award, Heart, LogOut, Sparkles, CheckCircle2, Calendar, BookOpen, Star, Wifi, Key, ChevronRight, X, Radio, Coffee, Mail } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { getDistance } from '../utils/geo';
 import { WalletCard } from './WalletCard';
 import { getEventStatus } from '../utils/broadcastHelpers';
 import { BroadcastControlForm } from './BroadcastControlForm';
-import { BroadcastType } from '../types';
+import { BroadcastType, DisplaySponsor } from '../types';
 import { PulseDropStrip } from './PulseDropStrip';
-import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase';
+import { QuickReportSheet } from './QuickReportSheet';
+import { SponsorSlot } from './SponsorSlot';
+import { LinkEmailModal } from './LinkEmailModal';
+import { ProfileTab } from './ProfileTab';
 
 interface DepartureBoardProps {
   nodeName: string;
@@ -51,6 +55,8 @@ interface DepartureBoardProps {
   badges?: string[];
   connectionsCount?: number;
   onSimulateNfc?: () => void;
+  onOpenConsent?: () => void;
+  onProfileUpdate?: (profile: UserProfile) => void;
 }
 
 export const DepartureBoard: React.FC<DepartureBoardProps> = ({ 
@@ -88,13 +94,15 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
   badges = ["Downtown Explorer", "Coffee Hunter"],
   connectionsCount = 3,
   onSimulateNfc = () => {},
+  onOpenConsent,
+  onProfileUpdate,
 }) => {
   const navItems: Array<{ id: string; icon: any; label: string; href?: string }> = [
-    { id: 'home', icon: Home, label: 'Home' },
-    { id: 'feed', icon: Clock, label: 'Feed' },
-    { id: 'explore', icon: Navigation, label: 'Explore' },
-    { id: 'wallet', icon: Ticket, label: 'Wallet' },
-    { id: 'profile', icon: Users, label: 'Profile' }
+    { id: 'home', icon: Home, label: 'Here' },
+    { id: 'feed', icon: Clock, label: 'Pulse' },
+    { id: 'explore', icon: Navigation, label: 'Next stop' },
+    { id: 'wallet', icon: Ticket, label: 'Passport' },
+    { id: 'profile', icon: User, label: 'Profile' }
   ];
 
   const [time, setTime] = useState(new Date());
@@ -119,18 +127,12 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
   });
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [tapConfirmAction, setTapConfirmAction] = useState<'in' | 'out' | null>(null);
-  const [uptime, setUptime] = useState(99.9);
   const [showLogin, setShowLogin] = useState(false);
   const [scrollProgress, setScrollProgress] = useState(0);
   const [showBroadcastForm, setShowBroadcastForm] = useState(false);
 
-  // --- Dynamic Hooks and tap history and live events count from Firestore ---
-  const hooks = (currentNode as any)?.hooks || [
-    { id: 'h1', text: "Fresh artisanal coffee aromas drifting onto Vine Street." },
-    { id: 'h2', text: "Where historic OTR brickwork frames modern local experiences." },
-    { id: 'h3', text: "Uncovering Cincinnati's secret narratives, one city block at a time." },
-    { id: 'h4', text: "Connect, discover, and share the active rhythm of our streets." }
-  ];
+  // Dynamic Hooks: only show rotating quotes if node has its own custom hooks (no default quotes)
+  const hooks: Array<{ id: string; text: string }> = (currentNode as any)?.hooks || [];
 
   const [activeHook, setActiveHook] = useState(0);
 
@@ -184,84 +186,212 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
     }
   }, [tapCount, currentNode]);
 
-  const [liveEventsCount, setLiveEventsCount] = useState<number>(3); // start with a nice fallback
 
+  const [openReportsCount, setOpenReportsCount] = useState<number>(0);
+  const [isQuickReportOpen, setIsQuickReportOpen] = useState<boolean>(false);
+  const [showStorySheet, setShowStorySheet] = useState<boolean>(false);
+  const [isLinkEmailModalOpen, setIsLinkEmailModalOpen] = useState<boolean>(false);
+  const [visitorEmail, setVisitorEmail] = useState<string | null>(null);
+  const [hubsTappedCount, setHubsTappedCount] = useState<number>(() => {
+    return Number(localStorage.getItem('uh_passport_nodes_count') || '1');
+  });
+
+  // Query visitor_profiles for logged-in user, otherwise fallback to uh_passport_nodes_count
   useEffect(() => {
-    if (!currentNode?.latitude || !currentNode?.longitude) return;
+    if (user?.uid) {
+      getDoc(doc(db, 'visitor_profiles', user.uid))
+        .then((snap) => {
+          if (snap.exists()) {
+            const data = snap.data();
+            const count = data.locations_visited_ids?.length || data.journey_stops?.length || 0;
+            if (count > 0) {
+              setHubsTappedCount(count);
+            }
+            if (data.email) {
+              setVisitorEmail(data.email);
+            }
+          }
+        })
+        .catch(() => {});
+    } else {
+      setHubsTappedCount(Number(localStorage.getItem('uh_passport_nodes_count') || '1'));
+    }
+  }, [user?.uid]);
+
+  // Query open lost & found reports for this node
+  useEffect(() => {
+    if (!currentNode?.id) return;
+    getDocs(query(collection(db, 'lost_found'), where('node_id', '==', currentNode.id), where('status', '==', 'open')))
+      .then((snap) => setOpenReportsCount(snap.size))
+      .catch(() => setOpenReportsCount(0));
+  }, [currentNode?.id]);
+
+  // Helper for parsing any timestamp
+  const parseSafeDate = (val: any): Date | null => {
+    if (!val) return null;
+    if (typeof val.toDate === 'function') return val.toDate();
+    if (val instanceof Date) return val;
+    if (typeof val === 'number') return new Date(val);
+    if (typeof val === 'string') {
+      const d = new Date(val);
+      return isNaN(d.getTime()) ? null : d;
+    }
+    return null;
+  };
+
+  interface LiveItem {
+    id: string;
+    title: string;
+    venueOrAddress: string;
+    startsAt: Date;
+    expiresAt: Date;
+    isStarted: boolean;
+    timeLabel: string;
+    typeChip: 'WALK' | 'DEAL' | 'LIBRARY' | 'FOOD' | 'EVENT';
+    isFree: boolean;
+    distanceMeters: number;
+    walkMinutes: number;
+    originalBroadcast: Broadcast;
+  }
+
+  // HAPPENING NOW: live events derived purely from loaded broadcasts (no Firestore 'events' queries)
+  const { liveItems, liveSectionTitle } = React.useMemo(() => {
+    if (!currentNode || typeof currentNode.latitude !== 'number' || typeof currentNode.longitude !== 'number') {
+      return { liveItems: [] as LiveItem[], liveSectionTitle: 'Happening now' };
+    }
 
     const now = new Date();
-    // Use Firestore collection `events` filtered by timestamp >= now and location within 500m
-    const q = query(
-      collection(db, 'events'),
-      where('timestamp', '>=', now)
-    );
+    const twoHoursFromNow = new Date(now.getTime() + 2 * 60 * 60 * 1000);
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const docs = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }) as any);
+    const allowedTypes = new Set([
+      'walking_event',
+      'flash_deal',
+      'live_event',
+      'pop_up',
+      'civic_event',
+      'civic_free',
+      'event',
+      'live_performance',
+      'conference_panel',
+      'food_truck'
+    ]);
 
-      const nearbyDocs = docs.filter(event => {
-        const evLat = event.latitude ?? event.lat ?? (event.coords?.latitude || event.coords?.lat);
-        const evLng = event.longitude ?? event.lng ?? (event.coords?.longitude || event.coords?.lng);
-        
-        if (evLat === undefined || evLng === undefined) return false;
-        
-        const dist = getDistance(
-          currentNode.latitude,
-          currentNode.longitude,
-          evLat,
-          evLng
-        );
-        return dist <= 500;
-      });
+    const candidates: Array<{ item: LiveItem; dist: number }> = [];
 
-      setLiveEventsCount(nearbyDocs.length);
-    }, (err) => {
-      console.warn("Firestore 'events' real-time query failed (maybe missing index), using fallback:", err);
-      try {
-        const fallbackQ = collection(db, 'events');
-        onSnapshot(fallbackQ, (snapshot) => {
-          const docs = snapshot.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data()
-          }) as any);
+    (broadcasts || []).forEach((b) => {
+      const rawType = (b.type || '').toString().toLowerCase();
+      const isSponsored = b.is_sponsored === true;
 
-          const nearbyDocs = docs.filter(event => {
-            const evLat = event.latitude ?? event.lat ?? (event.coords?.latitude || event.coords?.lat);
-            const evLng = event.longitude ?? event.lng ?? (event.coords?.longitude || event.coords?.lng);
-            if (evLat === undefined || evLng === undefined) return false;
-
-            const evTimeStr = event.timestamp;
-            let evDate: Date;
-            if (evTimeStr && typeof evTimeStr.toDate === 'function') {
-              evDate = evTimeStr.toDate();
-            } else if (evTimeStr) {
-              evDate = new Date(evTimeStr);
-            } else {
-              evDate = new Date();
-            }
-
-            if (evDate < now) return false;
-
-            const dist = getDistance(
-              currentNode.latitude,
-              currentNode.longitude,
-              evLat,
-              evLng
-            );
-            return dist <= 500;
-          });
-          setLiveEventsCount(nearbyDocs.length);
-        });
-      } catch (fallbackErr) {
-        console.error("Fallback query also failed", fallbackErr);
+      // 1. Allowed type or is_sponsored === true
+      if (!allowedTypes.has(rawType) && !isSponsored) {
+        return;
       }
+
+      // 2. Type is NOT mural, civic_mural or street_art, and NO artist_id / artist_slug
+      if (rawType === 'mural' || rawType === 'civic_mural' || rawType === 'street_art') {
+        return;
+      }
+      const hasArtist = Boolean(
+        (b as any).artist_id ||
+        (b as any).artistId ||
+        (b as any).artist_slug ||
+        (b as any).artistSlug
+      );
+      if (hasArtist) {
+        return;
+      }
+
+      // 3. Live: starts_at <= now + 2 hours AND expires_at > now
+      const startsAt = parseSafeDate(b.starts_at || (b as any).startsAt || (b as any).startTime);
+      if (!startsAt) return;
+      const expiresAt = parseSafeDate(b.expires_at || (b as any).expiresAt) || new Date(startsAt.getTime() + 2 * 60 * 60 * 1000);
+      if (!expiresAt) return;
+
+      if (startsAt.getTime() > twoHoursFromNow.getTime() || expiresAt.getTime() <= now.getTime()) {
+        return;
+      }
+
+      // 4. Distance within coordinates
+      const lat = b.latitude ?? b.coords?.lat;
+      const lng = b.longitude ?? b.coords?.lng;
+      if (typeof lat !== 'number' || typeof lng !== 'number' || isNaN(lat) || isNaN(lng)) {
+        return;
+      }
+
+      const dist = getDistance(currentNode.latitude, currentNode.longitude, lat, lng);
+      const isStarted = startsAt.getTime() <= now.getTime();
+      const walkMinutes = Math.max(1, Math.round((dist * 1.3) / 80));
+
+      // Library check: treat source 'cincinnati_library', 'chpl' or 'library' as LIBRARY
+      const src = ((b.source || (b as any).signal_location_source || '') as string).toLowerCase();
+      const isLibrary = src === 'cincinnati_library' || src === 'chpl' || src === 'library';
+
+      let typeChip: 'WALK' | 'DEAL' | 'LIBRARY' | 'FOOD' | 'EVENT' = 'EVENT';
+      if (isLibrary) {
+        typeChip = 'LIBRARY';
+      } else if (rawType === 'walking_event') {
+        typeChip = 'WALK';
+      } else if (rawType === 'flash_deal' || isSponsored) {
+        typeChip = 'DEAL';
+      } else if (rawType === 'food_truck') {
+        typeChip = 'FOOD';
+      } else {
+        typeChip = 'EVENT';
+      }
+
+      const timeLabel = isStarted
+        ? 'NOW'
+        : startsAt.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+
+      const venueOrAddress = b.venue || b.address || b.partner_name || 'Nearby';
+      const isFree = b.payment_type === 'free';
+
+      candidates.push({
+        item: {
+          id: b.id,
+          title: b.title,
+          venueOrAddress,
+          startsAt,
+          expiresAt,
+          isStarted,
+          timeLabel,
+          typeChip,
+          isFree,
+          distanceMeters: dist,
+          walkMinutes,
+          originalBroadcast: b
+        },
+        dist
+      });
     });
 
-    return () => unsubscribe();
-  }, [currentNode]);
+    // Distance threshold: within 805 m of node. If leaves 0 items, use 1609 m and "Within a 20-min walk".
+    const within805 = candidates.filter((c) => c.dist <= 805);
+    let finalCandidates: Array<{ item: LiveItem; dist: number }>;
+    let heading = 'Happening now';
+
+    if (within805.length > 0) {
+      finalCandidates = within805;
+      heading = 'Happening now';
+    } else {
+      const within1609 = candidates.filter((c) => c.dist <= 1609);
+      finalCandidates = within1609;
+      heading = within1609.length > 0 ? 'Within a 20-min walk' : 'Happening now';
+    }
+
+    // Sort: started items first, then by distance
+    finalCandidates.sort((a, b) => {
+      if (a.item.isStarted !== b.item.isStarted) {
+        return a.item.isStarted ? -1 : 1;
+      }
+      return a.dist - b.dist;
+    });
+
+    return {
+      liveItems: finalCandidates.map((c) => c.item),
+      liveSectionTitle: heading
+    };
+  }, [currentNode?.latitude, currentNode?.longitude, broadcasts]);
   
   const [formState, setFormState] = useState({ 
     title: '', 
@@ -293,16 +423,6 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
     return () => clearInterval(timer);
   }, []);
 
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setUptime(prev => {
-        const change = (Math.random() - 0.5) * 0.02;
-        const newVal = prev + change;
-        return Number(Math.min(100, Math.max(99.7, newVal)).toFixed(2));
-      });
-    }, 3000);
-    return () => clearInterval(interval);
-  }, []);
 
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
     const scrollTop = e.currentTarget.scrollTop;
@@ -358,10 +478,183 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
     return dist <= 805;
   }).length;
 
+  const accentColor = currentNode?.partner_accent || '#FFE01A';
+
+  interface CoffeeStop {
+    id: string;
+    name: string;
+    latitude: number;
+    longitude: number;
+    imageUrl?: string;
+    reward?: string;
+    isOpen: boolean;
+    statusKnown: boolean;
+    distanceMeters: number;
+    walkMinutes: number;
+    distMi: string;
+  }
+
+  // YOUR NEXT STOP: nearest coffee shop within walking distance (50m - 1200m)
+  const nearestCoffeeSpot = React.useMemo<CoffeeStop | null>(() => {
+    if (!currentNode || typeof currentNode.latitude !== 'number' || typeof currentNode.longitude !== 'number') {
+      return null;
+    }
+
+    // 1. Gather raw candidates from refuel nodes and localHubs
+    const refuelNodes = (nodes || []).filter(
+      (n) => n.id !== currentNode.id && n.partner_type === 'refuel'
+    );
+
+    type RawCandidate = {
+      id: string;
+      name: string;
+      latitude?: number;
+      longitude?: number;
+      imageUrl?: string;
+      reward?: string;
+      is_open?: boolean;
+      operating_hours?: any;
+      rawType?: string;
+    };
+
+    const rawList: RawCandidate[] = [];
+
+    refuelNodes.forEach((n) => {
+      rawList.push({
+        id: n.id,
+        name: n.name.replace(/_HUB/g, '').replace(/_/g, ' '),
+        latitude: n.latitude,
+        longitude: n.longitude,
+        imageUrl: n.cover_image_url || n.logo_url || n.imageUrl,
+        reward: n.custom_reward,
+        is_open: (n as any).is_open,
+        operating_hours: (n as any).operating_hours,
+        rawType: `${n.type || ''} ${n.partner_type || ''}`
+      });
+    });
+
+    (localHubs || []).forEach((h) => {
+      rawList.push({
+        id: h.id,
+        name: h.name,
+        latitude: h.latitude,
+        longitude: h.longitude,
+        imageUrl: h.cover_url,
+        reward: h.offer,
+        is_open: h.is_open,
+        operating_hours: h.operating_hours,
+        rawType: (h as any).tier || ''
+      });
+    });
+
+    // 2. Merge and de-duplicate by name
+    const seenNames = new Set<string>();
+    const filteredCandidates: CoffeeStop[] = [];
+
+    for (const item of rawList) {
+      if (!item.name) continue;
+      const normName = item.name.trim().toLowerCase();
+      if (seenNames.has(normName)) continue;
+      seenNames.add(normName);
+
+      // Must have valid latitude and longitude
+      if (typeof item.latitude !== 'number' || typeof item.longitude !== 'number' || isNaN(item.latitude) || isNaN(item.longitude)) {
+        continue;
+      }
+
+      // Exclude current node
+      if (item.id === currentNode.id) continue;
+
+      // Never show BLINK or event nodes (exclude names/types containing 'blink' or 'event')
+      const textToCheck = `${item.name} ${item.rawType || ''}`.toLowerCase();
+      if (textToCheck.includes('blink') || textToCheck.includes('event')) {
+        continue;
+      }
+
+      // Distance > 50 m and <= 1200 m
+      const dist = getDistance(currentNode.latitude, currentNode.longitude, item.latitude, item.longitude);
+      if (dist <= 50 || dist > 1200) {
+        continue;
+      }
+
+      // Open now & status evaluation
+      let isOpen = false;
+      let statusKnown = false;
+
+      if (typeof item.is_open === 'boolean') {
+        isOpen = item.is_open;
+        statusKnown = true;
+      } else if (item.operating_hours && typeof item.operating_hours === 'object') {
+        const now = new Date();
+        const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+        const shortDays = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+        const dayIdx = now.getDay();
+        const todayHours = item.operating_hours[days[dayIdx]] || item.operating_hours[shortDays[dayIdx]];
+        if (todayHours) {
+          if (todayHours.open && todayHours.close) {
+            const [openH, openM] = todayHours.open.split(':').map(Number);
+            const [closeH, closeM] = todayHours.close.split(':').map(Number);
+            const nowMins = now.getHours() * 60 + now.getMinutes();
+            const openMins = openH * 60 + (openM || 0);
+            const closeMins = closeH * 60 + (closeM || 0);
+            isOpen = nowMins >= openMins && nowMins < closeMins;
+            statusKnown = true;
+          }
+        }
+      }
+
+      const walkMinutes = Math.max(1, Math.round((dist * 1.3) / 80));
+      const distMi = (dist / 1609.34).toFixed(1);
+
+      filteredCandidates.push({
+        id: item.id,
+        name: item.name,
+        latitude: item.latitude,
+        longitude: item.longitude,
+        imageUrl: item.imageUrl,
+        reward: item.reward,
+        isOpen,
+        statusKnown,
+        distanceMeters: dist,
+        walkMinutes,
+        distMi
+      });
+    }
+
+    if (filteredCandidates.length === 0) {
+      return null;
+    }
+
+    // Prefer places open now (is_open true or operating hours for today), then sort by distance
+    filteredCandidates.sort((a, b) => {
+      const aOpenWeight = a.isOpen ? 1 : 0;
+      const bOpenWeight = b.isOpen ? 1 : 0;
+      if (aOpenWeight !== bOpenWeight) {
+        return bOpenWeight - aOpenWeight;
+      }
+      return a.distanceMeters - b.distanceMeters;
+    });
+
+    return filteredCandidates[0];
+  }, [currentNode, nodes, localHubs]);
+
+  // Node sponsor
+  const nodeSponsor: DisplaySponsor = React.useMemo(() => {
+    if ((currentNode as any)?.nodeSponsor) return (currentNode as any).nodeSponsor;
+    if (currentNode?.sponsor_name || currentNode?.sponsor_logo_url) {
+      return {
+        name: currentNode.sponsor_name || currentNode.partner_name || 'Sponsor',
+        logoUrl: currentNode.sponsor_logo_url || '',
+        link: (currentNode as any)?.booking_url || (currentNode as any)?.cta_url || '#'
+      };
+    }
+    return null;
+  }, [currentNode]);
+
   return (
-    <div className="flex flex-col h-full bg-[#f0f0f0] text-uh-black font-sans relative overflow-hidden">
+    <div className={`flex flex-col h-full ${activeTab === 'home' || activeTab === 'feed' || activeTab === 'profile' ? 'bg-[#0B0B0D]' : 'bg-[#f0f0f0]'} text-uh-black font-sans relative overflow-hidden`}>
       {/* Collapsible Header Container — New Co-branded Structure */}
-      {activeTab !== 'home' && (
+      {activeTab !== 'home' && activeTab !== 'feed' && activeTab !== 'profile' && (
         <motion.div 
           style={{ 
             height: 200, 
@@ -490,227 +783,404 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
       {/* Main Scrollable Area */}
       <div 
         onScroll={handleScroll}
-        className={`flex-1 overflow-y-auto relative z-10 ${activeTab === 'home' ? 'pt-0 pb-20' : 'pt-[200px] pb-32'} scroll-smooth`}
+        className={`flex-1 overflow-y-auto relative z-10 ${activeTab === 'home' || activeTab === 'feed' || activeTab === 'profile' ? 'pt-0 pb-20' : 'pt-[200px] pb-32'} scroll-smooth`}
         style={{ WebkitOverflowScrolling: 'touch' }}
       >
         <div className="flex flex-col gap-0">
           <div className="flex flex-col">
             {/* Home Node-Specific Landing Page */}
             {activeTab === 'home' ? (
-              <div id="home_tab_landing" className="flex flex-col bg-[#0c0c0c] text-white">
-                {/* Yellow Header Cover (Height reduced by ~30% with tighter padding) */}
+              <div id="home_tab_landing" className="flex flex-col bg-[#0B0B0D] text-white">
+                {/* 1. HERO (about 320px) */}
                 <div 
-                  id="landing_header_yellow"
-                  className={`px-8 pt-10 pb-7 flex flex-col justify-end relative overflow-hidden ${currentNode?.cover_image_url ? 'text-white' : 'text-black'}`}
-                  style={{ backgroundColor: currentNode?.partner_accent || '#FFE01A' }}
+                  id="home_hero"
+                  className="relative w-full min-h-[320px] flex flex-col justify-between p-6 overflow-hidden bg-[#0B0B0D]"
                 >
-                  {currentNode?.cover_image_url && (
+                  {/* Cover Image with dark bottom gradient fade */}
+                  {currentNode?.cover_image_url ? (
                     <>
                       <img 
                         src={currentNode.cover_image_url} 
+                        alt={currentNode.name}
+                        referrerPolicy="no-referrer"
                         className="absolute inset-0 w-full h-full object-cover" 
-                        referrerPolicy="no-referrer" 
-                        alt="Hub Cover" 
                       />
-                      <div 
-                        className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-black/60"
-                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-[#0B0B0D] via-[#0B0B0D]/55 to-black/40 pointer-events-none" />
                     </>
+                  ) : (
+                    <div className="absolute inset-0 bg-gradient-to-t from-[#0B0B0D] via-[#161618] to-black pointer-events-none" />
                   )}
 
-                  <div className="relative z-10 flex justify-between items-start gap-4">
-                    <div className="flex flex-col">
-                      <span className={`text-[10px] font-black tracking-[0.25em] uppercase ${currentNode?.cover_image_url ? 'text-[#FFE01A]/90' : 'opacity-75'}`}>
-                        URBAN HIKERS HUB · TAP DETECTED
-                      </span>
-                      <h1 className="text-3xl font-extrabold tracking-tight mt-1 mb-1 uppercase font-sans leading-tight">
-                        {nodeName.replace('_HUB', '').replace(/_/g, ' ')}
-                      </h1>
-                      <span className={`text-xs font-mono font-bold uppercase tracking-wider ${currentNode?.cover_image_url ? 'text-white/70' : 'opacity-95'}`}>
-                        {currentNode?.address || 'OTR · Cincinnati, OH'}
+                  {/* Top Bar: Live dot + LOCAL PULSE on left, share button on right */}
+                  <div className="relative z-10 flex items-center justify-between w-full">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: accentColor }} />
+                      <span className="text-xs font-black tracking-widest text-white uppercase">
+                        LOCAL PULSE
                       </span>
                     </div>
 
-                    {currentNode?.logo_url && (
-                      <div 
-                        className={`w-14 h-14 bg-black flex items-center justify-center p-1 font-black text-xs border-2 shrink-0 ${
-                          currentNode.logo_style === 'rounded' ? 'rounded-xl' : currentNode.logo_style === 'square' ? 'rounded-md' : 'rounded-full'
-                        }`}
-                        style={{ borderColor: currentNode.partner_accent || '#FFE01A', color: currentNode.partner_accent || '#FFE01A' }}
-                      >
-                        <img src={currentNode.logo_url} className="w-full h-full object-cover" referrerPolicy="no-referrer" style={{ borderRadius: 'inherit' }} />
+                    <button
+                      type="button"
+                      onClick={onShareNode}
+                      aria-label="Share hub"
+                      className="w-11 h-11 rounded-full bg-black/50 hover:bg-black/70 border border-white/10 flex items-center justify-center text-white min-h-[44px] min-w-[44px] transition-all cursor-pointer"
+                    >
+                      <Share2 size={18} />
+                    </button>
+                  </div>
+
+                  {/* Bottom Text in Hero */}
+                  <div className="relative z-10 flex flex-col pb-4">
+                    <span 
+                      className="text-[11px] font-black tracking-wider uppercase mb-1"
+                      style={{ color: accentColor }}
+                    >
+                      {currentNode?.neighborhood 
+                        ? `URBAN HIKERS HUB · ${currentNode.neighborhood.toUpperCase()}` 
+                        : 'URBAN HIKERS HUB'}
+                    </span>
+                    <h1 className="text-[42px] font-bold text-white leading-[1.05] tracking-tight">
+                      {currentNode?.name 
+                        ? currentNode.name.replace(/_HUB/g, '').replace(/_/g, ' ') 
+                        : nodeName.replace(/_HUB/g, '').replace(/_/g, ' ')}
+                    </h1>
+                    {currentNode?.address && (
+                      <p className="text-sm text-[#A3A3AA] mt-1.5 font-medium">
+                        {currentNode.address}
+                      </p>
+                    )}
+
+                    {/* Rotating quote only if node has its own hooks */}
+                    {hooks.length > 0 && (
+                      <div className="mt-3 min-h-[28px] flex items-center">
+                        <AnimatePresence mode="wait">
+                          <motion.p
+                            key={activeHook}
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            transition={{ duration: 0.3 }}
+                            className="italic border-l-2 pl-3 text-xs font-semibold text-white/90"
+                            style={{ borderColor: accentColor }}
+                          >
+                            "{hooks[activeHook]?.text}"
+                          </motion.p>
+                        </AnimatePresence>
                       </div>
                     )}
                   </div>
-                  
-                  {/* Hook rotation text -italic, left-border-accented */}
-                  {hooks.length > 0 && (
-                    <div className="mt-3 min-h-[32px] flex items-center relative z-10">
-                      <AnimatePresence mode="wait">
-                        <motion.p
-                          key={activeHook}
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: 1 }}
-                          exit={{ opacity: 0 }}
-                          transition={{ duration: 0.3 }}
-                          className={`italic border-l-2 pl-3 text-[11px] font-bold font-sans ${
-                            currentNode?.cover_image_url ? 'border-[#FFE01A] text-white/90' : 'border-black text-black/85'
-                          }`}
+                </div>
+
+                {/* 2. REWARD CARD, overlapping the bottom of the hero, filled with accent color, black text */}
+                <div className="px-4 -mt-4 relative z-20">
+                  <div 
+                    style={{ backgroundColor: accentColor }}
+                    className="rounded-[20px] p-5 shadow-xl text-black flex flex-col justify-between"
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-3.5 min-w-0">
+                        <div className="w-12 h-12 rounded-full bg-black flex items-center justify-center shrink-0 shadow-md">
+                          <Star size={22} className="fill-current" style={{ color: accentColor }} />
+                        </div>
+                        <div className="min-w-0">
+                          <h3 className="text-[17px] font-bold text-black leading-tight">
+                            {tapCount <= 1 ? 'First tap here' : 'Welcome back'}
+                          </h3>
+                          <p className="text-xs font-semibold text-black/80 mt-0.5 truncate">
+                            {tapCount <= 1
+                              ? `${(currentNode?.name || nodeName).replace(/_HUB/g, '').replace(/_/g, ' ')} badge unlocked`
+                              : `Tap #${tapCount} here`}
+                          </p>
+                        </div>
+                      </div>
+
+                      {tapCount <= 1 && (
+                        <div className="text-right shrink-0">
+                          <span className="text-3xl font-extrabold font-mono text-black leading-none block">
+                            +25
+                          </span>
+                          <span className="text-[9px] font-bold tracking-widest text-black/70 uppercase block mt-0.5">
+                            PULSE
+                          </span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Thin progress bar underneath */}
+                    <div className="mt-4 pt-3 border-t border-black/10">
+                      <div className="flex justify-between items-center text-xs font-bold text-black mb-1.5">
+                        <span className="truncate">{currentNode?.neighborhood || 'OTR Explorer'}</span>
+                        <span>{hubsTappedCount} hubs tapped</span>
+                      </div>
+                      <div className="h-2 w-full bg-black/20 rounded-full overflow-hidden">
+                        <div 
+                          className="h-full bg-black rounded-full transition-all duration-500"
+                          style={{ width: `${Math.min(100, Math.max(8, (hubsTappedCount / (nodes.length || 12)) * 100))}%` }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 3. HAPPENING NOW, with green LIVE dot */}
+                <div className="px-4 mt-6">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-[20px] font-bold text-white">
+                        {liveSectionTitle}
+                      </h3>
+                      <span className="inline-flex items-center gap-1.5 text-xs font-bold text-[#4ADE80] uppercase tracking-wider">
+                        <span className="w-2 h-2 rounded-full bg-[#4ADE80] animate-pulse" />
+                        LIVE
+                      </span>
+                    </div>
+                    {liveItems.length > 0 && (
+                      <button 
+                        type="button"
+                        onClick={() => onTabChange?.('feed')}
+                        className="text-xs font-bold hover:underline cursor-pointer min-h-[44px] flex items-center"
+                        style={{ color: accentColor }}
+                      >
+                        See all {liveItems.length}
+                      </button>
+                    )}
+                  </div>
+
+                  {liveItems.length === 0 ? (
+                    <div className="bg-[#161618] border border-[#26262A] rounded-[20px] p-6 text-center">
+                      <p className="text-sm font-medium text-[#A3A3AA] mb-2">
+                        Nothing live nearby right now
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => onTabChange?.('feed')}
+                        className="text-xs font-bold hover:underline cursor-pointer min-h-[44px] inline-flex items-center gap-1"
+                        style={{ color: accentColor }}
+                      >
+                        <span>See what's on later</span>
+                        <ArrowRight size={14} />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {liveItems.slice(0, 3).map((item) => (
+                        <button
+                          key={item.id}
+                          type="button"
+                          onClick={() => onSelect(item.originalBroadcast)}
+                          className="w-full bg-[#161618] hover:bg-[#1f1f22] border border-[#26262A] rounded-[20px] p-4 flex items-center justify-between text-left transition-all min-h-[64px] cursor-pointer group"
                         >
-                          “{hooks[activeHook]?.text}”
-                        </motion.p>
-                      </AnimatePresence>
+                          <div className="flex items-center gap-3.5 min-w-0 flex-1">
+                            {/* Time chip: NOW if started, otherwise start time */}
+                            <div className="bg-[#0B0B0D] border border-[#26262A] rounded-xl px-2.5 py-2 flex flex-col items-center justify-center min-w-[58px] shrink-0">
+                              <span className="text-[11px] font-bold text-[#FFE01A] font-mono leading-none tracking-tight">
+                                {item.timeLabel}
+                              </span>
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-1.5 mb-1 flex-wrap">
+                                {/* Small type chip: WALK, DEAL, LIBRARY, FOOD, or EVENT */}
+                                <span className="text-[10px] font-extrabold px-1.5 py-0.5 rounded bg-white/10 text-white tracking-wide uppercase">
+                                  {item.typeChip}
+                                </span>
+                                {/* FREE label when payment_type === 'free' */}
+                                {item.isFree && (
+                                  <span className="text-[10px] font-extrabold px-1.5 py-0.5 rounded bg-[#4ADE80]/20 text-[#4ADE80] tracking-wide uppercase">
+                                    FREE
+                                  </span>
+                                )}
+                              </div>
+                              <h4 className="text-[14px] font-bold text-white truncate leading-snug group-hover:text-[#FFE01A] transition-colors">
+                                {item.title}
+                              </h4>
+                              <p className="text-[11px] text-[#A3A3AA] truncate mt-0.5">
+                                {item.venueOrAddress} · {item.walkMinutes} min walk
+                              </p>
+                            </div>
+                          </div>
+                          <ChevronRight size={18} className="text-[#A3A3AA] shrink-0 ml-2 group-hover:translate-x-0.5 transition-transform" />
+                        </button>
+                      ))}
                     </div>
                   )}
                 </div>
 
-                {/* 3. PULSE DROP Pill Section (Collapsed/Expanded below Hero - Hidden on first tap) */}
-                {tapCount > 1 && (
-                  <div className="px-6 pt-5 pb-1">
-                    {!isPulseDropExpanded ? (
-                      <button 
-                        onClick={() => setIsPulseDropExpanded(true)}
-                        className="w-full flex items-center justify-between px-4 py-3 bg-[#111111]/90 border border-[#FFE01A]/25 hover:border-[#FFE01A]/40 rounded-2xl text-left transition-all hover:scale-[1.01] active:scale-[0.99] cursor-pointer"
-                      >
-                        <div className="flex items-center gap-2.5">
-                          <div className="w-5 h-5 rounded-md bg-[#FFE01A] flex items-center justify-center text-black shadow-md">
-                            <Sparkles size={11} className="fill-black" />
-                          </div>
-                          <div>
-                            <span className="text-[10px] font-black uppercase tracking-wider text-white">Pulse Drops Available</span>
-                            <span className="text-[8px] font-mono text-[#FFE01A] uppercase tracking-widest block leading-none mt-0.5 animate-pulse">TAP_HISTORY_DETECTED</span>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-1.5 bg-[#FFE01A]/10 px-2.5 py-1 rounded-lg text-[9px] text-[#FFE01A] font-bold font-mono">
-                          <span>EXPAND</span>
-                          <ArrowRight size={8} />
-                        </div>
-                      </button>
-                    ) : (
-                      <div className="bg-[#0f0f0f] border border-white/10 rounded-2xl overflow-hidden relative shadow-2xl">
-                        <button 
-                          onClick={() => setIsPulseDropExpanded(false)}
-                          className="absolute right-4 top-3.5 z-50 text-[9px] font-black text-white/40 hover:text-white font-mono uppercase tracking-widest pointer-events-auto bg-black/50 px-2 py-0.5 rounded cursor-pointer"
+                {/* 4. YOUR NEXT STOP CARD */}
+                {nearestCoffeeSpot && (
+                  <div className="px-4 mt-6">
+                    <div className="bg-[#161618] border border-[#26262A] rounded-[20px] p-5 space-y-4">
+                      <div className="flex items-center justify-between">
+                        <span 
+                          className="text-[10px] font-black uppercase tracking-[0.2em]"
+                          style={{ color: accentColor }}
                         >
-                          [Hide]
-                        </button>
-                        <PulseDropStrip
-                          userId={user?.uid || null}
-                          nodeId={currentNode?.id || null}
-                          broadcasts={broadcasts}
-                          onRevealSaved={(broadcast) => onSelect(broadcast)}
-                        />
+                          YOUR NEXT STOP
+                        </span>
+                        {nearestCoffeeSpot.statusKnown && (
+                          <span className={`inline-flex items-center gap-1.5 text-xs font-bold ${nearestCoffeeSpot.isOpen ? 'text-[#4ADE80]' : 'text-[#A3A3AA]'}`}>
+                            {nearestCoffeeSpot.isOpen && <span className="w-1.5 h-1.5 rounded-full bg-[#4ADE80]" />}
+                            {nearestCoffeeSpot.isOpen ? 'Open now' : 'Closed'}
+                          </span>
+                        )}
                       </div>
-                    )}
+
+                      <div className="flex items-center gap-4">
+                        <div className="w-14 h-14 rounded-xl bg-[#0B0B0D] border border-[#26262A] flex items-center justify-center shrink-0 overflow-hidden">
+                          {nearestCoffeeSpot.imageUrl ? (
+                            <img 
+                              src={nearestCoffeeSpot.imageUrl} 
+                              alt={nearestCoffeeSpot.name}
+                              referrerPolicy="no-referrer"
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <Coffee size={24} style={{ color: accentColor }} />
+                          )}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <h3 className="text-lg font-bold text-white truncate">
+                            {nearestCoffeeSpot.name}
+                          </h3>
+                          <p className="text-xs text-[#A3A3AA] mt-0.5 truncate">
+                            {nearestCoffeeSpot.walkMinutes} min walk · {nearestCoffeeSpot.distMi} mi
+                          </p>
+                        </div>
+                      </div>
+
+                      {nearestCoffeeSpot.reward && (
+                        <p className="text-xs text-[#FFE01A] font-medium leading-relaxed bg-[#FFE01A]/10 border border-[#FFE01A]/20 rounded-xl px-3 py-2">
+                          {nearestCoffeeSpot.reward}
+                        </p>
+                      )}
+
+                      <div className="space-y-2 pt-1">
+                        <a
+                          href={`https://www.google.com/maps/dir/?api=1&destination=${nearestCoffeeSpot.latitude},${nearestCoffeeSpot.longitude}&travelmode=walking`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{ backgroundColor: accentColor }}
+                          className="w-full min-h-[48px] rounded-xl text-black font-bold text-sm flex items-center justify-center gap-2 hover:opacity-95 transition-all shadow-md cursor-pointer"
+                        >
+                          <span>Start walking</span>
+                          <ArrowRight size={16} />
+                        </a>
+
+                        <div className="text-center pt-1">
+                          <button
+                            type="button"
+                            onClick={() => onTabChange?.('feed')}
+                            className="text-xs font-bold text-[#A3A3AA] hover:text-white transition-colors cursor-pointer min-h-[44px] inline-flex items-center gap-1"
+                          >
+                            <span>More coffee nearby</span>
+                            <ChevronRight size={14} />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 )}
 
-                {/* Dark Inner Body Section */}
-                <div className="px-6 py-6 space-y-8 flex flex-col pointer-events-auto bg-[#0a0a0a]">
-                  
-                  {/* Discover Section */}
-                  <div>
-                    <span className="text-[10px] font-black uppercase tracking-[0.25em] text-white/40 block mb-4">
-                      Discover
-                    </span>
-                    <div className="grid grid-cols-2 gap-4">
-                      
-                      {/* Grid Item 1: Events (Primary) */}
-                      <button 
-                        id="btn_tab_feed"
-                        onClick={() => onTabChange?.('feed')}
-                        className="bg-[#141414] border border-[#FFE01A]/20 shadow-[0_0_15px_rgba(255,224,26,0.02)] hover:border-[#FFE01A]/45 rounded-2xl p-5 text-left flex flex-col justify-between h-34 transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer group hover:bg-[#1a1a1a]"
-                      >
-                        <div className="w-10 h-10 rounded-xl bg-[#FFE01A]/10 border border-[#FFE01A]/30 flex items-center justify-center text-[#FFE01A]">
-                          <Calendar size={20} className="animate-pulse" />
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-1.5">
-                            <h3 className="text-[14px] font-black uppercase tracking-tight text-white group-hover:text-[#FFE01A] transition-colors leading-none">Events</h3>
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />
-                          </div>
-                          <p className="text-[9px] font-mono font-bold text-[#FFE01A] uppercase tracking-wider mt-1.5">{liveEventsCount} happening now</p>
-                        </div>
-                      </button>
-
-                      {/* Grid Item 2: Walkers (Primary) */}
-                      <button 
-                        id="btn_tab_profile"
-                        onClick={() => onTabChange?.('profile')}
-                        className="bg-[#141414] border border-[#FFE01A]/20 shadow-[0_0_15px_rgba(255,224,26,0.02)] hover:border-[#FFE01A]/45 rounded-2xl p-5 text-left flex flex-col justify-between h-34 transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer group hover:bg-[#1a1a1a]"
-                      >
-                        <div className="w-10 h-10 rounded-xl bg-[#FFE01A]/10 border border-[#FFE01A]/30 flex items-center justify-center text-[#FFE01A]">
-                          <Users size={20} />
-                        </div>
-                        <div>
-                          <h3 className="text-[14px] font-black uppercase tracking-tight text-white group-hover:text-[#FFE01A] transition-colors leading-none">Walkers</h3>
-                          <p className="text-[9px] font-mono font-bold text-[#FFE01A] uppercase tracking-wider mt-1.5">12 nearby</p>
-                        </div>
-                      </button>
-
-                      {/* Grid Item 3: History (Secondary) */}
-                      <button 
-                        id="btn_tab_wallet"
-                        onClick={() => onTabChange?.('wallet')}
-                        className="bg-white/5 border border-white/10 hover:border-white/20 rounded-2xl p-5 text-left flex flex-col justify-between h-34 transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer group hover:bg-white/[0.08]"
-                      >
-                        <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-white/60">
-                          <BookOpen size={20} />
-                        </div>
-                        <div>
-                          <h3 className="text-[14px] font-black uppercase tracking-tight text-white group-hover:text-white transition-colors leading-none">History</h3>
-                          <p className="text-[9px] font-mono font-bold text-white/40 uppercase tracking-wider mt-1.5">OTR stories</p>
-                        </div>
-                      </button>
-
-                      {/* Grid Item 4: City Map (Secondary) */}
-                      <button 
-                        id="btn_tab_explore"
-                        onClick={() => onTabChange?.('explore')}
-                        className="bg-white/5 border border-white/10 hover:border-white/20 rounded-2xl p-5 text-left flex flex-col justify-between h-34 transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer group hover:bg-white/[0.08]"
-                      >
-                        <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-white/60">
-                          <MapIcon size={20} />
-                        </div>
-                        <div>
-                          <h3 className="text-[14px] font-black uppercase tracking-tight text-white group-hover:text-white transition-colors leading-none">City map</h3>
-                          <p className="text-[9px] font-mono font-bold text-white/40 uppercase tracking-wider mt-1.5">Explore nearby</p>
-                        </div>
-                      </button>
-
-                    </div>
-                  </div>
-
-                  {/* Reward Section */}
-                  <div>
-                    <span className="text-[10px] font-black uppercase tracking-[0.25em] text-white/40 block mb-4">
-                      Your Reward
-                    </span>
-                    <div id="reward_banner_card" className="bg-white/5 border border-white/10 rounded-2xl p-5 flex items-center justify-between text-white relative overflow-hidden">
-                      <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 rounded-full flex items-center justify-center text-black relative shadow-[0_0_20px_rgba(255,224,26,0.3)] bg-[#FFE01A]">
-                          <Star size={22} className="fill-black text-black" />
-                        </div>
-                        <div>
-                          <h4 className="text-[14px] font-black uppercase tracking-tight text-white">First tap here</h4>
-                          <p className="text-[9px] font-mono font-bold text-white/40 uppercase tracking-wider mt-1 leading-none">{nodeName.replace('_HUB', '').replace(/_/g, ' ')} badge unlocked</p>
-                        </div>
+                {/* 5. EXPLORE FROM HERE (2x2 grid) */}
+                <div className="px-4 mt-6">
+                  <h3 className="text-[20px] font-bold text-white mb-3">
+                    Explore from here
+                  </h3>
+                  <div className="grid grid-cols-2 gap-3">
+                    {/* Tile 1: History */}
+                    <button
+                      type="button"
+                      onClick={() => setShowStorySheet(true)}
+                      className="bg-[#161618] hover:bg-[#1f1f22] border border-[#26262A] rounded-[20px] p-4 text-left flex flex-col justify-between min-h-[110px] transition-all cursor-pointer group"
+                    >
+                      <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-white group-hover:border-[#FFE01A]/40 transition-colors">
+                        <BookOpen size={20} />
                       </div>
-                      <div className="text-right">
-                        <span className="text-xl font-mono font-black text-[#FFE01A]">+25</span>
+                      <div>
+                        <h4 className="text-[15px] font-bold text-white leading-tight">History</h4>
+                        <p className="text-xs text-[#A3A3AA] mt-1 leading-snug truncate">
+                          {currentNode?.neighborhood ? `${currentNode.neighborhood} stories` : 'Local stories'}
+                        </p>
                       </div>
+                    </button>
+
+                    {/* Tile 2: City map */}
+                    <button
+                      type="button"
+                      onClick={() => onTabChange?.('explore')}
+                      className="bg-[#161618] hover:bg-[#1f1f22] border border-[#26262A] rounded-[20px] p-4 text-left flex flex-col justify-between min-h-[110px] transition-all cursor-pointer group"
+                    >
+                      <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-white group-hover:border-[#FFE01A]/40 transition-colors">
+                        <MapIcon size={20} />
+                      </div>
+                      <div>
+                        <h4 className="text-[15px] font-bold text-white leading-tight">City map</h4>
+                        <p className="text-xs text-[#A3A3AA] mt-1 leading-snug">Hubs nearby</p>
+                      </div>
+                    </button>
+
+                    {/* Tile 3: Walk together */}
+                    <button
+                      type="button"
+                      onClick={() => onTabChange?.('wallet')}
+                      className="bg-[#161618] hover:bg-[#1f1f22] border border-[#26262A] rounded-[20px] p-4 text-left flex flex-col justify-between min-h-[110px] transition-all cursor-pointer group"
+                    >
+                      <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-white group-hover:border-[#FFE01A]/40 transition-colors">
+                        <Users size={20} />
+                      </div>
+                      <div>
+                        <h4 className="text-[15px] font-bold text-white leading-tight">Walk together</h4>
+                        <p className="text-xs text-[#A3A3AA] mt-1 leading-snug">Join a group walk</p>
+                      </div>
+                    </button>
+
+                    {/* Tile 4: Lost & found */}
+                    <button
+                      type="button"
+                      onClick={() => setIsQuickReportOpen(true)}
+                      className="bg-[#161618] hover:bg-[#1f1f22] border border-[#26262A] rounded-[20px] p-4 text-left flex flex-col justify-between min-h-[110px] transition-all cursor-pointer group"
+                    >
+                      <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-white group-hover:border-[#FFE01A]/40 transition-colors">
+                        <Key size={20} />
+                      </div>
+                      <div>
+                        <h4 className="text-[15px] font-bold text-white leading-tight">Lost & found</h4>
+                        <p className="text-xs text-[#A3A3AA] mt-1 leading-snug truncate">
+                          {openReportsCount > 0 ? `${openReportsCount} open report${openReportsCount > 1 ? 's' : ''}` : 'Report or claim'}
+                        </p>
+                      </div>
+                    </button>
+                  </div>
+                </div>
+
+                {/* 6. SPONSOR */}
+                {nodeSponsor && (
+                  <div className="px-4 mt-6">
+                    <div className="bg-[#161618] border border-[#26262A] rounded-[20px] p-4 space-y-1">
+                      <div className="text-[9px] font-black uppercase tracking-widest text-[#A3A3AA]">
+                        SPONSORED
+                      </div>
+                      <SponsorSlot variant="node" sponsor={nodeSponsor} />
                     </div>
                   </div>
+                )}
 
-                  {/* Footer Ticker Branding */}
-                  <div className="flex items-center justify-between border-t border-white/5 pt-10 mt-6 pb-4">
-                    <div className="flex items-center">
-                      <span className="text-[10px] font-black text-[#FFE01A] uppercase tracking-widest leading-none">URBAN</span>
-                      <span className="text-[10px] font-black text-white/40 uppercase tracking-widest leading-none ml-1">HIKERS</span>
-                    </div>
-                    <span className="text-[8px] font-mono font-bold text-white/20 uppercase tracking-[0.25em]">TAP. WALK. INSPIRE.</span>
+                {/* 7. FOOTER */}
+                <div className="px-4 pt-8 pb-12 flex flex-col items-center text-center space-y-3">
+                  <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-xs text-[#A3A3AA]">
+                    <ShieldCheck size={16} className="text-[#4ADE80] shrink-0 inline" />
+                    <span>No app. No account. Your tap is logged anonymously.</span>
+                    <button
+                      type="button"
+                      onClick={onOpenConsent}
+                      className="underline text-white hover:text-[#FFE01A] font-medium cursor-pointer min-h-[44px] inline-flex items-center"
+                    >
+                      How tap data is used
+                    </button>
                   </div>
-
+                  <div className="text-[10px] font-black uppercase tracking-[0.25em] text-[#A3A3AA]/60">
+                    LOCAL PULSE × URBAN HIKERS
+                  </div>
                 </div>
               </div>
             ) : activeTab === 'feed' ? (
@@ -902,154 +1372,128 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
                 </div>
               </div>
             ) : activeTab === 'profile' ? (
-              <div className="px-6 py-8 space-y-6 flex flex-col pointer-events-auto">
-                <div className="flex items-center gap-2 mb-2">
-                  <Users className="text-[#FFE01A]" size={20} />
-                  <h2 className="text-[14px] font-black uppercase tracking-[0.2em] text-[#0a0a0a]">User_Protocol</h2>
-                </div>
-
-                {/* Identity Verification Check */}
-                <div className="bg-white border border-uh-gray-100 rounded-3xl p-6 text-center space-y-4">
-                  <div className="w-16 h-16 rounded-full bg-[#FFE01A]/10 border-2 border-[#FFE01A] flex items-center justify-center text-[#FFE01A] mx-auto shadow-[0_0_20px_rgba(255,224,26,0.15)] relative">
-                    <ShieldCheck size={32} />
-                    <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-emerald-500 rounded-full border-2 border-white flex items-center justify-center text-white">
-                      <CheckCircle2 size={12} />
-                    </div>
-                  </div>
-
-                  <div>
-                    <h3 className="text-[15px] font-black uppercase italic tracking-tight text-uh-black">{user?.displayName || userProfile?.name || 'Urban Explorer'}</h3>
-                    <p className="text-[9px] font-mono text-uh-gray-400 mt-1 uppercase tracking-wider">{user?.email || 'anonymous@localpulses.com'}</p>
-                  </div>
-
-                  <div className="inline-flex items-center gap-2 px-3 py-1 bg-emerald-500/10 border border-emerald-500/20 rounded-full text-emerald-600 font-mono text-[8px] font-bold uppercase tracking-widest">
-                    <span>STATUS: SECURE IDENTITY</span>
-                  </div>
-                </div>
-
-                {/* Social connections sync counter (Reductions of Isolation!) */}
-                <div className="bg-[#0a0a0a] border border-white/5 p-6 rounded-2xl relative overflow-hidden shadow-xl text-white">
-                  <div className="absolute right-4 top-4 opacity-10">
-                    <Heart size={36} className="text-[#ff2d78]" />
-                  </div>
-                  <span className="text-[8px] font-mono font-black tracking-[0.2em] text-[#ff2d78] uppercase block mb-1">INTERPERSONAL_NETWORKING</span>
-                  <div className="flex justify-between items-center text-left">
-                    <div>
-                      <h3 className="text-[13px] font-bold uppercase tracking-tight text-white mb-1">Connections Tracked</h3>
-                      <p className="text-white/40 text-[9px] font-mono uppercase leading-tight max-w-[200px]">
-                        Proven physical encounters at Urban Hikers nodes
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <span className="text-3xl font-black text-[#ff2d78]">{connectionsCount}</span>
-                      <span className="text-[8px] font-mono text-white/30 block">SYNCS</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Technical diagnostics meta-data details */}
-                <div className="bg-white border border-uh-gray-100 rounded-2xl p-5 space-y-3.5 text-left font-mono text-[9px] text-uh-gray-500">
-                  <h4 className="text-[10px] font-black uppercase text-[#0a0a0a] font-sans tracking-widest mb-2 border-b border-uh-gray-50 pb-2">Diagnostic Protocol Metadata</h4>
-                  <div className="flex justify-between">
-                    <span>CLIENT_VERSION:</span>
-                    <span className="font-bold text-[#0a0a0a]">0.9.1 // URBAN_HIKER_OS</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>SECURITY_TOKEN:</span>
-                    <span className="font-bold text-[#0a0a0a]">SEC_TLS_ACTIVE</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>ACTIVE_VECTOR:</span>
-                    <span className="font-bold text-[#0a0a0a] uppercase">{accessVector}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>PRIMARY_REGIONAL_HUB:</span>
-                    <span className="font-bold text-[#0a0a0a]">{nodeName || 'CIN_OTR'}</span>
-                  </div>
-                </div>
-
-                {/* Sign-Out button */}
-                <button 
-                  onClick={onLogin} 
-                  className="w-full py-4 bg-uh-gray-50 border border-uh-gray-200 hover:bg-uh-gray-100 text-uh-black rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] transition-all flex items-center justify-center gap-2 cursor-pointer"
-                >
-                  <LogOut size={14} />
-                  Close Identity Session
-                </button>
-              </div>
+              <ProfileTab
+                user={user}
+                userProfile={userProfile}
+                accentColor={accentColor}
+                onLogin={onLogin}
+                onContinueAsGuest={() => onTabChange?.('feed')}
+                onProfileUpdate={onProfileUpdate}
+                nodesVisitedCount={nodesVisitedCount}
+                hubsTappedCount={hubsTappedCount}
+              />
             ) : null}
             {/* ... other tabs would go here, omitting for brevity of change but keeping key structure */}
-          </div>
-
-          {/* Stats Bar (Technical & Minimal) */}
-          <div className="px-6 py-10 border-t border-uh-gray-100 bg-white/50 backdrop-blur-sm">
-            <div className="flex justify-between items-center">
-              <div className="flex flex-col">
-                <span className="text-[10px] font-black text-uh-gray-400 uppercase tracking-widest font-mono mb-1">Nodes</span>
-                <span className="text-xl font-black text-uh-black tracking-tight">{activeNodesCount}</span>
-              </div>
-              <div className="flex flex-col text-center">
-                <span className="text-[10px] font-black text-uh-gray-400 uppercase tracking-widest font-mono mb-1">Radius</span>
-                <span className="text-xl font-black text-uh-black tracking-tight">{radiusInMiles}mi</span>
-              </div>
-              <div className="flex flex-col text-center">
-                <span className="text-[10px] font-black text-uh-gray-400 uppercase tracking-widest font-mono mb-1">Stations</span>
-                <span className="text-xl font-black" style={{ color: '#FFE01A' }}>
-                  {localHubs.filter(h => h.tier !== 'free').length.toString().padStart(2, '0')}
-                </span>
-              </div>
-              <div className="flex flex-col text-right">
-                <span className="text-[10px] font-black text-uh-gray-400 uppercase tracking-widest font-mono mb-1">Uptime</span>
-                <span className="text-xl font-black text-uh-teal tracking-tight">{uptime}%</span>
-              </div>
-            </div>
-            <div className="mt-8 text-center">
-              <span className="text-[9px] font-bold text-uh-gray-300 uppercase tracking-[0.3em] font-mono">&copy; Urban Hikers // Protocol_0.9.1</span>
-            </div>
           </div>
         </div>
       </div>
 
-    {/* Bottom Navigation — Dark version */}
-    <div className="fixed bottom-0 inset-x-0 z-[110] flex flex-col pointer-events-none">
-      <div className="bg-[#0a0a0a] px-8 py-6 flex justify-between items-center border-t border-white/5 pointer-events-auto shadow-[0_-10px_40px_rgba(0,0,0,0.5)]">
-        {navItems.map((item) => {
-          const isActive = activeTab === item.id;
-          const Icon = item.icon;
-          
-          const content = (
-            <div className="flex flex-col items-center gap-1 group relative">
-              <Icon size={24} strokeWidth={isActive ? 3 : 2} className={`${isActive ? 'text-uh-yellow shadow-[0_0_15px_rgba(255,224,26,0.3)]' : 'text-white/30 group-hover:text-white'} transition-all duration-150 ease-out`} />
-              {isActive && (
-                <motion.div 
-                  layoutId="nav-dot"
-                  className="absolute -bottom-3 w-1.5 h-1.5 bg-uh-yellow rounded-full shadow-[0_0_8px_rgba(255,224,26,0.8)]"
-                  transition={{ duration: 0.15, ease: 'easeOut' }}
+      {/* Bottom Navigation */}
+      <div className="fixed bottom-0 inset-x-0 z-[110] flex flex-col pointer-events-none">
+        <div className="bg-[#0B0B0D] px-2 py-1.5 flex justify-around items-center border-t border-[#26262A] pointer-events-auto shadow-[0_-10px_30px_rgba(0,0,0,0.8)]">
+          {navItems.map((item) => {
+            const isActive = activeTab === item.id;
+            const Icon = item.icon;
+            
+            return (
+              <button 
+                key={item.id}
+                type="button"
+                onClick={() => onTabChange?.(item.id as any)}
+                className="flex-1 flex flex-col items-center justify-center min-h-[48px] py-1 px-1 transition-all outline-none cursor-pointer group"
+              >
+                <Icon 
+                  size={20} 
+                  strokeWidth={isActive ? 2.5 : 1.75} 
+                  style={{ color: isActive ? accentColor : '#A3A3AA' }}
+                  className="transition-colors"
                 />
+                <span 
+                  className="text-[10px] font-bold mt-1 tracking-tight transition-colors"
+                  style={{ color: isActive ? accentColor : '#A3A3AA' }}
+                >
+                  {item.label}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Story Fields Modal for History Tile */}
+      {showStorySheet && (
+        <div className="fixed inset-0 z-[250] bg-black/80 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="bg-[#161618] border border-[#26262A] rounded-t-3xl sm:rounded-2xl max-w-lg w-full max-h-[85vh] overflow-y-auto p-6 space-y-4 text-white">
+            <div className="flex items-center justify-between border-b border-[#26262A] pb-3">
+              <div>
+                <span 
+                  className="text-[10px] font-black uppercase tracking-widest block"
+                  style={{ color: accentColor }}
+                >
+                  {currentNode?.neighborhood ? `${currentNode.neighborhood.toUpperCase()} STORIES` : 'LOCAL STORIES'}
+                </span>
+                <h3 className="text-xl font-bold">
+                  {currentNode?.name ? currentNode.name.replace(/_HUB/g, '').replace(/_/g, ' ') : nodeName.replace(/_HUB/g, '').replace(/_/g, ' ')}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowStorySheet(false)}
+                className="p-2 rounded-full hover:bg-white/10 text-[#A3A3AA] hover:text-white min-h-[44px] min-w-[44px] flex items-center justify-center cursor-pointer"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="space-y-4 text-sm text-[#A3A3AA]">
+              {currentNode?.why_it_matters && (
+                <div>
+                  <h4 className="text-xs font-bold text-white uppercase tracking-wider mb-1">Why this place matters</h4>
+                  <p className="leading-relaxed">{currentNode.why_it_matters}</p>
+                </div>
+              )}
+              {currentNode?.founder_story && (
+                <div>
+                  <h4 className="text-xs font-bold text-white uppercase tracking-wider mb-1">Founder story</h4>
+                  <p className="leading-relaxed">{currentNode.founder_story}</p>
+                </div>
+              )}
+              {currentNode?.business_history && (
+                <div>
+                  <h4 className="text-xs font-bold text-white uppercase tracking-wider mb-1">Location heritage</h4>
+                  <p className="leading-relaxed">{currentNode.business_history}</p>
+                </div>
+              )}
+              {currentNode?.community_impact && (
+                <div>
+                  <h4 className="text-xs font-bold text-white uppercase tracking-wider mb-1">Community impact</h4>
+                  <p className="leading-relaxed">{currentNode.community_impact}</p>
+                </div>
+              )}
+              {currentNode?.recommended_experience && (
+                <div>
+                  <h4 className="text-xs font-bold text-white uppercase tracking-wider mb-1">Recommended experience</h4>
+                  <p className="leading-relaxed">{currentNode.recommended_experience}</p>
+                </div>
+              )}
+              {!currentNode?.why_it_matters && !currentNode?.founder_story && !currentNode?.business_history && !currentNode?.community_impact && !currentNode?.recommended_experience && (
+                <p className="italic py-4 text-center">
+                  {currentNode?.hub_tagline || 'More local stories and neighborhood history coming soon.'}
+                </p>
               )}
             </div>
-          );
+          </div>
+        </div>
+      )}
 
-          if (item.href) {
-            return (
-              <a key={item.id} href={item.href} className="px-4">
-                {content}
-              </a>
-            );
-          }
-
-          return (
-            <button 
-              key={item.id}
-              onClick={() => onTabChange?.(item.id as any)}
-              className="px-4 outline-none"
-            >
-              {content}
-            </button>
-          );
-        })}
-      </div>
-    </div>
+      {/* Quick Report Sheet for Lost & Found */}
+      {currentNode?.id && (
+        <QuickReportSheet
+          isOpen={isQuickReportOpen}
+          onClose={() => setIsQuickReportOpen(false)}
+          nodeId={currentNode.id}
+        />
+      )}
 
 
       <AnimatePresence>
@@ -1131,6 +1575,18 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
           </motion.div>
         )}
       </AnimatePresence>
+
+      <LinkEmailModal
+        isOpen={isLinkEmailModalOpen}
+        onClose={() => setIsLinkEmailModalOpen(false)}
+        currentEmail={user?.email || userProfile?.email || visitorEmail || null}
+        onLinked={(newEmail, newProfile) => {
+          setVisitorEmail(newEmail);
+          if (newProfile && onProfileUpdate) {
+            onProfileUpdate(newProfile);
+          }
+        }}
+      />
     </div>
   );
 };
