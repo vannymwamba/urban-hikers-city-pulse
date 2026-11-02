@@ -29,6 +29,7 @@ export interface TapStopInput {
   neighborhood?: string | null;
   lat?: number | null;
   lng?: number | null;
+  access_vector?: 'nfc' | 'qr' | 'direct';
 }
 
 /**
@@ -58,6 +59,7 @@ export async function recordVisitorTapTransaction(
         lat: typeof stop.lat === 'number' ? stop.lat : null,
         lng: typeof stop.lng === 'number' ? stop.lng : null,
         first_tapped_at: nowIso,
+        access_vector: stop.access_vector || 'direct',
       };
 
       if (!snap.exists()) {

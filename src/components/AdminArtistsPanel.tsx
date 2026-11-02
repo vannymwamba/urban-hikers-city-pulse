@@ -348,6 +348,9 @@ export function AdminArtistsPanel({ setHudMessage }: AdminArtistsPanelProps) {
             <div className="md:col-span-2">
               <label className="text-[9px] text-[#999] tracking-widest uppercase mb-2 block">NFC_Destination_URL</label>
               <input value={formData.nfc_destination} onChange={e => setFormData({...formData, nfc_destination: e.target.value})} className="w-full bg-[#f5f5f5] text-black border border-[#e0e0e0] rounded-lg px-4 py-3 text-sm" placeholder="https://..." />
+              <p className="text-[9px] text-[#999] mt-1.5">
+                Program the Tapin tag to <code>https://app.localpulses.com/artist/{formData.artist_slug || '[slug]'}?ref=nfc</code> — the <code>ref=nfc</code> param is required for NFC attribution.
+              </p>
             </div>
 
             {/* Multi-Artist & Instagram Roster Builder */}

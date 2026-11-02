@@ -209,7 +209,7 @@ export default function PartnerOnboarding() {
     if (!form.logo_initials) update("logo_initials", val.split(" ").map(w => w[0]).join("").slice(0, 3).toUpperCase());
   };
 
-  const nfcUrl = `https://app.localpulses.com?partner=${form.id}&hub=${form.hub_id}`;
+  const nfcUrl = `https://app.localpulses.com?partner=${form.id}&hub=${form.hub_id}&ref=nfc`;
   const firestoreDoc = JSON.stringify({
     name: form.name,
     short_name: form.short_name,
@@ -408,10 +408,10 @@ export default function PartnerOnboarding() {
                   fontSize: 10, color: ACCENT, wordBreak: "break-all",
                   lineHeight: 1.6, letterSpacing: 0.3,
                 }}>
-                  {form.id ? nfcUrl : "https://app.localpulses.com?partner=[id]&hub=[hub]"}
+                  {form.id ? nfcUrl : "https://app.localpulses.com?partner=[id]&hub=[hub]&ref=nfc"}
                 </div>
                 <div style={{ fontSize: 9, color: MUTED, marginTop: 8 }}>
-                  Program this URL into the Pulse Cube NFC tag for this partner property.
+                  Program this URL into the Tapin NFC tag for this partner property. The <code>ref=nfc</code> param is required — it's how we attribute the tap as NFC instead of a browser visit.
                 </div>
               </Section>
 

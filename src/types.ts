@@ -453,6 +453,7 @@ export interface JourneyStop {
   lat?: number | null;
   lng?: number | null;
   first_tapped_at: string;
+  access_vector?: 'nfc' | 'qr' | 'direct';
 }
 
 export interface VisitorProfile {

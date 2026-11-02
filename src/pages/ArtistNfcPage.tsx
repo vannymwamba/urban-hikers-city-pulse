@@ -22,6 +22,15 @@ import { QuickReportSheet } from '../components/QuickReportSheet';
 import { SponsorSlot } from '../components/SponsorSlot';
 import { useGlobalSponsors } from '../contexts/GlobalSponsorsContext';
 
+// Treat the redirect source (Tapin for NFC, our QR codes for qr) as the
+// source of truth: it's set once from the URL the tag/code points to.
+function getAccessVectorFromUrl(): 'nfc' | 'qr' | 'direct' {
+  const ref = new URLSearchParams(window.location.search).get('ref');
+  if (ref === 'nfc') return 'nfc';
+  if (ref === 'qr') return 'qr';
+  return 'direct';
+}
+
 function getDistanceFromLatLonInMi(lat1: number, lon1: number, lat2: number, lon2: number) {
   const R = 3958.8;
   const dLat = (lat2-lat1) * (Math.PI/180);
@@ -144,6 +153,7 @@ export function ArtistNfcPage() {
                 neighborhood: artistData.neighborhood || null,
                 lat: artistData.latitude || null,
                 lng: artistData.longitude || null,
+                access_vector: getAccessVectorFromUrl(),
               });
 
               // Read it with one getDoc
