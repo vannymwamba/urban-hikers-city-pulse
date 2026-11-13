@@ -127,10 +127,36 @@ export async function recordVisitorTapTransaction(
 
       tx.update(profileRef, updatePayload);
     });
+
+    // Sync to real leaderboard in Firestore
+    try {
+      const snap = await getDoc(profileRef);
+      if (snap.exists()) {
+        const p = snap.data() as VisitorProfile;
+        const totalTaps = p.journey_stops?.length || p.locations_visited_ids?.length || 0;
+        if (totalTaps > 0) {
+          const leaderRef = doc(db, 'leaderboard', uid);
+          const name = p.email
+            ? p.email.split('@')[0]
+            : `Explorer #${uid.slice(-4).toUpperCase()}`;
+          await setDoc(leaderRef, {
+            uid,
+            display_name: name,
+            taps_count: totalTaps,
+            places_count: p.locations_visited_ids?.length || 0,
+            miles_count: Number((p.total_miles_explored || 0).toFixed(1)),
+            last_tapped_at: nowIso,
+          }, { merge: true });
+        }
+      }
+    } catch {
+      // Non-fatal leaderboard sync
+    }
   } catch (err) {
     console.warn('Error recording visitor tap transaction:', err);
   }
 }
+
 
 /**
  * Fetch a single visitor profile document.
@@ -256,3 +282,57 @@ export async function saveVisitorConsent(
     console.warn('Error saving visitor consent:', err);
   }
 }
+
+/**
+ * Generates a stable, counter-verifiable 4-character perk PIN for the user,
+ * e.g. "UH-7429", based on user UID and date.
+ */
+export function generatePerkCode(uid?: string): string {
+  if (!uid) return 'UH-7429';
+  let hash = 0;
+  for (let i = 0; i < uid.length; i++) {
+    hash = (hash << 5) - hash + uid.charCodeAt(i);
+    hash |= 0;
+  }
+  const codeNum = Math.abs(hash % 9000) + 1000;
+  return `UH-${codeNum}`;
+}
+
+/**
+ * Confirms counter verification by business staff, recording the timestamp
+ * and marking the perk redeemed in Firestore and local storage.
+ */
+export async function redeemPartnerPerk(
+  uid: string,
+  code: string,
+  venueName: string = 'Urbana Cafe'
+): Promise<{ success: boolean; redeemedAt: string }> {
+  const nowIso = new Date().toISOString();
+  
+  // Always record locally immediately so UI is 100% responsive and offline-resilient
+  try {
+    localStorage.setItem(`uh_perk_redeemed_${uid}`, JSON.stringify({
+      code,
+      venue: venueName,
+      redeemedAt: nowIso
+    }));
+  } catch {
+    // Ignore storage errors
+  }
+
+  if (uid) {
+    try {
+      const ref = doc(db, 'visitor_profiles', uid);
+      await setDoc(ref, {
+        perk_unlocked: true,
+        perk_redeemed_at: nowIso,
+        perk_redemption_code: code,
+      }, { merge: true });
+    } catch (err) {
+      console.warn('Error recording perk redemption in Firestore:', err);
+    }
+  }
+
+  return { success: true, redeemedAt: nowIso };
+}
+

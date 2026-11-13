@@ -19,6 +19,8 @@ import { QuickReportSheet } from './QuickReportSheet';
 import { SponsorSlot } from './SponsorSlot';
 import { LinkEmailModal } from './LinkEmailModal';
 import { ProfileTab } from './ProfileTab';
+import { HomeUserProfileSection } from './HomeUserProfileSection';
+import { LeaderboardSection } from './LeaderboardSection';
 
 interface DepartureBoardProps {
   nodeName: string;
@@ -38,8 +40,8 @@ interface DepartureBoardProps {
   onManage?: (broadcast: Broadcast) => void;
   onSaveToWallet?: (node?: Node) => void;
   isSaved?: boolean;
-  activeTab?: 'home' | 'feed' | 'explore' | 'wallet' | 'profile';
-  onTabChange?: (tab: 'home' | 'feed' | 'explore' | 'wallet' | 'profile') => void;
+  activeTab?: 'home' | 'feed' | 'explore' | 'wallet';
+  onTabChange?: (tab: 'home' | 'feed' | 'explore' | 'wallet') => void;
   savedHubs?: Node[];
   partnersMap?: Record<string, Partner>;
   routes?: Route[];
@@ -101,9 +103,9 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
     { id: 'home', icon: Home, label: 'Here' },
     { id: 'feed', icon: Clock, label: 'Pulse' },
     { id: 'explore', icon: Navigation, label: 'Next stop' },
-    { id: 'wallet', icon: Ticket, label: 'Passport' },
-    { id: 'profile', icon: User, label: 'Profile' }
+    { id: 'wallet', icon: Ticket, label: 'Passport' }
   ];
+
 
   const [time, setTime] = useState(new Date());
   const [headerTheme, setHeaderTheme] = useState<'yellow' | 'dark' | 'photo' | 'white'>(() => {
@@ -193,7 +195,7 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
   const [isLinkEmailModalOpen, setIsLinkEmailModalOpen] = useState<boolean>(false);
   const [visitorEmail, setVisitorEmail] = useState<string | null>(null);
   const [hubsTappedCount, setHubsTappedCount] = useState<number>(() => {
-    return Number(localStorage.getItem('uh_passport_nodes_count') || '1');
+    return Number(localStorage.getItem('uh_passport_nodes_count') || '0');
   });
 
   // Query visitor_profiles for logged-in user, otherwise fallback to uh_passport_nodes_count
@@ -204,19 +206,22 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
           if (snap.exists()) {
             const data = snap.data();
             const count = data.locations_visited_ids?.length || data.journey_stops?.length || 0;
-            if (count > 0) {
-              setHubsTappedCount(count);
-            }
+            setHubsTappedCount(count);
             if (data.email) {
               setVisitorEmail(data.email);
             }
+          } else {
+            setHubsTappedCount(Number(localStorage.getItem('uh_passport_nodes_count') || '0'));
           }
         })
-        .catch(() => {});
+        .catch(() => {
+          setHubsTappedCount(Number(localStorage.getItem('uh_passport_nodes_count') || '0'));
+        });
     } else {
-      setHubsTappedCount(Number(localStorage.getItem('uh_passport_nodes_count') || '1'));
+      setHubsTappedCount(Number(localStorage.getItem('uh_passport_nodes_count') || '0'));
     }
   }, [user?.uid]);
+
 
   // Query open lost & found reports for this node
   useEffect(() => {
@@ -652,9 +657,9 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
   }, [currentNode]);
 
   return (
-    <div className={`flex flex-col h-full ${activeTab === 'home' || activeTab === 'feed' || activeTab === 'profile' ? 'bg-[#0B0B0D]' : 'bg-[#f0f0f0]'} text-uh-black font-sans relative overflow-hidden`}>
+    <div className={`flex flex-col h-full ${activeTab === 'home' || activeTab === 'feed' ? 'bg-[#0B0B0D]' : 'bg-[#f0f0f0]'} text-uh-black font-sans relative overflow-hidden`}>
       {/* Collapsible Header Container — New Co-branded Structure */}
-      {activeTab !== 'home' && activeTab !== 'feed' && activeTab !== 'profile' && (
+      {activeTab !== 'home' && activeTab !== 'feed' && (
         <motion.div 
           style={{ 
             height: 200, 
@@ -767,14 +772,8 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
               {radiusInMiles} mile radius active
             </span>
           </div>
-          <div className="flex items-center gap-4">
-            <button
-              onClick={onSimulateNfc}
-              className="px-2 py-0.5 rounded bg-[#FFE01A]/10 border border-[#FFE01A]/30 text-[#FFE01A] hover:bg-[#FFE01A]/30 text-[8.5px] font-black uppercase tracking-widest flex items-center gap-1 transition-all pointer-events-auto cursor-pointer"
-            >
-              <span>⚡ Simulated_Tap</span>
-            </button>
-            <span className="text-[9px] font-black text-white/10 uppercase tracking-widest font-mono">Sync_active</span>
+          <div className="flex items-center gap-2">
+            <span className="text-[9px] font-black text-white/20 uppercase tracking-widest font-mono">Sync_active</span>
           </div>
         </div>
       </motion.div>
@@ -783,7 +782,7 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
       {/* Main Scrollable Area */}
       <div 
         onScroll={handleScroll}
-        className={`flex-1 overflow-y-auto relative z-10 ${activeTab === 'home' || activeTab === 'feed' || activeTab === 'profile' ? 'pt-0 pb-20' : 'pt-[200px] pb-32'} scroll-smooth`}
+        className={`flex-1 overflow-y-auto relative z-10 ${activeTab === 'home' || activeTab === 'feed' ? 'pt-0 pb-20' : 'pt-[200px] pb-32'} scroll-smooth`}
         style={{ WebkitOverflowScrolling: 'touch' }}
       >
         <div className="flex flex-col gap-0">
@@ -923,163 +922,28 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
                   </div>
                 </div>
 
-                {/* 3. HAPPENING NOW, with green LIVE dot */}
-                <div className="px-4 mt-6">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-2">
-                      <h3 className="text-[20px] font-bold text-white">
-                        {liveSectionTitle}
-                      </h3>
-                      <span className="inline-flex items-center gap-1.5 text-xs font-bold text-[#4ADE80] uppercase tracking-wider">
-                        <span className="w-2 h-2 rounded-full bg-[#4ADE80] animate-pulse" />
-                        LIVE
-                      </span>
-                    </div>
-                    {liveItems.length > 0 && (
-                      <button 
-                        type="button"
-                        onClick={() => onTabChange?.('feed')}
-                        className="text-xs font-bold hover:underline cursor-pointer min-h-[44px] flex items-center"
-                        style={{ color: accentColor }}
-                      >
-                        See all {liveItems.length}
-                      </button>
-                    )}
-                  </div>
+                {/* 2. USER PROFILE & STATS */}
+                <HomeUserProfileSection
+                  user={user}
+                  userProfile={userProfile}
+                  accentColor={accentColor}
+                  onLogin={onLogin}
+                  onProfileUpdate={onProfileUpdate}
+                  nodesVisitedCount={nodesVisitedCount}
+                  hubsTappedCount={hubsTappedCount}
+                />
 
-                  {liveItems.length === 0 ? (
-                    <div className="bg-[#161618] border border-[#26262A] rounded-[20px] p-6 text-center">
-                      <p className="text-sm font-medium text-[#A3A3AA] mb-2">
-                        Nothing live nearby right now
-                      </p>
-                      <button
-                        type="button"
-                        onClick={() => onTabChange?.('feed')}
-                        className="text-xs font-bold hover:underline cursor-pointer min-h-[44px] inline-flex items-center gap-1"
-                        style={{ color: accentColor }}
-                      >
-                        <span>See what's on later</span>
-                        <ArrowRight size={14} />
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      {liveItems.slice(0, 3).map((item) => (
-                        <button
-                          key={item.id}
-                          type="button"
-                          onClick={() => onSelect(item.originalBroadcast)}
-                          className="w-full bg-[#161618] hover:bg-[#1f1f22] border border-[#26262A] rounded-[20px] p-4 flex items-center justify-between text-left transition-all min-h-[64px] cursor-pointer group"
-                        >
-                          <div className="flex items-center gap-3.5 min-w-0 flex-1">
-                            {/* Time chip: NOW if started, otherwise start time */}
-                            <div className="bg-[#0B0B0D] border border-[#26262A] rounded-xl px-2.5 py-2 flex flex-col items-center justify-center min-w-[58px] shrink-0">
-                              <span className="text-[11px] font-bold text-[#FFE01A] font-mono leading-none tracking-tight">
-                                {item.timeLabel}
-                              </span>
-                            </div>
-                            <div className="min-w-0 flex-1">
-                              <div className="flex items-center gap-1.5 mb-1 flex-wrap">
-                                {/* Small type chip: WALK, DEAL, LIBRARY, FOOD, or EVENT */}
-                                <span className="text-[10px] font-extrabold px-1.5 py-0.5 rounded bg-white/10 text-white tracking-wide uppercase">
-                                  {item.typeChip}
-                                </span>
-                                {/* FREE label when payment_type === 'free' */}
-                                {item.isFree && (
-                                  <span className="text-[10px] font-extrabold px-1.5 py-0.5 rounded bg-[#4ADE80]/20 text-[#4ADE80] tracking-wide uppercase">
-                                    FREE
-                                  </span>
-                                )}
-                              </div>
-                              <h4 className="text-[14px] font-bold text-white truncate leading-snug group-hover:text-[#FFE01A] transition-colors">
-                                {item.title}
-                              </h4>
-                              <p className="text-[11px] text-[#A3A3AA] truncate mt-0.5">
-                                {item.venueOrAddress} · {item.walkMinutes} min walk
-                              </p>
-                            </div>
-                          </div>
-                          <ChevronRight size={18} className="text-[#A3A3AA] shrink-0 ml-2 group-hover:translate-x-0.5 transition-transform" />
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
+                {/* 3. LEADERBOARD RANKED BY MOST TAPS */}
+                <LeaderboardSection
+                  currentUid={user?.uid}
+                  currentUserEmail={user?.email || userProfile?.email}
+                  userTapsCount={hubsTappedCount || 0}
+                  userPlacesCount={hubsTappedCount > 0 ? (nodesVisitedCount || 1) : 0}
+                  userMilesCount={Number(((hubsTappedCount || 0) * 0.4).toFixed(1))}
+                  accentColor={accentColor}
+                />
 
-                {/* 4. YOUR NEXT STOP CARD */}
-                {nearestCoffeeSpot && (
-                  <div className="px-4 mt-6">
-                    <div className="bg-[#161618] border border-[#26262A] rounded-[20px] p-5 space-y-4">
-                      <div className="flex items-center justify-between">
-                        <span 
-                          className="text-[10px] font-black uppercase tracking-[0.2em]"
-                          style={{ color: accentColor }}
-                        >
-                          YOUR NEXT STOP
-                        </span>
-                        {nearestCoffeeSpot.statusKnown && (
-                          <span className={`inline-flex items-center gap-1.5 text-xs font-bold ${nearestCoffeeSpot.isOpen ? 'text-[#4ADE80]' : 'text-[#A3A3AA]'}`}>
-                            {nearestCoffeeSpot.isOpen && <span className="w-1.5 h-1.5 rounded-full bg-[#4ADE80]" />}
-                            {nearestCoffeeSpot.isOpen ? 'Open now' : 'Closed'}
-                          </span>
-                        )}
-                      </div>
 
-                      <div className="flex items-center gap-4">
-                        <div className="w-14 h-14 rounded-xl bg-[#0B0B0D] border border-[#26262A] flex items-center justify-center shrink-0 overflow-hidden">
-                          {nearestCoffeeSpot.imageUrl ? (
-                            <img 
-                              src={nearestCoffeeSpot.imageUrl} 
-                              alt={nearestCoffeeSpot.name}
-                              referrerPolicy="no-referrer"
-                              className="w-full h-full object-cover"
-                            />
-                          ) : (
-                            <Coffee size={24} style={{ color: accentColor }} />
-                          )}
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <h3 className="text-lg font-bold text-white truncate">
-                            {nearestCoffeeSpot.name}
-                          </h3>
-                          <p className="text-xs text-[#A3A3AA] mt-0.5 truncate">
-                            {nearestCoffeeSpot.walkMinutes} min walk · {nearestCoffeeSpot.distMi} mi
-                          </p>
-                        </div>
-                      </div>
-
-                      {nearestCoffeeSpot.reward && (
-                        <p className="text-xs text-[#FFE01A] font-medium leading-relaxed bg-[#FFE01A]/10 border border-[#FFE01A]/20 rounded-xl px-3 py-2">
-                          {nearestCoffeeSpot.reward}
-                        </p>
-                      )}
-
-                      <div className="space-y-2 pt-1">
-                        <a
-                          href={`https://www.google.com/maps/dir/?api=1&destination=${nearestCoffeeSpot.latitude},${nearestCoffeeSpot.longitude}&travelmode=walking`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          style={{ backgroundColor: accentColor }}
-                          className="w-full min-h-[48px] rounded-xl text-black font-bold text-sm flex items-center justify-center gap-2 hover:opacity-95 transition-all shadow-md cursor-pointer"
-                        >
-                          <span>Start walking</span>
-                          <ArrowRight size={16} />
-                        </a>
-
-                        <div className="text-center pt-1">
-                          <button
-                            type="button"
-                            onClick={() => onTabChange?.('feed')}
-                            className="text-xs font-bold text-[#A3A3AA] hover:text-white transition-colors cursor-pointer min-h-[44px] inline-flex items-center gap-1"
-                          >
-                            <span>More coffee nearby</span>
-                            <ChevronRight size={14} />
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
 
                 {/* 5. EXPLORE FROM HERE (2x2 grid) */}
                 <div className="px-4 mt-6">
@@ -1371,18 +1235,8 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
                   </div>
                 </div>
               </div>
-            ) : activeTab === 'profile' ? (
-              <ProfileTab
-                user={user}
-                userProfile={userProfile}
-                accentColor={accentColor}
-                onLogin={onLogin}
-                onContinueAsGuest={() => onTabChange?.('feed')}
-                onProfileUpdate={onProfileUpdate}
-                nodesVisitedCount={nodesVisitedCount}
-                hubsTappedCount={hubsTappedCount}
-              />
             ) : null}
+
             {/* ... other tabs would go here, omitting for brevity of change but keeping key structure */}
           </div>
         </div>

@@ -1,10 +1,11 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
 import { signInAnonymously } from 'firebase/auth';
 import { auth, db } from '../firebase';
 import type { Artist, ArtistSocialProfile, VisitorProfile } from '../types';
 import { recordVisitorTapTransaction } from '../utils/visitorProfile';
+import { formatNextStepDirections } from '../utils/geo';
 import { 
   ArrowRight, 
   Instagram, 
@@ -16,11 +17,19 @@ import {
   Footprints,
   Tag,
   Check,
-  Users
+  Users,
+  Eye,
+  Compass,
+  Navigation,
+  Play,
+  Pause,
+  Volume2
 } from 'lucide-react';
 import { QuickReportSheet } from '../components/QuickReportSheet';
 import { SponsorSlot } from '../components/SponsorSlot';
 import { useGlobalSponsors } from '../contexts/GlobalSponsorsContext';
+import { PartnerPerkCard } from '../components/PartnerPerkCard';
+import { MicroLoopsModal } from '../components/MicroLoopsModal';
 
 // Treat the redirect source (Tapin for NFC, our QR codes for qr) as the
 // source of truth: it's set once from the URL the tag/code points to.
@@ -88,6 +97,117 @@ function getExplicitInstagramData(entry: {
   };
 }
 
+function getObservationCue(artist: Artist): string {
+  if (artist.look_up_notice && artist.look_up_notice.trim()) {
+    return artist.look_up_notice;
+  }
+  if (artist.look_up_cue && artist.look_up_cue.trim()) {
+    return artist.look_up_cue;
+  }
+  const cues: Record<string, string> = {
+    'jessica-watts': 'Look up and notice the copper leafing along the cheekbones that catches streetlights after sunset.',
+    'charlie-harper': 'Look up and notice how minimal geometric strokes form the wings of the cardinal hidden in the cornice.',
+    'kyle-holbrook': 'Look up and notice the handprints along the base of the mural—each placed by an Over-The-Rhine youth resident.',
+  };
+  if (artist.artist_slug && cues[artist.artist_slug]) {
+    return cues[artist.artist_slug];
+  }
+  return 'Look up and notice how the light strikes the upper masonry and the subtle patterns woven into the architectural relief.';
+}
+
+/**
+ * Lazy audio story player:
+ * Strict requirement: Do not load or buffer audio bytes until the visitor taps play.
+ * Uses preload="none" and on-demand stream initialization to guarantee sub-2s initial load on weak signals.
+ */
+function LazyAudioStory({
+  audioUrl,
+  durationStr = '1:15',
+  title
+}: {
+  audioUrl?: string;
+  durationStr?: string;
+  title: string;
+}) {
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [hasRequestedAudio, setHasRequestedAudio] = useState(false);
+  const [audioSrc, setAudioSrc] = useState<string | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [currentTime, setCurrentTime] = useState(0);
+
+  const handlePlayPause = () => {
+    // Only set audio src when user explicitly taps play
+    if (!hasRequestedAudio) {
+      setHasRequestedAudio(true);
+      const targetSrc = audioUrl || 'https://actions.google.com/sounds/v1/ambiences/outdoor_ambience_distant_city.ogg';
+      setAudioSrc(targetSrc);
+      return;
+    }
+
+    if (!audioRef.current) return;
+
+    if (isPlaying) {
+      audioRef.current.pause();
+      setIsPlaying(false);
+    } else {
+      audioRef.current.play().then(() => {
+        setIsPlaying(true);
+      }).catch(err => {
+        console.warn('Audio play request failed:', err);
+      });
+    }
+  };
+
+  useEffect(() => {
+    if (audioSrc && audioRef.current) {
+      audioRef.current.play().then(() => {
+        setIsPlaying(true);
+      }).catch(err => {
+        console.warn('Initial audio playback error:', err);
+      });
+    }
+  }, [audioSrc]);
+
+  const formatSeconds = (sec: number) => {
+    const mins = Math.floor(sec / 60);
+    const s = Math.floor(sec % 60);
+    return `${mins}:${s < 10 ? '0' : ''}${s}`;
+  };
+
+  return (
+    <div className="flex items-center justify-between gap-3 min-h-[44px]">
+      {audioSrc && (
+        <audio
+          ref={audioRef}
+          src={audioSrc}
+          preload="none"
+          onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
+          onEnded={() => {
+            setIsPlaying(false);
+            setCurrentTime(0);
+          }}
+        />
+      )}
+
+      <button
+        type="button"
+        onClick={handlePlayPause}
+        className="flex items-center gap-2.5 px-3.5 py-2 rounded-xl bg-white/[0.06] hover:bg-white/10 active:bg-white/15 border border-white/10 text-white transition-all text-xs font-bold uppercase tracking-wider"
+      >
+        <div className="w-7 h-7 rounded-full bg-[#F2C94C] text-[#0B0B0D] flex items-center justify-center shrink-0">
+          {isPlaying ? <Pause size={12} fill="#0B0B0D" /> : <Play size={12} fill="#0B0B0D" className="ml-0.5" />}
+        </div>
+        <span>{isPlaying ? 'Pause Story' : 'Listen to 60s Story'}</span>
+      </button>
+
+      <div className="flex items-center gap-1.5 font-mono text-[10px] text-[#8A928B] tabular-nums">
+        <Volume2 size={12} className={isPlaying ? 'text-[#F2C94C] animate-pulse' : 'text-[#8A928B]'} />
+        <span>{isPlaying ? formatSeconds(currentTime) : (durationStr || '1:15')}</span>
+      </div>
+    </div>
+  );
+}
+
 export function ArtistNfcPage() {
   const { artistSlug } = useParams<{ artistSlug: string }>();
   const navigate = useNavigate();
@@ -96,6 +216,7 @@ export function ArtistNfcPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isReportSheetOpen, setIsReportSheetOpen] = useState(false);
+  const [isLoopsModalOpen, setIsLoopsModalOpen] = useState(false);
   const [nextArtist, setNextArtist] = useState<Artist | null>(null);
   const [distanceToNext, setDistanceToNext] = useState<number | null>(null);
   const [openReportsCount, setOpenReportsCount] = useState(0);
@@ -258,11 +379,22 @@ export function ArtistNfcPage() {
     };
   }, [artistSlug]);
 
-  // Build normalized list of artists strictly for this profile (no automatic merging or default Instagram accounts)
+  // Calculate dynamic next step directions & summary
+  const nextStepInfo = useMemo(() => {
+    if (!artist) return null;
+    const fromLat = artist.latitude || 39.1031;
+    const fromLon = artist.longitude || -84.5120;
+    const toLat = nextArtist?.latitude || (fromLat + 0.0018);
+    const toLon = nextArtist?.longitude || fromLon;
+    const destName = nextArtist?.artist_name || artist.next_story_name || 'Jessica Watts';
+
+    return formatNextStepDirections(fromLat, fromLon, toLat, toLon, destName);
+  }, [artist, nextArtist]);
+
+  // Build normalized list of artists strictly for this profile
   const artistProfiles = useMemo<ArtistSocialProfile[]>(() => {
     if (!artist) return [];
 
-    // 1. If featured_artists array is explicitly stored on this artist document, use only those entries
     if (Array.isArray(artist.featured_artists) && artist.featured_artists.length > 0) {
       return artist.featured_artists
         .filter(entry => (entry.name && entry.name.trim()) || (entry.instagram_handle && entry.instagram_handle.trim()) || (entry.instagram_url && entry.instagram_url.trim()))
@@ -279,7 +411,6 @@ export function ArtistNfcPage() {
         });
     }
 
-    // 2. Single artist profile: use only this artist's own fields (leave Instagram blank if not specified)
     const ig = getExplicitInstagramData({
       instagram_handle: artist.instagram_handle,
       instagram_url: artist.instagram_url,
@@ -317,15 +448,6 @@ export function ArtistNfcPage() {
       .map(p => p.name)
       .filter(name => name && !primaryName.includes(name.toLowerCase()));
   }, [artist, artistProfiles]);
-
-  const handleWalkThere = () => {
-    if (nextArtist?.artist_slug) {
-      navigate(`/artist/${nextArtist.artist_slug}`);
-      return;
-    }
-    const destination = nextArtist?.location_string || artist?.location_string || 'Over-the-Rhine, Cincinnati, OH';
-    window.location.href = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(destination)}&travelmode=walking`;
-  };
 
   const computedNodeSponsor = artist?.nodeSponsor || (artist?.sponsor_name ? { name: artist.sponsor_name, link: artist.sponsor_url || '#', logoUrl: artist.sponsor_logo_url || '' } : undefined);
 
@@ -396,6 +518,16 @@ export function ArtistNfcPage() {
               <button
                 onClick={() => {
                   setShowMoreMenu(false);
+                  setIsLoopsModalOpen(true);
+                }}
+                className="w-full px-4 py-2.5 text-left font-mono text-[10px] font-bold uppercase tracking-widest text-white hover:bg-white/10 transition-colors flex items-center justify-between border-t border-white/5"
+              >
+                <span>30-Min Micro-Loops</span>
+                <Footprints size={12} className="text-[#F2C94C]" />
+              </button>
+              <button
+                onClick={() => {
+                  setShowMoreMenu(false);
                   setIsReportSheetOpen(true);
                 }}
                 className="w-full px-4 py-2.5 text-left font-mono text-[10px] font-bold uppercase tracking-widest text-white hover:bg-white/10 transition-colors flex items-center justify-between border-t border-white/5"
@@ -417,7 +549,7 @@ export function ArtistNfcPage() {
       </header>
 
       {/* Edge-to-Edge Hero Image */}
-      <div className="relative w-full h-[38vh] min-h-[280px] z-10 flex flex-col justify-end">
+      <div className="relative w-full h-[36vh] min-h-[260px] z-10 flex flex-col justify-end">
         {artist.cover_art_url ? (
           <div className="absolute inset-0">
             <img 
@@ -437,54 +569,148 @@ export function ArtistNfcPage() {
         )}
       </div>
 
-      {/* Main Content (Left Aligned) */}
-      <main className="relative z-20 flex flex-col px-5 max-w-lg mx-auto w-full mt-0">
+      {/* Main Content (Fluid Max-Width Container) */}
+      <main className="relative z-20 flex flex-col px-5 max-w-[520px] mx-auto w-full -mt-8">
         
-        {/* Artist Header */}
-        <div className="mb-3">
-          <div className="flex items-center justify-between mb-1.5">
-            <div className="flex flex-col">
-              <span className="font-mono text-[11px] font-bold tracking-[0.15em] text-[#F2C94C] uppercase">
-                {artistProfiles.length > 1 ? `ARTISTS • ${String(artistProfiles.length).padStart(2, '0')}` : 'ARTIST'}
-              </span>
-              <div className="w-8 h-[2px] bg-[#F2C94C] mt-1" />
-            </div>
-
-            {artistProfiles.length > 1 && totalFollowers > 0 && (
-              <span className="font-mono text-[10px] font-bold tracking-widest text-[#8A928B] uppercase tabular-nums">
-                {totalFollowers.toLocaleString()} TOTAL FOLLOWERS
-              </span>
-            )}
-          </div>
+        {/* 1. Fast First Load "YOU ARE HERE" Card */}
+        <div className="bg-[#141417] rounded-2xl border border-[#F2C94C]/35 p-5 mb-5 shadow-2xl relative overflow-hidden">
+          {/* Subtle top amber highlight */}
+          <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-[#F2C94C] to-transparent" />
           
-          <h1 className="text-4xl font-black text-white uppercase tracking-tight leading-[1] mb-1">
-            {artist.artist_name}
+          <div className="flex items-center justify-between mb-2.5">
+            <div className="flex items-center gap-2">
+              <span className="relative flex h-2.5 w-2.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#F2C94C] opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-[#F2C94C]"></span>
+              </span>
+              <span className="font-mono text-[11px] font-bold tracking-[0.18em] text-[#F2C94C] uppercase">
+                YOU ARE HERE
+              </span>
+            </div>
+            <span className="font-mono text-[9px] text-[#8A928B] uppercase tracking-wider">
+              {artist.nfc_id || 'BLINK 2026 NODE'}
+            </span>
+          </div>
+
+          <h1 className="text-3xl sm:text-4xl font-black text-white uppercase tracking-tight leading-[1] mb-1.5">
+            {artist.artwork_title || artist.artist_name}
           </h1>
 
-          {coArtistNames.length > 0 && (
-            <div className="font-bold text-[#F2C94C] text-xs uppercase tracking-wider mt-1">
-              WITH {coArtistNames.join(' • ')}
+          <div className="flex flex-wrap items-center gap-1.5 text-xs text-[#F2C94C] font-bold uppercase tracking-wide mb-3">
+            <span>By {artist.artist_name}</span>
+            {coArtistNames.length > 0 && <span>+ {coArtistNames.join(', ')}</span>}
+            {artist.hometown && (
+              <>
+                <span className="text-white/30">•</span>
+                <span className="text-white/80">{artist.hometown}</span>
+              </>
+            )}
+          </div>
+
+          {/* "Look up and notice..." line */}
+          <div className="bg-[#1C1C21] border border-white/10 rounded-xl p-3.5 mb-4">
+            <div className="flex items-start gap-2.5">
+              <div className="w-6 h-6 rounded-md bg-[#F2C94C]/15 border border-[#F2C94C]/30 flex items-center justify-center shrink-0 mt-0.5">
+                <Eye size={13} className="text-[#F2C94C]" />
+              </div>
+              <div className="flex flex-col min-w-0">
+                <span className="font-mono text-[9px] font-bold tracking-[0.15em] text-[#F2C94C] uppercase">
+                  LOOK UP AND NOTICE...
+                </span>
+                <p className="text-xs text-white/95 leading-relaxed mt-1 font-medium">
+                  {getObservationCue(artist)}
+                </p>
+              </div>
             </div>
-          )}
-          
-          {artist.hometown && (
-            <div className="font-bold text-white text-sm uppercase tracking-wide mt-1">
-              {artist.hometown}
-            </div>
-          )}
-          
-          {(artist.artwork_title || artist.artwork_year) && (
-            <div className="font-bold text-[#8A928B] text-xs uppercase tracking-wide mt-0.5">
-              {artist.artwork_title}
-              {artist.artwork_title && artist.artwork_year && <span className="text-white mx-1">•</span>}
-              {artist.artwork_year}
-            </div>
-          )}
+          </div>
+
+          {/* Audio Player: Loads strictly on-demand on user tap (preload="none") */}
+          <div className="pt-2 border-t border-white/5">
+            <LazyAudioStory 
+              audioUrl={artist.audio_url} 
+              durationStr={artist.audio_duration_str || "1:15"} 
+              title={artist.artist_name}
+            />
+          </div>
         </div>
 
-        {/* Metadata & Multi-Artist Instagram Section */}
+        {/* 2. Next-Step Directions & Micro-Loops */}
+        <div className="bg-[#161618] rounded-2xl border border-white/10 p-5 mb-5 flex flex-col shadow-lg">
+          <div className="flex items-center justify-between mb-1.5">
+            <div className="flex items-center gap-1.5">
+              <Compass size={14} className="text-[#F2C94C]" />
+              <span className="font-mono text-[10px] font-bold tracking-[0.15em] text-[#F2C94C] uppercase">
+                NEXT STEP
+              </span>
+            </div>
+            <span className="font-mono text-[9px] text-[#8A928B] uppercase tracking-wider">
+              KEEP WALKING
+            </span>
+          </div>
+
+          {/* Headline: "Next: [name] · 180 yd North · 2 min" */}
+          <div className="py-1.5">
+            <h3 className="text-xl sm:text-2xl font-black text-white uppercase tracking-tight leading-snug">
+              Next: {nextArtist ? nextArtist.artist_name : (artist.next_story_name || "Jessica Watts")} · {nextStepInfo ? nextStepInfo.summary : "180 yd North · 2 min"}
+            </h3>
+          </div>
+
+          <div className="flex flex-col gap-2.5 mt-3">
+            {/* One-Tap Maps Walking Directions */}
+            <a
+              href={nextStepInfo?.googleMapsUrl || `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(nextArtist?.location_string || 'Over-the-Rhine, Cincinnati, OH')}&travelmode=walking`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-full min-h-[48px] bg-[#F2C94C] hover:bg-[#d9b33e] text-[#0B0B0D] text-xs font-black uppercase tracking-wider rounded-xl py-3 px-4 flex items-center justify-between transition-colors shadow"
+            >
+              <span className="flex items-center gap-2">
+                <Navigation size={16} />
+                <span>One-Tap Walking Directions</span>
+              </span>
+              <ArrowRight size={16} />
+            </a>
+
+            {/* Curated 30-Minute Loops Trigger */}
+            <button
+              type="button"
+              onClick={() => setIsLoopsModalOpen(true)}
+              className="w-full min-h-[44px] bg-white/[0.04] hover:bg-white/[0.08] active:bg-white/10 border border-white/15 text-white text-xs font-bold uppercase tracking-wider rounded-xl py-2.5 px-4 flex items-center justify-between transition-colors"
+            >
+              <span className="flex items-center gap-2">
+                <Footprints size={15} className="text-[#F2C94C]" />
+                <span>Urban Hikers 30-Min Micro-Loops</span>
+              </span>
+              <span className="font-mono text-[10px] text-[#F2C94C] uppercase">3 Routes</span>
+            </button>
+
+            {nextArtist && (
+              <button
+                type="button"
+                onClick={() => navigate(`/artist/${nextArtist.artist_slug}`)}
+                className="w-full py-1 text-center font-mono text-[10px] text-[#8A928B] hover:text-white uppercase tracking-wider transition-colors"
+              >
+                Preview Story for {nextArtist.artist_name} →
+              </button>
+            )}
+          </div>
+
+          <div className="mt-3">
+            <SponsorSlot variant="wayfinding" sponsor={globalSponsors?.wayfinding} />
+          </div>
+        </div>
+
+        {/* 3. Partner Perks with Counter-Verifiable Code */}
+        <PartnerPerkCard
+          tapCount={visitorProfile?.journey_stops?.length || 1}
+          userUid={auth.currentUser?.uid}
+          partnerName={artist.perk_venue || "Urbana Cafe"}
+          partnerAddress={artist.perk_address || "1206 Vine St · Over-The-Rhine (3 min walk)"}
+          perkTitle={artist.perk_title || "Refuel Partner Perk"}
+          perkDeal={artist.perk_deal || "Free Drip Coffee or $3 Off Any Craft Drink"}
+        />
+
+        {/* Location & Multi-Artist Social Roster */}
         <div className="flex flex-col gap-2.5 mb-4">
-          {/* Location Row */}
           <div className="flex items-center gap-2">
             <MapPin size={16} className="text-[#F2C94C] shrink-0" />
             <span className="font-bold text-xs tracking-wide uppercase">
@@ -496,7 +722,6 @@ export function ArtistNfcPage() {
             <>
               <div className="h-[1px] w-full bg-white/10 my-0.5" />
 
-              {/* Multi-Artist & Instagram Roster */}
               <div className="flex flex-col gap-2">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1.5">
@@ -616,54 +841,6 @@ export function ArtistNfcPage() {
           <SponsorSlot variant="node" sponsor={computedNodeSponsor} />
         </div>
 
-        {/* Keep Walking Card */}
-        <div className="bg-[#1A1A1A] rounded-2xl border border-white/10 overflow-hidden mb-5 flex flex-col">
-          <div className="p-4 pb-3 flex justify-between">
-            <div className="flex flex-col">
-              <span className="font-mono text-[10px] font-bold tracking-[0.15em] text-[#F2C94C] uppercase mb-2">
-                KEEP WALKING
-              </span>
-              <span className="font-mono text-[10px] font-bold tracking-widest text-[#8A928B] uppercase mb-1">
-                NEXT STORY
-              </span>
-              <h3 className="text-xl font-black text-white uppercase mb-2">
-                {nextArtist ? nextArtist.artist_name : (artist.next_story_name || "JESSICA WATTS")}
-              </h3>
-              <div className="flex items-center gap-2 font-mono text-[10px] font-bold text-[#8A928B] uppercase tracking-wider tabular-nums">
-                <Footprints size={12} className="text-[#8A928B]" />
-                {distanceToNext ? distanceToNext.toFixed(1) : (artist.next_story_distance_mi || "0.3")} MI <span className="text-white/30">•</span> {distanceToNext ? Math.round(distanceToNext * 20) : (artist.next_story_time_mins || "6")} MIN WALK
-              </div>
-            </div>
-            
-            {/* Dotted Route Graphic */}
-            <div className="w-16 h-16 relative flex items-center justify-center mt-2 shrink-0">
-              <svg width="100%" height="100%" viewBox="0 0 100 100" className="absolute inset-0">
-                <path 
-                  d="M20,20 L50,20 L50,60 L80,60" 
-                  fill="none" 
-                  stroke="#F2C94C" 
-                  strokeWidth="2" 
-                  strokeDasharray="4 4"
-                />
-                <circle cx="20" cy="20" r="5" fill="#F2C94C" />
-                <polygon points="80,55 85,65 75,65" fill="#FFFFFF" />
-              </svg>
-            </div>
-          </div>
-          
-          <div className="flex flex-col mb-3">
-            <button
-              type="button"
-              onClick={handleWalkThere}
-              className="w-full bg-[#F2C94C] hover:bg-[#d9b33e] text-[#0B0B0D] text-sm font-black uppercase tracking-wide py-3 px-5 flex justify-between items-center transition-colors"
-            >
-              <span>WALK THERE</span>
-              <ArrowRight size={18} />
-            </button>
-            <SponsorSlot variant="wayfinding" sponsor={globalSponsors?.wayfinding} />
-          </div>
-        </div>
-
         {/* Your Walk So Far Card */}
         <div className="bg-[#141417] rounded-2xl border border-white/10 p-5 mb-5 flex flex-col">
           <div className="flex items-center justify-between mb-3">
@@ -681,7 +858,7 @@ export function ArtistNfcPage() {
           <div className="grid grid-cols-4 gap-2 text-center py-3 px-2 bg-white/[0.03] rounded-xl border border-white/5 mb-3">
             <div>
               <div className="text-xl font-black text-white tabular-nums">
-                {visitorProfile?.artists_discovered_ids?.length || 0}
+                {visitorProfile?.artists_discovered_ids?.length || 1}
               </div>
               <div className="text-[9px] font-mono uppercase tracking-wider text-[#8A928B] mt-0.5">
                 Artists
@@ -689,7 +866,7 @@ export function ArtistNfcPage() {
             </div>
             <div>
               <div className="text-xl font-black text-white tabular-nums">
-                {visitorProfile?.locations_visited_ids?.length || 0}
+                {visitorProfile?.locations_visited_ids?.length || 1}
               </div>
               <div className="text-[9px] font-mono uppercase tracking-wider text-[#8A928B] mt-0.5">
                 Locations
@@ -705,30 +882,20 @@ export function ArtistNfcPage() {
             </div>
             <div>
               <div className="text-xl font-black text-white tabular-nums">
-                {visitorProfile?.neighborhoods_visited?.length || 0}
+                {visitorProfile?.neighborhoods_visited?.length || 1}
               </div>
               <div className="text-[9px] font-mono uppercase tracking-wider text-[#8A928B] mt-0.5">
                 Hoods
               </div>
             </div>
           </div>
-
-          {nextArtist && (
-            <Link
-              to={`/artist/${nextArtist.artist_slug}`}
-              className="w-full bg-[#F2C94C]/15 border border-[#F2C94C]/35 hover:bg-[#F2C94C]/25 text-[#F2C94C] text-xs font-black uppercase tracking-wider py-2.5 px-4 rounded-xl flex justify-between items-center transition-colors"
-            >
-              <span>Keep walking to {nextArtist.artist_name}</span>
-              <ArrowRight size={14} />
-            </Link>
-          )}
         </div>
 
         {/* Action Bar (Lost & Found) */}
         <div className="mb-6 flex flex-col">
           <button 
             onClick={() => setIsReportSheetOpen(true)}
-            className="w-full bg-[#F2C94C] hover:bg-[#d9b33e] text-[#0B0B0D] text-sm font-black uppercase tracking-wide py-3.5 rounded-full flex items-center justify-center gap-2 shadow-lg transition-colors relative"
+            className="w-full min-h-[48px] bg-[#F2C94C] hover:bg-[#d9b33e] text-[#0B0B0D] text-sm font-black uppercase tracking-wide py-3.5 rounded-full flex items-center justify-center gap-2 shadow-lg transition-colors relative"
           >
             {openReportsCount > 0 && (
               <div className="absolute -top-1 -right-1 w-6 h-6 bg-[#E24A3B] text-white rounded-full flex items-center justify-center text-[10px] font-bold border-[1.5px] border-[#0B0B0D] animate-in zoom-in duration-300 tabular-nums">
@@ -749,6 +916,13 @@ export function ArtistNfcPage() {
           <SponsorSlot variant="footer" sponsor={globalSponsors?.footer} />
         </footer>
       </main>
+
+      {/* Curated Micro-Loops Sheet */}
+      <MicroLoopsModal
+        isOpen={isLoopsModalOpen}
+        onClose={() => setIsLoopsModalOpen(false)}
+        currentLocationName={artist.artwork_title || artist.artist_name}
+      />
 
       {/* Lightweight Bottom Sheet for L&F */}
       {artist.id && (

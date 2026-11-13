@@ -437,6 +437,12 @@ export interface Artist {
   
   audio_url?: string;
   audio_duration_str?: string;
+  look_up_notice?: string;
+  look_up_cue?: string;
+  perk_title?: string;
+  perk_venue?: string;
+  perk_deal?: string;
+  perk_address?: string;
   
   next_story_id?: string;
   next_story_name?: string;
@@ -470,4 +476,19 @@ export interface VisitorProfile {
   consent_given?: boolean;
   consent_timestamp?: string | null;
   consent_version?: string | null;
+  perk_unlocked?: boolean;
+  perk_redeemed_at?: string | null;
+  perk_redemption_code?: string | null;
 }
+
+export interface LeaderboardEntry {
+  uid: string;
+  display_name: string;
+  taps_count: number;
+  places_count: number;
+  miles_count: number;
+  last_tapped_at?: string;
+  is_current_user?: boolean;
+}
+
+

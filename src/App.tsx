@@ -243,7 +243,7 @@ function AppRouter() {
   // Use raw ID as-is. Standardize casing only during lookups for maximum compatibility.
   const nodeId = rawNodeId;
   const isHome = path === '/' || path === '';
-  const [currentTab, setCurrentTab] = useState<'home' | 'feed' | 'explore' | 'wallet' | 'profile'>(() => {
+  const [currentTab, setCurrentTab] = useState<'home' | 'feed' | 'explore' | 'wallet'>(() => {
     const initial = localStorage.getItem('uh_initial_tab');
     if (initial === 'wallet') {
       localStorage.removeItem('uh_initial_tab');
