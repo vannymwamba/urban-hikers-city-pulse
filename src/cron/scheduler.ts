@@ -1,12 +1,37 @@
 import cron from 'node-cron';
 import { runLibraryIngestionAgent } from '../../agents/libraryAgent.ts';
 import { runCivicIngestionEngine } from '../../agents/visitCincyAgent.ts';
+import { recomputeLeaderboard, hasServiceAccountCredentials } from '../services/recomputeLeaderboard.ts';
 
 /**
  * Urban Hikers: Centralized Cron Scheduler
  */
 export function initializeScheduler() {
   console.log("URBAN HIKERS SCHEDULER: INITIALIZING_PROTOCOLS...");
+
+  // 0. Leaderboard Recompute: every 5 minutes, from real visitor_profiles
+  // data, using Admin SDK credentials. Only register the cron when
+  // FIREBASE_SERVICE_ACCOUNT_JSON is configured so preview/dev environments
+  // without the secret do not emit recurring runtime errors.
+  if (hasServiceAccountCredentials()) {
+    recomputeLeaderboard()
+      .then((res) => console.log(`SCHEDULER: INITIAL_LEADERBOARD_SYNC_COMPLETE (updated=${res.updated})`))
+      .catch(() => console.log("SCHEDULER: INITIAL_LEADERBOARD_SYNC_DEFERRED"));
+
+    cron.schedule('*/5 * * * *', async () => {
+      console.log("SCHEDULER: RUNNING_LEADERBOARD_RECOMPUTE...");
+      try {
+        const result = await recomputeLeaderboard();
+        console.log(`SCHEDULER: LEADERBOARD_SYNC_COMPLETE (updated=${result.updated})`);
+      } catch {
+        console.log("SCHEDULER: LEADERBOARD_SYNC_DEFERRED");
+      }
+    });
+  } else {
+    console.log(
+      "SCHEDULER: Leaderboard recompute cron paused — set FIREBASE_SERVICE_ACCOUNT_JSON to enable server-side leaderboard sync."
+    );
+  }
 
   // 1. Library Agent: Sync daily at 6:00 AM EST
   // Cron: '0 6 * * *'

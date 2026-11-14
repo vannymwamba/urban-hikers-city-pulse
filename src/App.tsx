@@ -1,12 +1,12 @@
 import seedData from "./seed";
 import { completeEmailLinkIfPresent } from "./utils/identityUpgrade";
-import { recordVisitorTapTransaction } from "./utils/visitorProfile";
+import { recordVisitorTapTransaction, recordConnection } from "./utils/visitorProfile";
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { auth, db, finalDbId } from './firebase';
 import { signInWithPopup, signInAnonymously, GoogleAuthProvider, onAuthStateChanged, User } from 'firebase/auth';
 import { useLocation, Routes, Route, useNavigate } from 'react-router-dom';
 import { collection, onSnapshot, query, where, addDoc, doc, getDoc, setDoc, getDocs, orderBy, getDocFromServer, updateDoc, serverTimestamp, Timestamp, limit } from 'firebase/firestore';
-import { Node, Broadcast, Vibe, UserProfile, UserRole, Partner, BroadcastType, LocalHub, TapPoint } from './types';
+import { Node, Broadcast, Vibe, UserProfile, UserRole, Partner, BroadcastType, LocalHub, TapPoint, VisitorProfile } from './types';
 import { BASE_URL } from './constants';
 import { DepartureBoard } from './components/DepartureBoard';
 import { BroadcastModal } from './components/BroadcastModal';
@@ -176,24 +176,14 @@ function AppRouter() {
   const [isTappedIn, setIsTappedIn] = useState(true);
   const [nfcStatus, setNfcStatus] = useState<'idle' | 'scanning' | 'error' | 'unsupported'>('idle');
   
-  // Explorer Passport & NFC Success States
-  const [xp, setXp] = useState<number>(() => {
-    return Number(localStorage.getItem('uh_passport_xp') || '250');
-  });
-  const [nodesVisitedCount, setNodesVisitedCount] = useState<number>(() => {
-    return Number(localStorage.getItem('uh_passport_nodes_count') || '14');
-  });
-  const [badges, setBadges] = useState<string[]>(() => {
-    try {
-      const saved = localStorage.getItem('uh_passport_badges');
-      return saved ? JSON.parse(saved) : ["Downtown Explorer", "Coffee Hunter"];
-    } catch {
-      return ["Downtown Explorer", "Coffee Hunter"];
-    }
-  });
-  const [connectionsCount, setConnectionsCount] = useState<number>(() => {
-    return Number(localStorage.getItem('uh_passport_connections') || '3');
-  });
+  // Explorer Passport & NFC Success States.
+  // Source of truth is visitor_profiles/{uid} in Firestore (synced below via
+  // onSnapshot) — NOT localStorage. These defaults only apply before that
+  // first snapshot arrives (or for a signed-out/pre-tap visitor).
+  const [xp, setXp] = useState<number>(0);
+  const [nodesVisitedCount, setNodesVisitedCount] = useState<number>(0);
+  const [badges, setBadges] = useState<string[]>([]);
+  const [connectionsCount, setConnectionsCount] = useState<number>(0);
   const [isNfcOverlayOpen, setIsNfcOverlayOpen] = useState(false);
   const [nfcOverlayNodeName, setNfcOverlayNodeName] = useState('Findlay Market');
   const [nfcOverlayXpAwarded, setNfcOverlayXpAwarded] = useState(20);
@@ -578,6 +568,43 @@ function AppRouter() {
     };
   }, [user]);
 
+  // Explorer Passport sync: visitor_profiles/{uid} is the one source of truth
+  // for xp/badges/connections/visited-places. Live-subscribed so progress
+  // survives a cleared browser or a new device, instead of localStorage.
+  useEffect(() => {
+    if (!user?.uid) {
+      setXp(0);
+      setBadges([]);
+      setNodesVisitedCount(0);
+      setConnectionsCount(0);
+      return;
+    }
+
+    const profileRef = doc(db, 'visitor_profiles', user.uid);
+    const unsubscribe = onSnapshot(
+      profileRef,
+      (snap) => {
+        if (!snap.exists()) {
+          setXp(0);
+          setBadges([]);
+          setNodesVisitedCount(0);
+          setConnectionsCount(0);
+          return;
+        }
+        const profile = snap.data() as VisitorProfile;
+        setXp(profile.xp || 0);
+        setBadges(profile.badges || []);
+        setNodesVisitedCount(profile.locations_visited_ids?.length || 0);
+        setConnectionsCount(profile.connections_count || 0);
+      },
+      (err) => {
+        console.warn('Explorer passport sync error:', err);
+      }
+    );
+
+    return () => unsubscribe();
+  }, [user?.uid]);
+
   useEffect(() => {
     let isMounted = true;
     const q = query(collection(db, 'partners'), where('active', '==', true));
@@ -701,8 +728,8 @@ function AppRouter() {
     setIsConsentModalOpen(false);
   }, []);
 
-  const recordTap = useCallback(async (vectorOverride?: 'nfc' | 'qr' | 'direct') => {
-    if (!currentNode || !nodeId) return;
+  const recordTap = useCallback(async (vectorOverride?: 'nfc' | 'qr' | 'direct'): Promise<{ xpAwarded: number; newBadge: string | null } | null> => {
+    if (!currentNode || !nodeId) return null;
 
     // Immediately record anonymous tap under consent version v1.0
     localStorage.setItem('uh_consent_v1.0', 'true');
@@ -736,11 +763,11 @@ function AppRouter() {
             currentUser = anonRes.user;
           } catch (authErr: any) {
             console.error("Could not acquire auth session for tap:", authErr?.message || authErr);
-            return; // Abort write: unauthenticated tap will fail security rules
+            return null; // Abort write: unauthenticated tap will fail security rules
           }
         }
         const currentUid = currentUser?.uid;
-        if (!currentUid) return;
+        if (!currentUid) return null;
 
         // Compute tap value score based on vector verification, artist attribution, sponsor backing, and trail momentum
         const vectorWeight = vector === 'nfc' ? 1.0 : vector === 'qr' ? 0.8 : 0.5;
@@ -776,17 +803,26 @@ function AppRouter() {
           // handleFirestoreError(err, OperationType.CREATE, 'taps');
         }
 
-        // Update visitor profile in runTransaction
-        recordVisitorTapTransaction(currentUid, {
-          artist_id: artistId,
-          location_id: nodeId,
-          neighborhood: (currentNode as any)?.neighborhood || null,
-          lat: currentNode?.latitude || null,
-          lng: currentNode?.longitude || null,
-        }).catch(err => console.warn("Error updating visitor profile on tap:", err));
+        // Update visitor profile (xp/badges/stats) atomically in one transaction.
+        // This is now the single source of truth — nothing is written to
+        // localStorage for passport stats anymore.
+        try {
+          return await recordVisitorTapTransaction(currentUid, {
+            artist_id: artistId,
+            location_id: nodeId,
+            neighborhood: (currentNode as any)?.neighborhood || null,
+            lat: currentNode?.latitude || null,
+            lng: currentNode?.longitude || null,
+          });
+        } catch (err) {
+          console.warn("Error updating visitor profile on tap:", err);
+          return null;
+        }
       }
+      return null;
     } catch (err) {
       console.error("Error recording tap:", err);
+      return null;
     }
   }, [currentNode, nodeId, broadcasts, currentTab, nodesVisitedCount]);
 
@@ -798,8 +834,8 @@ function AppRouter() {
     }
   }, [hasConsented, pendingTapVector, recordTap]);
 
-  const triggerNfcSuccessAnimation = useCallback((nodeTitle: string) => {
-    // Increment local node tap counter for UI purposes
+  const triggerNfcSuccessAnimation = useCallback((nodeTitle: string, xpAwarded: number, newBadge: string | null) => {
+    // Cosmetic per-node tap counter for UI display only (not identity-linked passport data)
     if (currentNode?.id) {
       const key = `uh_tap_count_${currentNode.id}`;
       const prevCount = Number(localStorage.getItem(key) || '1');
@@ -808,45 +844,20 @@ function AppRouter() {
       window.dispatchEvent(new CustomEvent('uh-node-tapped', { detail: { nodeId: currentNode.id, count: nextCount } }));
     }
 
-    // Award XP
-    setXp(prev => {
-      const nextXp = prev + 25;
-      localStorage.setItem('uh_passport_xp', String(nextXp));
-      return nextXp;
-    });
-
-    // Visited Nodes increase
-    setNodesVisitedCount(prev => {
-      const nextCount = prev + 1;
-      localStorage.setItem('uh_passport_nodes_count', String(nextCount));
-      return nextCount;
-    });
-
-    // Check if new badges unlocked
-    const currentBadges = [...badges];
-    let newlyEarned: string | null = null;
-    if (nodesVisitedCount >= 14 && !currentBadges.includes("OTR Trailblazer")) {
-      newlyEarned = "OTR Trailblazer";
-      currentBadges.push("OTR Trailblazer");
-      setBadges(currentBadges);
-      localStorage.setItem('uh_passport_badges', JSON.stringify(currentBadges));
-    } else if (nodesVisitedCount >= 15 && !currentBadges.includes("Hyperlocal Guru")) {
-      newlyEarned = "Hyperlocal Guru";
-      currentBadges.push("Hyperlocal Guru");
-      setBadges(currentBadges);
-      localStorage.setItem('uh_passport_badges', JSON.stringify(currentBadges));
-    }
-
-    setNfcOverlayBadgeEarned(newlyEarned);
+    // xp/badges/nodesVisitedCount themselves are NOT set here — they come
+    // live from the visitor_profiles Firestore listener once the transaction
+    // commits. This just drives the overlay's one-time animation/copy.
+    setNfcOverlayXpAwarded(xpAwarded);
+    setNfcOverlayBadgeEarned(newBadge);
     setNfcOverlayNodeName(nodeTitle);
     setIsNfcOverlayOpen(true);
     setHudMessage({ text: "NFC_TAP_SUCCESSFUL", type: 'info' });
-  }, [nodesVisitedCount, badges]);
+  }, []);
 
-  const simulateNfcTap = useCallback(() => {
+  const simulateNfcTap = useCallback(async () => {
     setIsTappedIn(true);
-    recordTap('nfc');
-    triggerNfcSuccessAnimation(currentNode?.name || 'Findlay Market');
+    const result = await recordTap('nfc');
+    triggerNfcSuccessAnimation(currentNode?.name || 'Findlay Market', result?.xpAwarded ?? 0, result?.newBadge ?? null);
   }, [currentNode, recordTap, triggerNfcSuccessAnimation]);
 
   // NFC Support
@@ -866,11 +877,11 @@ function AppRouter() {
         setNfcStatus('scanning');
         console.log("NFC_SCAN_STARTED");
         
-        ndef.onreading = (event: any) => {
+        ndef.onreading = async (event: any) => {
           console.log("NFC_TAG_DETECTED", event);
           setIsTappedIn(true);
-          recordTap('nfc');
-          triggerNfcSuccessAnimation(currentNode?.name || 'Findlay Market');
+          const result = await recordTap('nfc');
+          triggerNfcSuccessAnimation(currentNode?.name || 'Findlay Market', result?.xpAwarded ?? 0, result?.newBadge ?? null);
         };
 
         ndef.onreadingerror = () => {
@@ -1791,17 +1802,12 @@ function AppRouter() {
           xpAwarded={nfcOverlayXpAwarded}
           badgeEarned={nfcOverlayBadgeEarned}
           onSocialRecord={(metSomeone) => {
-            if (metSomeone) {
-              setXp(px => {
-                const nextXp = px + 10;
-                localStorage.setItem('uh_passport_xp', String(nextXp));
-                return nextXp;
-              });
-              setConnectionsCount(pc => {
-                const nextCount = pc + 1;
-                localStorage.setItem('uh_passport_connections', String(nextCount));
-                return nextCount;
-              });
+            if (metSomeone && auth.currentUser?.uid) {
+              // xp/connections_count/badges update via the visitor_profiles
+              // listener once this commits — nothing written to localStorage.
+              recordConnection(auth.currentUser.uid).catch(err =>
+                console.warn("Error recording connection:", err)
+              );
             }
           }}
         />

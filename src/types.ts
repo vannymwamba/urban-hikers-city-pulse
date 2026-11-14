@@ -479,6 +479,11 @@ export interface VisitorProfile {
   perk_unlocked?: boolean;
   perk_redeemed_at?: string | null;
   perk_redemption_code?: string | null;
+
+  // Explorer passport stats — server-synced (replaces localStorage-only tracking)
+  xp?: number;
+  badges?: string[];
+  connections_count?: number;
 }
 
 export interface LeaderboardEntry {

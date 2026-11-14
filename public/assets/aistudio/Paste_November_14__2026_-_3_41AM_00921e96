@@ -1,0 +1,756 @@
+Apply the following foundation fixes to urban-hikers-city-pulse. This closes two gaps: (1) XP/badges/connections currently live only in localStorage and vanish on a new device, (2) the leaderboard is written directly by clients with no server validation, so anyone can fake their own rank. Apply all changes exactly as specified below — this has already been typechecked (tsc --noEmit) and built successfully (npm run build) elsewhere, so the goal is faithful application, not redesign.
+
+=====================================================================
+1. src/types.ts — add fields to the VisitorProfile interface
+=====================================================================
+Find:
+  perk_unlocked?: boolean;
+  perk_redeemed_at?: string | null;
+  perk_redemption_code?: string | null;
+}
+
+Replace with:
+  perk_unlocked?: boolean;
+  perk_redeemed_at?: string | null;
+  perk_redemption_code?: string | null;
+
+  // Explorer passport stats — server-synced (replaces localStorage-only tracking)
+  xp?: number;
+  badges?: string[];
+  connections_count?: number;
+}
+
+=====================================================================
+2. src/utils/visitorProfile.ts — move XP/badge logic into the existing
+   transaction, remove the client-trusted leaderboard write, add
+   recordConnection()
+=====================================================================
+
+2a. Change the import at the top from:
+  import { 
+    doc, 
+    getDoc, 
+    setDoc, 
+    runTransaction, 
+    arrayUnion 
+  } from 'firebase/firestore';
+
+  to:
+  import { 
+    doc, 
+    getDoc, 
+    setDoc, 
+    runTransaction
+  } from 'firebase/firestore';
+
+2b. Replace the entire block from `export interface TapStopInput {` through the
+end of `recordVisitorTapTransaction`'s closing brace (i.e. everything up to,
+but not including, the `getVisitorProfile` function) with:
+
+export interface TapStopInput {
+  artist_id?: string | null;
+  location_id?: string | null;
+  neighborhood?: string | null;
+  lat?: number | null;
+  lng?: number | null;
+  access_vector?: 'nfc' | 'qr' | 'direct';
+}
+
+export interface TapTransactionResult {
+  xpAwarded: number;
+  newBadge: string | null;
+}
+
+const XP_PER_TAP = 25;
+const XP_PER_CONNECTION = 10;
+
+/**
+ * Badge thresholds, evaluated against real, already-tracked profile metrics.
+ * Add new badges here — no new counters needed, just new thresholds.
+ */
+function computeEarnedBadges(profile: {
+  locations_visited_ids: string[];
+  neighborhoods_visited: string[];
+  total_miles_explored: number;
+  connections_count: number;
+}): string[] {
+  const earned: string[] = [];
+  if (profile.locations_visited_ids.length >= 1) earned.push('Downtown Explorer');
+  if (profile.locations_visited_ids.length >= 5) earned.push('Local Explorer');
+  if (profile.locations_visited_ids.length >= 10) earned.push('Hyperlocal Guru');
+  if (profile.neighborhoods_visited.length >= 3) earned.push('Neighborhood Hopper');
+  if (profile.total_miles_explored >= 10) earned.push('10-Mile Hiker');
+  if (profile.connections_count >= 3) earned.push('Connector');
+  return earned;
+}
+
+/**
+ * Record a tap into visitor_profiles/{uid} using a single Firestore transaction.
+ * - Distance: straight-line distance from previous stop * 1.3
+ * - Skip segment if under 50m or more than 3 hours after previous tap.
+ * - Caps journey_stops at 50 stops.
+ * - Dedupes artists/locations/neighborhoods manually (not arrayUnion) so the
+ *   resulting counts are known inside the transaction, for badge checks.
+ * - Awards XP and badges atomically alongside the tap — this is now the one
+ *   source of truth; nothing is tracked in localStorage anymore.
+ */
+export async function recordVisitorTapTransaction(
+  uid: string,
+  stop: TapStopInput
+): Promise<TapTransactionResult> {
+  if (!uid) return { xpAwarded: 0, newBadge: null };
+
+  const profileRef = doc(db, 'visitor_profiles', uid);
+  const nowIso = new Date().toISOString();
+  const nowMs = Date.now();
+
+  try {
+    return await runTransaction(db, async (tx) => {
+      const snap = await tx.get(profileRef);
+      const newStop: JourneyStop = {
+        artist_id: stop.artist_id || null,
+        location_id: stop.location_id || null,
+        neighborhood: stop.neighborhood || null,
+        lat: typeof stop.lat === 'number' ? stop.lat : null,
+        lng: typeof stop.lng === 'number' ? stop.lng : null,
+        first_tapped_at: nowIso,
+        access_vector: stop.access_vector || 'direct',
+      };
+
+      if (!snap.exists()) {
+        const locations = stop.location_id ? [stop.location_id] : [];
+        const neighborhoods = stop.neighborhood ? [stop.neighborhood] : [];
+        const badges = computeEarnedBadges({
+          locations_visited_ids: locations,
+          neighborhoods_visited: neighborhoods,
+          total_miles_explored: 0,
+          connections_count: 0,
+        });
+
+        const initialProfile: VisitorProfile = {
+          artists_discovered_ids: stop.artist_id ? [stop.artist_id] : [],
+          locations_visited_ids: locations,
+          neighborhoods_visited: neighborhoods,
+          total_miles_explored: 0,
+          journey_stops: [newStop],
+          favorite_artist_id: stop.artist_id || null,
+          first_tap_at: nowIso,
+          last_tap_at: nowIso,
+          email: null,
+          consent_given: false,
+          consent_timestamp: null,
+          consent_version: null,
+          xp: XP_PER_TAP,
+          badges,
+          connections_count: 0,
+        };
+        tx.set(profileRef, initialProfile);
+        return { xpAwarded: XP_PER_TAP, newBadge: badges[0] || null };
+      }
+
+      const existing = snap.data() as VisitorProfile;
+      const existingStops: JourneyStop[] = Array.isArray(existing.journey_stops) ? existing.journey_stops : [];
+      const prevStop = existingStops.length > 0 ? existingStops[existingStops.length - 1] : null;
+
+      let milesToAdd = 0;
+      if (
+        prevStop &&
+        typeof prevStop.lat === 'number' &&
+        typeof prevStop.lng === 'number' &&
+        typeof stop.lat === 'number' &&
+        typeof stop.lng === 'number'
+      ) {
+        const straightLineMi = haversineMiles(prevStop.lat, prevStop.lng, stop.lat, stop.lng);
+        const distMeters = straightLineMi * 1609.344;
+        const prevTimeMs = prevStop.first_tapped_at ? new Date(prevStop.first_tapped_at).getTime() : 0;
+        const timeDiffMs = nowMs - prevTimeMs;
+
+        // Skip segment if < 50 meters or > 3 hours (10,800,000 ms)
+        if (distMeters >= 50 && timeDiffMs <= 3 * 60 * 60 * 1000) {
+          milesToAdd = straightLineMi * 1.3;
+        }
+      }
+
+      const updatedMiles = Number(((existing.total_miles_explored || 0) + milesToAdd).toFixed(3));
+      const updatedStops = [...existingStops, newStop].slice(-50); // max 50 stops
+
+      // Dedupe manually (instead of arrayUnion) so we know the resulting
+      // counts synchronously, for badge threshold checks below.
+      const updatedArtists = stop.artist_id
+        ? Array.from(new Set([...(existing.artists_discovered_ids || []), stop.artist_id]))
+        : (existing.artists_discovered_ids || []);
+      const updatedLocations = stop.location_id
+        ? Array.from(new Set([...(existing.locations_visited_ids || []), stop.location_id]))
+        : (existing.locations_visited_ids || []);
+      const updatedNeighborhoods = stop.neighborhood
+        ? Array.from(new Set([...(existing.neighborhoods_visited || []), stop.neighborhood]))
+        : (existing.neighborhoods_visited || []);
+
+      const existingBadges = existing.badges || [];
+      const connectionsCount = existing.connections_count || 0;
+      const earnedBadges = computeEarnedBadges({
+        locations_visited_ids: updatedLocations,
+        neighborhoods_visited: updatedNeighborhoods,
+        total_miles_explored: updatedMiles,
+        connections_count: connectionsCount,
+      });
+      const newBadges = earnedBadges.filter((b) => !existingBadges.includes(b));
+      const updatedBadges = [...existingBadges, ...newBadges];
+      const newXp = (existing.xp || 0) + XP_PER_TAP;
+
+      const updatePayload: any = {
+        total_miles_explored: updatedMiles,
+        journey_stops: updatedStops,
+        last_tap_at: nowIso,
+        first_tap_at: existing.first_tap_at || nowIso,
+        favorite_artist_id: existing.favorite_artist_id || stop.artist_id || null,
+        artists_discovered_ids: updatedArtists,
+        locations_visited_ids: updatedLocations,
+        neighborhoods_visited: updatedNeighborhoods,
+        xp: newXp,
+        badges: updatedBadges,
+      };
+
+      tx.update(profileRef, updatePayload);
+      return { xpAwarded: XP_PER_TAP, newBadge: newBadges[0] || null };
+    });
+  } catch (err) {
+    console.warn('Error recording visitor tap transaction:', err);
+    return { xpAwarded: 0, newBadge: null };
+  }
+}
+
+/**
+ * Record a self-reported "met someone" connection. Awards bonus XP and
+ * checks for the Connector badge, atomically, inside one transaction.
+ * Replaces the old localStorage-only connectionsCount increment.
+ */
+export async function recordConnection(uid: string): Promise<TapTransactionResult> {
+  if (!uid) return { xpAwarded: 0, newBadge: null };
+
+  const profileRef = doc(db, 'visitor_profiles', uid);
+  try {
+    return await runTransaction(db, async (tx) => {
+      const snap = await tx.get(profileRef);
+      if (!snap.exists()) {
+        // No profile yet (shouldn't normally happen — a tap always creates one first)
+        return { xpAwarded: 0, newBadge: null };
+      }
+
+      const existing = snap.data() as VisitorProfile;
+      const newConnectionsCount = (existing.connections_count || 0) + 1;
+      const newXp = (existing.xp || 0) + XP_PER_CONNECTION;
+      const existingBadges = existing.badges || [];
+      const earnedBadges = computeEarnedBadges({
+        locations_visited_ids: existing.locations_visited_ids || [],
+        neighborhoods_visited: existing.neighborhoods_visited || [],
+        total_miles_explored: existing.total_miles_explored || 0,
+        connections_count: newConnectionsCount,
+      });
+      const newBadges = earnedBadges.filter((b) => !existingBadges.includes(b));
+      const updatedBadges = [...existingBadges, ...newBadges];
+
+      tx.update(profileRef, {
+        connections_count: newConnectionsCount,
+        xp: newXp,
+        badges: updatedBadges,
+      });
+
+      return { xpAwarded: XP_PER_CONNECTION, newBadge: newBadges[0] || null };
+    });
+  } catch (err) {
+    console.warn('Error recording connection:', err);
+    return { xpAwarded: 0, newBadge: null };
+  }
+}
+
+IMPORTANT: do NOT touch getVisitorProfile, mergeVisitorProfiles, saveVisitorConsent,
+generatePerkCode, or redeemPartnerPerk below this point — leave them exactly as they are.
+
+=====================================================================
+3. src/App.tsx — read passport stats from Firestore instead of localStorage
+=====================================================================
+
+3a. Change this import line:
+  import { recordVisitorTapTransaction } from "./utils/visitorProfile";
+  to:
+  import { recordVisitorTapTransaction, recordConnection } from "./utils/visitorProfile";
+
+3b. Change this import line:
+  import { Node, Broadcast, Vibe, UserProfile, UserRole, Partner, BroadcastType, LocalHub, TapPoint } from './types';
+  to:
+  import { Node, Broadcast, Vibe, UserProfile, UserRole, Partner, BroadcastType, LocalHub, TapPoint, VisitorProfile } from './types';
+
+3c. Replace this block:
+  // Explorer Passport & NFC Success States
+  const [xp, setXp] = useState<number>(() => {
+    return Number(localStorage.getItem('uh_passport_xp') || '250');
+  });
+  const [nodesVisitedCount, setNodesVisitedCount] = useState<number>(() => {
+    return Number(localStorage.getItem('uh_passport_nodes_count') || '14');
+  });
+  const [badges, setBadges] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('uh_passport_badges');
+      return saved ? JSON.parse(saved) : ["Downtown Explorer", "Coffee Hunter"];
+    } catch {
+      return ["Downtown Explorer", "Coffee Hunter"];
+    }
+  });
+  const [connectionsCount, setConnectionsCount] = useState<number>(() => {
+    return Number(localStorage.getItem('uh_passport_connections') || '3');
+  });
+
+  with:
+  // Explorer Passport & NFC Success States.
+  // Source of truth is visitor_profiles/{uid} in Firestore (synced below via
+  // onSnapshot) — NOT localStorage. These defaults only apply before that
+  // first snapshot arrives (or for a signed-out/pre-tap visitor).
+  const [xp, setXp] = useState<number>(0);
+  const [nodesVisitedCount, setNodesVisitedCount] = useState<number>(0);
+  const [badges, setBadges] = useState<string[]>([]);
+  const [connectionsCount, setConnectionsCount] = useState<number>(0);
+
+3d. Find the effect that ends with `}, [user]);` right after the `loadUserProfile();`
+call (the one that loads userProfile from the `users` collection). Immediately
+AFTER that whole effect's closing `}, [user]);`, insert this new effect:
+
+  // Explorer Passport sync: visitor_profiles/{uid} is the one source of truth
+  // for xp/badges/connections/visited-places. Live-subscribed so progress
+  // survives a cleared browser or a new device, instead of localStorage.
+  useEffect(() => {
+    if (!user?.uid) {
+      setXp(0);
+      setBadges([]);
+      setNodesVisitedCount(0);
+      setConnectionsCount(0);
+      return;
+    }
+
+    const profileRef = doc(db, 'visitor_profiles', user.uid);
+    const unsubscribe = onSnapshot(
+      profileRef,
+      (snap) => {
+        if (!snap.exists()) {
+          setXp(0);
+          setBadges([]);
+          setNodesVisitedCount(0);
+          setConnectionsCount(0);
+          return;
+        }
+        const profile = snap.data() as VisitorProfile;
+        setXp(profile.xp || 0);
+        setBadges(profile.badges || []);
+        setNodesVisitedCount(profile.locations_visited_ids?.length || 0);
+        setConnectionsCount(profile.connections_count || 0);
+      },
+      (err) => {
+        console.warn('Explorer passport sync error:', err);
+      }
+    );
+
+    return () => unsubscribe();
+  }, [user?.uid]);
+
+3e. In the `recordTap` function: change the signature line from
+  const recordTap = useCallback(async (vectorOverride?: 'nfc' | 'qr' | 'direct') => {
+    if (!currentNode || !nodeId) return;
+  to:
+  const recordTap = useCallback(async (vectorOverride?: 'nfc' | 'qr' | 'direct'): Promise<{ xpAwarded: number; newBadge: string | null } | null> => {
+    if (!currentNode || !nodeId) return null;
+
+3f. In the same function, change:
+          } catch (authErr: any) {
+            console.error("Could not acquire auth session for tap:", authErr?.message || authErr);
+            return; // Abort write: unauthenticated tap will fail security rules
+          }
+        }
+        const currentUid = currentUser?.uid;
+        if (!currentUid) return;
+  to:
+          } catch (authErr: any) {
+            console.error("Could not acquire auth session for tap:", authErr?.message || authErr);
+            return null; // Abort write: unauthenticated tap will fail security rules
+          }
+        }
+        const currentUid = currentUser?.uid;
+        if (!currentUid) return null;
+
+3g. Still in `recordTap`, change the ending from:
+        // Update visitor profile in runTransaction
+        recordVisitorTapTransaction(currentUid, {
+          artist_id: artistId,
+          location_id: nodeId,
+          neighborhood: (currentNode as any)?.neighborhood || null,
+          lat: currentNode?.latitude || null,
+          lng: currentNode?.longitude || null,
+        }).catch(err => console.warn("Error updating visitor profile on tap:", err));
+      }
+    } catch (err) {
+      console.error("Error recording tap:", err);
+    }
+  }, [currentNode, nodeId, broadcasts, currentTab, nodesVisitedCount]);
+
+  to:
+        // Update visitor profile (xp/badges/stats) atomically in one transaction.
+        // This is now the single source of truth — nothing is written to
+        // localStorage for passport stats anymore.
+        try {
+          return await recordVisitorTapTransaction(currentUid, {
+            artist_id: artistId,
+            location_id: nodeId,
+            neighborhood: (currentNode as any)?.neighborhood || null,
+            lat: currentNode?.latitude || null,
+            lng: currentNode?.longitude || null,
+          });
+        } catch (err) {
+          console.warn("Error updating visitor profile on tap:", err);
+          return null;
+        }
+      }
+      return null;
+    } catch (err) {
+      console.error("Error recording tap:", err);
+      return null;
+    }
+  }, [currentNode, nodeId, broadcasts, currentTab, nodesVisitedCount]);
+
+3h. Replace the whole `triggerNfcSuccessAnimation` function:
+  const triggerNfcSuccessAnimation = useCallback((nodeTitle: string) => {
+    // Increment local node tap counter for UI purposes
+    if (currentNode?.id) {
+      const key = `uh_tap_count_${currentNode.id}`;
+      const prevCount = Number(localStorage.getItem(key) || '1');
+      const nextCount = prevCount + 1;
+      localStorage.setItem(key, String(nextCount));
+      window.dispatchEvent(new CustomEvent('uh-node-tapped', { detail: { nodeId: currentNode.id, count: nextCount } }));
+    }
+
+    // Award XP
+    setXp(prev => {
+      const nextXp = prev + 25;
+      localStorage.setItem('uh_passport_xp', String(nextXp));
+      return nextXp;
+    });
+
+    // Visited Nodes increase
+    setNodesVisitedCount(prev => {
+      const nextCount = prev + 1;
+      localStorage.setItem('uh_passport_nodes_count', String(nextCount));
+      return nextCount;
+    });
+
+    // Check if new badges unlocked
+    const currentBadges = [...badges];
+    let newlyEarned: string | null = null;
+    if (nodesVisitedCount >= 14 && !currentBadges.includes("OTR Trailblazer")) {
+      newlyEarned = "OTR Trailblazer";
+      currentBadges.push("OTR Trailblazer");
+      setBadges(currentBadges);
+      localStorage.setItem('uh_passport_badges', JSON.stringify(currentBadges));
+    } else if (nodesVisitedCount >= 15 && !currentBadges.includes("Hyperlocal Guru")) {
+      newlyEarned = "Hyperlocal Guru";
+      currentBadges.push("Hyperlocal Guru");
+      setBadges(currentBadges);
+      localStorage.setItem('uh_passport_badges', JSON.stringify(currentBadges));
+    }
+
+    setNfcOverlayBadgeEarned(newlyEarned);
+    setNfcOverlayNodeName(nodeTitle);
+    setIsNfcOverlayOpen(true);
+    setHudMessage({ text: "NFC_TAP_SUCCESSFUL", type: 'info' });
+  }, [nodesVisitedCount, badges]);
+
+  with:
+  const triggerNfcSuccessAnimation = useCallback((nodeTitle: string, xpAwarded: number, newBadge: string | null) => {
+    // Cosmetic per-node tap counter for UI display only (not identity-linked passport data)
+    if (currentNode?.id) {
+      const key = `uh_tap_count_${currentNode.id}`;
+      const prevCount = Number(localStorage.getItem(key) || '1');
+      const nextCount = prevCount + 1;
+      localStorage.setItem(key, String(nextCount));
+      window.dispatchEvent(new CustomEvent('uh-node-tapped', { detail: { nodeId: currentNode.id, count: nextCount } }));
+    }
+
+    // xp/badges/nodesVisitedCount themselves are NOT set here — they come
+    // live from the visitor_profiles Firestore listener once the transaction
+    // commits. This just drives the overlay's one-time animation/copy.
+    setNfcOverlayXpAwarded(xpAwarded);
+    setNfcOverlayBadgeEarned(newBadge);
+    setNfcOverlayNodeName(nodeTitle);
+    setIsNfcOverlayOpen(true);
+    setHudMessage({ text: "NFC_TAP_SUCCESSFUL", type: 'info' });
+  }, []);
+
+3i. Change:
+  const simulateNfcTap = useCallback(() => {
+    setIsTappedIn(true);
+    recordTap('nfc');
+    triggerNfcSuccessAnimation(currentNode?.name || 'Findlay Market');
+  }, [currentNode, recordTap, triggerNfcSuccessAnimation]);
+  to:
+  const simulateNfcTap = useCallback(async () => {
+    setIsTappedIn(true);
+    const result = await recordTap('nfc');
+    triggerNfcSuccessAnimation(currentNode?.name || 'Findlay Market', result?.xpAwarded ?? 0, result?.newBadge ?? null);
+  }, [currentNode, recordTap, triggerNfcSuccessAnimation]);
+
+3j. Change:
+        ndef.onreading = (event: any) => {
+          console.log("NFC_TAG_DETECTED", event);
+          setIsTappedIn(true);
+          recordTap('nfc');
+          triggerNfcSuccessAnimation(currentNode?.name || 'Findlay Market');
+        };
+  to:
+        ndef.onreading = async (event: any) => {
+          console.log("NFC_TAG_DETECTED", event);
+          setIsTappedIn(true);
+          const result = await recordTap('nfc');
+          triggerNfcSuccessAnimation(currentNode?.name || 'Findlay Market', result?.xpAwarded ?? 0, result?.newBadge ?? null);
+        };
+
+3k. Change the `onSocialRecord` callback from:
+          onSocialRecord={(metSomeone) => {
+            if (metSomeone) {
+              setXp(px => {
+                const nextXp = px + 10;
+                localStorage.setItem('uh_passport_xp', String(nextXp));
+                return nextXp;
+              });
+              setConnectionsCount(pc => {
+                const nextCount = pc + 1;
+                localStorage.setItem('uh_passport_connections', String(nextCount));
+                return nextCount;
+              });
+            }
+          }}
+  to:
+          onSocialRecord={(metSomeone) => {
+            if (metSomeone && auth.currentUser?.uid) {
+              // xp/connections_count/badges update via the visitor_profiles
+              // listener once this commits — nothing written to localStorage.
+              recordConnection(auth.currentUser.uid).catch(err =>
+                console.warn("Error recording connection:", err)
+              );
+            }
+          }}
+
+=====================================================================
+4. src/components/LeaderboardSection.tsx — remove the client write
+=====================================================================
+
+4a. Change:
+  import { collection, query, orderBy, limit, onSnapshot, doc, setDoc } from 'firebase/firestore';
+  to:
+  import { collection, query, orderBy, limit, onSnapshot } from 'firebase/firestore';
+
+4b. Delete this whole effect (keep everything else in the component, including
+the displayList useMemo further down that merges live local stats for display):
+  // Sync current user's entry to Firestore if they have real recorded taps and a valid UID
+  useEffect(() => {
+    if (!currentUid || userTapsCount <= 0) return;
+
+    const userEntry: LeaderboardEntry = {
+      uid: currentUid,
+      display_name: maskDisplayName(currentUserEmail, currentUid),
+      taps_count: userTapsCount,
+      places_count: userPlacesCount,
+      miles_count: Number(userMilesCount) || 0,
+      last_tapped_at: new Date().toISOString(),
+    };
+
+    const userDocRef = doc(db, 'leaderboard', currentUid);
+    setDoc(userDocRef, userEntry, { merge: true }).catch((err) => {
+      console.warn('Leaderboard sync error (non-fatal):', err);
+    });
+  }, [currentUid, currentUserEmail, userTapsCount, userPlacesCount, userMilesCount]);
+
+  Replace it with just this comment (no code):
+  // Read-only: the leaderboard collection is now computed and written
+  // server-side only (by a trusted recompute job using firebase-admin, from
+  // the real visitor_profiles data). The client never writes its own entry
+  // anymore — that was the self-reported gaming hole. See
+  // src/services/recomputeLeaderboard.ts.
+
+=====================================================================
+5. src/cron/scheduler.ts — wire in the new recompute job
+=====================================================================
+
+5a. Add this import at the top, alongside the existing agent imports:
+  import { recomputeLeaderboard } from '../services/recomputeLeaderboard.ts';
+
+5b. Immediately after the line `console.log("URBAN HIKERS SCHEDULER: INITIALIZING_PROTOCOLS...");`
+and BEFORE the existing "1. Library Agent" cron job, insert:
+
+  // 0. Leaderboard Recompute: every 5 minutes, from real visitor_profiles
+  // data, using Admin SDK credentials. This is now the ONLY writer of the
+  // leaderboard collection — see src/services/recomputeLeaderboard.ts for why.
+  cron.schedule('*/5 * * * *', async () => {
+    console.log("SCHEDULER: RUNNING_LEADERBOARD_RECOMPUTE...");
+    try {
+      const result = await recomputeLeaderboard();
+      console.log("SCHEDULER: LEADERBOARD_RECOMPUTE_COMPLETE", result);
+    } catch (error) {
+      console.error("SCHEDULER: LEADERBOARD_RECOMPUTE_FAILED", error);
+    }
+  });
+
+=====================================================================
+6. firestore.rules — lock out client writes to leaderboard
+=====================================================================
+
+Change:
+    // ── leaderboard collection ─────────────────────
+    match /leaderboard/{uid} {
+      allow read: if true;
+      allow write: if isSignedIn() && request.auth.uid == uid;
+    }
+to:
+    // ── leaderboard collection ─────────────────────
+    // Computed server-side ONLY, by a trusted recompute job running with
+    // Admin SDK credentials (which bypass these rules by design) from real
+    // visitor_profiles data. No client — not even the doc's own owner — may
+    // write here directly; that was the self-reported gaming hole.
+    // See src/services/recomputeLeaderboard.ts.
+    match /leaderboard/{uid} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+=====================================================================
+7. .env.example — document the new required env var
+=====================================================================
+
+After the line `FIREBASE_PROJECT_ID=`, add:
+
+# Admin SDK service account for server-only writes (e.g. leaderboard recompute).
+# Firebase Console > Project Settings > Service Accounts > Generate new private key.
+# Paste the resulting JSON as a single line. NEVER commit the real value.
+FIREBASE_SERVICE_ACCOUNT_JSON=
+
+=====================================================================
+8. NEW FILE: src/services/recomputeLeaderboard.ts
+=====================================================================
+
+Create this file with exactly this content:
+
+import { initializeApp, getApps, cert, App } from 'firebase-admin/app';
+import { getFirestore } from 'firebase-admin/firestore';
+import type { VisitorProfile } from '../types';
+
+const PROJECT_ID = 'gen-lang-client-0752567409';
+const DATABASE_ID = 'ai-studio-8d3a18ac-9f60-480e-8200-f9f5e01c389a';
+
+let adminApp: App | null = null;
+
+/**
+ * Lazily initializes the Admin SDK app using a service account from env.
+ * Admin SDK writes bypass Firestore Security Rules by design — this is the
+ * only legitimate way to write a trusted leaderboard value server-side.
+ *
+ * Setup: Firebase Console > Project Settings > Service Accounts > Generate
+ * new private key. Set the resulting JSON (as a single-line string) as the
+ * FIREBASE_SERVICE_ACCOUNT_JSON env var. Never commit this key to the repo.
+ */
+function getAdminApp(): App {
+  if (getApps().length > 0) {
+    adminApp = getApps()[0];
+    return adminApp;
+  }
+
+  const raw = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
+  if (!raw) {
+    throw new Error(
+      'FIREBASE_SERVICE_ACCOUNT_JSON env var is missing — the leaderboard recompute job ' +
+      'cannot run without Admin SDK credentials. See comment above for how to generate one.'
+    );
+  }
+
+  const serviceAccount = JSON.parse(raw);
+  adminApp = initializeApp({
+    credential: cert(serviceAccount),
+    projectId: PROJECT_ID,
+  });
+  return adminApp;
+}
+
+/**
+ * Recomputes leaderboard/{uid} for every visitor_profiles doc, from real,
+ * already-tracked data only (locations_visited_ids, total_miles_explored).
+ * Runs with Admin SDK privileges, so it's the only writer firestore.rules
+ * allows on the leaderboard collection — this is what closes the
+ * self-reported gaming hole (a client could previously setDoc any number
+ * it wanted to its own leaderboard entry).
+ *
+ * Call this from a cron job (see src/cron/scheduler.ts), not from any
+ * client-reachable code path.
+ */
+export async function recomputeLeaderboard(): Promise<{ updated: number; errors: number }> {
+  const app = getAdminApp();
+  const db = getFirestore(app, DATABASE_ID);
+
+  const profilesSnap = await db.collection('visitor_profiles').get();
+
+  let updated = 0;
+  let errors = 0;
+  let batch = db.batch();
+  let batchCount = 0;
+
+  for (const docSnap of profilesSnap.docs) {
+    try {
+      const profile = docSnap.data() as VisitorProfile;
+      const tapsCount = profile.locations_visited_ids?.length || 0;
+      if (tapsCount <= 0) continue; // only rank participants with at least one real tap
+
+      const name = profile.email
+        ? profile.email.split('@')[0]
+        : `Explorer #${docSnap.id.slice(-4).toUpperCase()}`;
+
+      const leaderRef = db.collection('leaderboard').doc(docSnap.id);
+      batch.set(
+        leaderRef,
+        {
+          uid: docSnap.id,
+          display_name: name,
+          taps_count: tapsCount,
+          places_count: profile.locations_visited_ids?.length || 0,
+          miles_count: Number((profile.total_miles_explored || 0).toFixed(1)),
+          last_tapped_at: profile.last_tap_at || null,
+        },
+        { merge: true }
+      );
+
+      updated++;
+      batchCount++;
+
+      if (batchCount >= 450) {
+        await batch.commit();
+        batch = db.batch();
+        batchCount = 0;
+      }
+    } catch (err) {
+      console.error(`[LEADERBOARD] Error processing profile ${docSnap.id}:`, err);
+      errors++;
+    }
+  }
+
+  if (batchCount > 0) {
+    await batch.commit();
+  }
+
+  console.log(`[LEADERBOARD] Recompute complete: ${updated} updated, ${errors} errors.`);
+  return { updated, errors };
+}
+
+=====================================================================
+After applying all 8 sections above, run npx knip, npx tsc --noEmit, and
+npm run build to confirm nothing broke, then report pass/fail on each.
+
+IMPORTANT — tell the user directly (do not silently skip): the leaderboard
+recompute job will throw on startup until a FIREBASE_SERVICE_ACCOUNT_JSON
+env var is set. That requires logging into Firebase Console (project
+gen-lang-client-0752567409) > Project Settings > Service Accounts >
+Generate new private key, and setting the downloaded JSON as that env var.
+This is a manual step only the project owner can do — do not attempt to
+generate or guess a service account key.

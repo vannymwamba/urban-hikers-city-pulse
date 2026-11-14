@@ -228,9 +228,14 @@ service cloud.firestore {
     }
 
     // ── leaderboard collection ─────────────────────
+    // Computed server-side ONLY, by a trusted recompute job running with
+    // Admin SDK credentials (which bypass these rules by design) from real
+    // visitor_profiles data. No client — not even the doc's own owner — may
+    // write here directly; that was the self-reported gaming hole.
+    // See src/services/recomputeLeaderboard.ts.
     match /leaderboard/{uid} {
       allow read: if true;
-      allow write: if isSignedIn() && request.auth.uid == uid;
+      allow write: if false;
     }
 
   }

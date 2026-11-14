@@ -2,8 +2,7 @@ import {
   doc, 
   getDoc, 
   setDoc, 
-  runTransaction, 
-  arrayUnion 
+  runTransaction
 } from 'firebase/firestore';
 import { db } from '../firebase';
 import type { VisitorProfile, JourneyStop } from '../types';
@@ -32,25 +31,56 @@ export interface TapStopInput {
   access_vector?: 'nfc' | 'qr' | 'direct';
 }
 
+export interface TapTransactionResult {
+  xpAwarded: number;
+  newBadge: string | null;
+}
+
+const XP_PER_TAP = 25;
+const XP_PER_CONNECTION = 10;
+
 /**
- * Record a tap into visitor_profiles/{uid} using a Firestore transaction.
+ * Badge thresholds, evaluated against real, already-tracked profile metrics.
+ * Add new badges here — no new counters needed, just new thresholds.
+ */
+function computeEarnedBadges(profile: {
+  locations_visited_ids: string[];
+  neighborhoods_visited: string[];
+  total_miles_explored: number;
+  connections_count: number;
+}): string[] {
+  const earned: string[] = [];
+  if (profile.locations_visited_ids.length >= 1) earned.push('Downtown Explorer');
+  if (profile.locations_visited_ids.length >= 5) earned.push('Local Explorer');
+  if (profile.locations_visited_ids.length >= 10) earned.push('Hyperlocal Guru');
+  if (profile.neighborhoods_visited.length >= 3) earned.push('Neighborhood Hopper');
+  if (profile.total_miles_explored >= 10) earned.push('10-Mile Hiker');
+  if (profile.connections_count >= 3) earned.push('Connector');
+  return earned;
+}
+
+/**
+ * Record a tap into visitor_profiles/{uid} using a single Firestore transaction.
  * - Distance: straight-line distance from previous stop * 1.3
  * - Skip segment if under 50m or more than 3 hours after previous tap.
  * - Caps journey_stops at 50 stops.
- * - Deduplicates artists, locations, and neighborhoods via arrayUnion.
+ * - Dedupes artists/locations/neighborhoods manually (not arrayUnion) so the
+ *   resulting counts are known inside the transaction, for badge checks.
+ * - Awards XP and badges atomically alongside the tap — this is now the one
+ *   source of truth; nothing is tracked in localStorage anymore.
  */
 export async function recordVisitorTapTransaction(
   uid: string,
   stop: TapStopInput
-): Promise<void> {
-  if (!uid) return;
+): Promise<TapTransactionResult> {
+  if (!uid) return { xpAwarded: 0, newBadge: null };
 
   const profileRef = doc(db, 'visitor_profiles', uid);
   const nowIso = new Date().toISOString();
   const nowMs = Date.now();
 
   try {
-    await runTransaction(db, async (tx) => {
+    return await runTransaction(db, async (tx) => {
       const snap = await tx.get(profileRef);
       const newStop: JourneyStop = {
         artist_id: stop.artist_id || null,
@@ -63,10 +93,19 @@ export async function recordVisitorTapTransaction(
       };
 
       if (!snap.exists()) {
+        const locations = stop.location_id ? [stop.location_id] : [];
+        const neighborhoods = stop.neighborhood ? [stop.neighborhood] : [];
+        const badges = computeEarnedBadges({
+          locations_visited_ids: locations,
+          neighborhoods_visited: neighborhoods,
+          total_miles_explored: 0,
+          connections_count: 0,
+        });
+
         const initialProfile: VisitorProfile = {
           artists_discovered_ids: stop.artist_id ? [stop.artist_id] : [],
-          locations_visited_ids: stop.location_id ? [stop.location_id] : [],
-          neighborhoods_visited: stop.neighborhood ? [stop.neighborhood] : [],
+          locations_visited_ids: locations,
+          neighborhoods_visited: neighborhoods,
           total_miles_explored: 0,
           journey_stops: [newStop],
           favorite_artist_id: stop.artist_id || null,
@@ -76,9 +115,12 @@ export async function recordVisitorTapTransaction(
           consent_given: false,
           consent_timestamp: null,
           consent_version: null,
+          xp: XP_PER_TAP,
+          badges,
+          connections_count: 0,
         };
         tx.set(profileRef, initialProfile);
-        return;
+        return { xpAwarded: XP_PER_TAP, newBadge: badges[0] || null };
       }
 
       const existing = snap.data() as VisitorProfile;
@@ -107,55 +149,96 @@ export async function recordVisitorTapTransaction(
       const updatedMiles = Number(((existing.total_miles_explored || 0) + milesToAdd).toFixed(3));
       const updatedStops = [...existingStops, newStop].slice(-50); // max 50 stops
 
+      // Dedupe manually (instead of arrayUnion) so we know the resulting
+      // counts synchronously, for badge threshold checks below.
+      const updatedArtists = stop.artist_id
+        ? Array.from(new Set([...(existing.artists_discovered_ids || []), stop.artist_id]))
+        : (existing.artists_discovered_ids || []);
+      const updatedLocations = stop.location_id
+        ? Array.from(new Set([...(existing.locations_visited_ids || []), stop.location_id]))
+        : (existing.locations_visited_ids || []);
+      const updatedNeighborhoods = stop.neighborhood
+        ? Array.from(new Set([...(existing.neighborhoods_visited || []), stop.neighborhood]))
+        : (existing.neighborhoods_visited || []);
+
+      const existingBadges = existing.badges || [];
+      const connectionsCount = existing.connections_count || 0;
+      const earnedBadges = computeEarnedBadges({
+        locations_visited_ids: updatedLocations,
+        neighborhoods_visited: updatedNeighborhoods,
+        total_miles_explored: updatedMiles,
+        connections_count: connectionsCount,
+      });
+      const newBadges = earnedBadges.filter((b) => !existingBadges.includes(b));
+      const updatedBadges = [...existingBadges, ...newBadges];
+      const newXp = (existing.xp || 0) + XP_PER_TAP;
+
       const updatePayload: any = {
         total_miles_explored: updatedMiles,
         journey_stops: updatedStops,
         last_tap_at: nowIso,
         first_tap_at: existing.first_tap_at || nowIso,
         favorite_artist_id: existing.favorite_artist_id || stop.artist_id || null,
+        artists_discovered_ids: updatedArtists,
+        locations_visited_ids: updatedLocations,
+        neighborhoods_visited: updatedNeighborhoods,
+        xp: newXp,
+        badges: updatedBadges,
       };
 
-      if (stop.artist_id) {
-        updatePayload.artists_discovered_ids = arrayUnion(stop.artist_id);
-      }
-      if (stop.location_id) {
-        updatePayload.locations_visited_ids = arrayUnion(stop.location_id);
-      }
-      if (stop.neighborhood) {
-        updatePayload.neighborhoods_visited = arrayUnion(stop.neighborhood);
-      }
-
       tx.update(profileRef, updatePayload);
+      return { xpAwarded: XP_PER_TAP, newBadge: newBadges[0] || null };
     });
-
-    // Sync to real leaderboard in Firestore
-    try {
-      const snap = await getDoc(profileRef);
-      if (snap.exists()) {
-        const p = snap.data() as VisitorProfile;
-        const totalTaps = p.journey_stops?.length || p.locations_visited_ids?.length || 0;
-        if (totalTaps > 0) {
-          const leaderRef = doc(db, 'leaderboard', uid);
-          const name = p.email
-            ? p.email.split('@')[0]
-            : `Explorer #${uid.slice(-4).toUpperCase()}`;
-          await setDoc(leaderRef, {
-            uid,
-            display_name: name,
-            taps_count: totalTaps,
-            places_count: p.locations_visited_ids?.length || 0,
-            miles_count: Number((p.total_miles_explored || 0).toFixed(1)),
-            last_tapped_at: nowIso,
-          }, { merge: true });
-        }
-      }
-    } catch {
-      // Non-fatal leaderboard sync
-    }
   } catch (err) {
     console.warn('Error recording visitor tap transaction:', err);
+    return { xpAwarded: 0, newBadge: null };
   }
 }
+
+/**
+ * Record a self-reported "met someone" connection. Awards bonus XP and
+ * checks for the Connector badge, atomically, inside one transaction.
+ * Replaces the old localStorage-only connectionsCount increment.
+ */
+export async function recordConnection(uid: string): Promise<TapTransactionResult> {
+  if (!uid) return { xpAwarded: 0, newBadge: null };
+
+  const profileRef = doc(db, 'visitor_profiles', uid);
+  try {
+    return await runTransaction(db, async (tx) => {
+      const snap = await tx.get(profileRef);
+      if (!snap.exists()) {
+        // No profile yet (shouldn't normally happen — a tap always creates one first)
+        return { xpAwarded: 0, newBadge: null };
+      }
+
+      const existing = snap.data() as VisitorProfile;
+      const newConnectionsCount = (existing.connections_count || 0) + 1;
+      const newXp = (existing.xp || 0) + XP_PER_CONNECTION;
+      const existingBadges = existing.badges || [];
+      const earnedBadges = computeEarnedBadges({
+        locations_visited_ids: existing.locations_visited_ids || [],
+        neighborhoods_visited: existing.neighborhoods_visited || [],
+        total_miles_explored: existing.total_miles_explored || 0,
+        connections_count: newConnectionsCount,
+      });
+      const newBadges = earnedBadges.filter((b) => !existingBadges.includes(b));
+      const updatedBadges = [...existingBadges, ...newBadges];
+
+      tx.update(profileRef, {
+        connections_count: newConnectionsCount,
+        xp: newXp,
+        badges: updatedBadges,
+      });
+
+      return { xpAwarded: XP_PER_CONNECTION, newBadge: newBadges[0] || null };
+    });
+  } catch (err) {
+    console.warn('Error recording connection:', err);
+    return { xpAwarded: 0, newBadge: null };
+  }
+}
+
 
 
 /**

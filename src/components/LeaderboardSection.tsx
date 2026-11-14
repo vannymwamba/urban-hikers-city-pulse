@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Trophy, Footprints } from 'lucide-react';
-import { collection, query, orderBy, limit, onSnapshot, doc, setDoc } from 'firebase/firestore';
+import { collection, query, orderBy, limit, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebase';
 import type { LeaderboardEntry } from '../types';
 
@@ -39,24 +39,11 @@ export const LeaderboardSection: React.FC<LeaderboardSectionProps> = ({
   const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Sync current user's entry to Firestore if they have real recorded taps and a valid UID
-  useEffect(() => {
-    if (!currentUid || userTapsCount <= 0) return;
-
-    const userEntry: LeaderboardEntry = {
-      uid: currentUid,
-      display_name: maskDisplayName(currentUserEmail, currentUid),
-      taps_count: userTapsCount,
-      places_count: userPlacesCount,
-      miles_count: Number(userMilesCount) || 0,
-      last_tapped_at: new Date().toISOString(),
-    };
-
-    const userDocRef = doc(db, 'leaderboard', currentUid);
-    setDoc(userDocRef, userEntry, { merge: true }).catch((err) => {
-      console.warn('Leaderboard sync error (non-fatal):', err);
-    });
-  }, [currentUid, currentUserEmail, userTapsCount, userPlacesCount, userMilesCount]);
+  // Read-only: the leaderboard collection is now computed and written
+  // server-side only (by a trusted recompute job using firebase-admin, from
+  // the real visitor_profiles data). The client never writes its own entry
+  // anymore — that was the self-reported gaming hole. See
+  // src/services/recomputeLeaderboard.ts.
 
   // Listen to real top entries from Firestore ranked by total recorded NFC taps
   useEffect(() => {
