@@ -17,6 +17,7 @@ import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firesto
 import { db } from '../firebase';
 import { QuickReportSheet } from './QuickReportSheet';
 import { SponsorSlot } from './SponsorSlot';
+import { FlashRotation } from './FlashRotation';
 import { LinkEmailModal } from './LinkEmailModal';
 import { ProfileTab } from './ProfileTab';
 import { HomeUserProfileSection } from './HomeUserProfileSection';
@@ -1067,17 +1068,18 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
                   </div>
                 </div>
 
-                {/* 6. SPONSOR */}
-                {nodeSponsor && (
-                  <div className="px-4 mt-6">
+                {/* 6. SPONSOR & FLASH ROTATION */}
+                <div className="px-4 mt-6 space-y-4 empty:hidden">
+                  <FlashRotation nodeId={currentNode?.id} />
+                  {nodeSponsor && (
                     <div className="bg-[#161618] border border-[#26262A] rounded-[20px] p-4 space-y-1">
                       <div className="text-[9px] font-black uppercase tracking-widest text-[#A3A3AA]">
                         SPONSORED
                       </div>
                       <SponsorSlot variant="node" sponsor={nodeSponsor} />
                     </div>
-                  </div>
-                )}
+                  )}
+                </div>
 
                 {/* 7. FOOTER */}
                 <div className="px-4 pt-8 pb-12 flex flex-col items-center text-center space-y-3">

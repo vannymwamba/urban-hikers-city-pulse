@@ -3,6 +3,7 @@ import { Broadcast, Partner, Node, Sponsor, UserProfile, LocalHub } from '../typ
 import { ArrowRight, ChevronRight } from 'lucide-react';
 import { getDistance } from '../utils/geo';
 import { getTimeLabel, getRecurringTimeLabel } from '../utils/timeUtils';
+import { FlashRotation } from './FlashRotation';
 
 interface FeedProps {
   broadcasts: Broadcast[];
@@ -292,6 +293,9 @@ export const Feed: React.FC<FeedProps> = ({
           </span>
         </div>
       </div>
+
+      {/* PAID FLASH SPONSOR ROTATION (renders nothing when no active slots) */}
+      <FlashRotation nodeId={currentNode?.id} />
 
       {/* 2. HOT DEALS SECTION */}
       {flashDeals.length > 0 && (
