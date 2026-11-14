@@ -192,6 +192,7 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
   const [openReportsCount, setOpenReportsCount] = useState<number>(0);
   const [isQuickReportOpen, setIsQuickReportOpen] = useState<boolean>(false);
   const [showStorySheet, setShowStorySheet] = useState<boolean>(false);
+  const [showBadgeDetails, setShowBadgeDetails] = useState<boolean>(false);
   const [isLinkEmailModalOpen, setIsLinkEmailModalOpen] = useState<boolean>(false);
   const [visitorEmail, setVisitorEmail] = useState<string | null>(null);
   const [hubsTappedCount, setHubsTappedCount] = useState<number>(() => {
@@ -830,7 +831,7 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
                   </div>
 
                   {/* Bottom Text in Hero */}
-                  <div className="relative z-10 flex flex-col pb-4">
+                  <div className="relative z-10 flex flex-col pb-1">
                     <span 
                       className="text-[11px] font-black tracking-wider uppercase mb-1"
                       style={{ color: accentColor }}
@@ -860,8 +861,7 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
                             animate={{ opacity: 1 }}
                             exit={{ opacity: 0 }}
                             transition={{ duration: 0.3 }}
-                            className="italic border-l-2 pl-3 text-xs font-semibold text-white/90"
-                            style={{ borderColor: accentColor }}
+                            className="italic text-xs font-semibold text-white/85"
                           >
                             "{hooks[activeHook]?.text}"
                           </motion.p>
@@ -871,56 +871,106 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
                   </div>
                 </div>
 
-                {/* 2. REWARD CARD, overlapping the bottom of the hero, filled with accent color, black text */}
-                <div className="px-4 -mt-4 relative z-20">
-                  <div 
-                    style={{ backgroundColor: accentColor }}
-                    className="rounded-[20px] p-5 shadow-xl text-black flex flex-col justify-between"
-                  >
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="flex items-center gap-3.5 min-w-0">
-                        <div className="w-12 h-12 rounded-full bg-black flex items-center justify-center shrink-0 shadow-md">
-                          <Star size={22} className="fill-current" style={{ color: accentColor }} />
-                        </div>
-                        <div className="min-w-0">
-                          <h3 className="text-[17px] font-bold text-black leading-tight">
-                            {tapCount <= 1 ? 'First tap here' : 'Welcome back'}
-                          </h3>
-                          <p className="text-xs font-semibold text-black/80 mt-0.5 truncate">
-                            {tapCount <= 1
-                              ? `${(currentNode?.name || nodeName).replace(/_HUB/g, '').replace(/_/g, ' ')} badge unlocked`
-                              : `Tap #${tapCount} here`}
-                          </p>
-                        </div>
-                      </div>
+                {/* Compact 3-Circle Indicators Row beneath node address */}
+                {(() => {
+                  const earnedPulseReward = (currentNode as any)?.pulse_reward ?? 25;
+                  const realHubsTarget = nodes.length;
+                  const hasHubsTarget = realHubsTarget > 0;
+                  const ringRadius = 24;
+                  const ringCircumference = 2 * Math.PI * ringRadius;
+                  const progressRatio = hasHubsTarget
+                    ? Math.min(1, Math.max(0, hubsTappedCount / realHubsTarget))
+                    : 0;
+                  const strokeDashoffset = ringCircumference * (1 - progressRatio);
 
-                      {tapCount <= 1 && (
-                        <div className="text-right shrink-0">
-                          <span className="text-3xl font-extrabold font-mono text-black leading-none block">
-                            +25
+                  return (
+                    <div className="px-6 pt-3 pb-2 relative z-20">
+                      <div className="grid grid-cols-3 gap-4 max-w-[340px] mx-auto items-start justify-items-center">
+                        {/* 1. Badge Indicator (Tappable for badge details) */}
+                        <button
+                          type="button"
+                          onClick={() => setShowBadgeDetails(true)}
+                          aria-label="View First tap badge details"
+                          className="flex flex-col items-center group cursor-pointer focus:outline-none"
+                        >
+                          <div
+                            className="w-[68px] h-[68px] rounded-full bg-[#141417] group-hover:bg-[#1C1C22] group-active:scale-95 border-[1.5px] flex items-center justify-center transition-all duration-150 group-focus-visible:ring-2 group-focus-visible:ring-[#FFE01A] group-focus-visible:ring-offset-2 group-focus-visible:ring-offset-[#0B0B0D]"
+                            style={{ borderColor: accentColor }}
+                          >
+                            <Star
+                              size={28}
+                              className="fill-current"
+                              style={{ color: accentColor }}
+                            />
+                          </div>
+                          <span className="text-xs font-medium text-[#E4E4E7] group-hover:text-white mt-2 text-center leading-tight whitespace-nowrap transition-colors">
+                            First tap
                           </span>
-                          <span className="text-[9px] font-bold tracking-widest text-black/70 uppercase block mt-0.5">
-                            PULSE
+                        </button>
+
+                        {/* 2. Pulse Reward Indicator */}
+                        <div className="flex flex-col items-center">
+                          <div
+                            className="w-[68px] h-[68px] rounded-full bg-[#141417] border-[1.5px] flex items-center justify-center"
+                            style={{ borderColor: accentColor }}
+                          >
+                            <span className="text-[20px] font-extrabold tabular-nums text-white tracking-tight leading-none">
+                              +{earnedPulseReward}
+                            </span>
+                          </div>
+                          <span className="text-xs font-medium text-[#E4E4E7] mt-2 text-center leading-tight whitespace-nowrap">
+                            Pulse
                           </span>
                         </div>
-                      )}
-                    </div>
 
-                    {/* Thin progress bar underneath */}
-                    <div className="mt-4 pt-3 border-t border-black/10">
-                      <div className="flex justify-between items-center text-xs font-bold text-black mb-1.5">
-                        <span className="truncate">{currentNode?.neighborhood || 'OTR Explorer'}</span>
-                        <span>{hubsTappedCount} hubs tapped</span>
-                      </div>
-                      <div className="h-2 w-full bg-black/20 rounded-full overflow-hidden">
-                        <div 
-                          className="h-full bg-black rounded-full transition-all duration-500"
-                          style={{ width: `${Math.min(100, Math.max(8, (hubsTappedCount / (nodes.length || 12)) * 100))}%` }}
-                        />
+                        {/* 3. Hubs Tapped Progress Indicator */}
+                        <div className="flex flex-col items-center">
+                          <div
+                            className="relative w-[68px] h-[68px] rounded-full bg-[#141417] border-[1.5px] flex items-center justify-center"
+                            style={{ borderColor: accentColor }}
+                          >
+                            {hasHubsTarget && (
+                              <svg
+                                className="absolute inset-0 w-full h-full -rotate-90 pointer-events-none"
+                                viewBox="0 0 64 64"
+                                aria-hidden="true"
+                              >
+                                <circle
+                                  cx="32"
+                                  cy="32"
+                                  r={ringRadius}
+                                  fill="none"
+                                  stroke="#2A2A30"
+                                  strokeWidth="4.5"
+                                />
+                                {progressRatio > 0 && (
+                                  <circle
+                                    cx="32"
+                                    cy="32"
+                                    r={ringRadius}
+                                    fill="none"
+                                    stroke={accentColor}
+                                    strokeWidth="4.5"
+                                    strokeLinecap="round"
+                                    strokeDasharray={ringCircumference}
+                                    strokeDashoffset={strokeDashoffset}
+                                    className="transition-all duration-300"
+                                  />
+                                )}
+                              </svg>
+                            )}
+                            <span className="relative z-10 text-[20px] font-extrabold tabular-nums text-white leading-none">
+                              {hubsTappedCount}
+                            </span>
+                          </div>
+                          <span className="text-xs font-medium text-[#E4E4E7] mt-2 text-center leading-tight whitespace-nowrap">
+                            Hubs tapped
+                          </span>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                </div>
+                  );
+                })()}
 
                 {/* 2. USER PROFILE & STATS */}
                 <HomeUserProfileSection
@@ -1273,6 +1323,99 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
           })}
         </div>
       </div>
+
+      {/* Badge Details Modal */}
+      {showBadgeDetails && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="badge-details-title"
+          className="fixed inset-0 z-[250] bg-black/80 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4"
+          onClick={() => setShowBadgeDetails(false)}
+        >
+          <div
+            className="bg-[#161618] border border-[#26262A] rounded-t-3xl sm:rounded-2xl max-w-md w-full p-6 space-y-5 text-white"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between">
+              <div className="flex items-center gap-3.5">
+                <div
+                  className="w-14 h-14 rounded-full bg-[#141417] border-[1.5px] flex items-center justify-center shrink-0"
+                  style={{ borderColor: accentColor }}
+                >
+                  <Star size={24} className="fill-current" style={{ color: accentColor }} />
+                </div>
+                <div>
+                  <span
+                    className="text-[11px] font-bold uppercase tracking-wider block"
+                    style={{ color: accentColor }}
+                  >
+                    Hub Badge Unlocked
+                  </span>
+                  <h3 id="badge-details-title" className="text-lg font-bold text-white leading-snug">
+                    {(currentNode?.name || nodeName).replace(/_HUB/g, '').replace(/_/g, ' ')}
+                  </h3>
+                  <p className="text-xs text-[#A3A3AA] mt-0.5">
+                    First tap milestone
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowBadgeDetails(false)}
+                aria-label="Close badge details"
+                className="p-2 rounded-full hover:bg-white/10 text-[#A3A3AA] hover:text-white min-h-[44px] min-w-[44px] flex items-center justify-center cursor-pointer transition-colors"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="divide-y divide-[#26262A] border-y border-[#26262A] text-sm">
+              {currentNode?.address && (
+                <div className="py-3 flex items-center justify-between gap-4">
+                  <span className="text-[#A3A3AA]">Location</span>
+                  <span className="text-white font-medium text-right truncate">
+                    {currentNode.address}
+                  </span>
+                </div>
+              )}
+              <div className="py-3 flex items-center justify-between gap-4">
+                <span className="text-[#A3A3AA]">Pulse earned</span>
+                <span className="font-bold tabular-nums" style={{ color: accentColor }}>
+                  +{(currentNode as any)?.pulse_reward ?? 25} Pulse
+                </span>
+              </div>
+              <div className="py-3 flex items-center justify-between gap-4">
+                <span className="text-[#A3A3AA]">Taps at this hub</span>
+                <span className="text-white font-semibold tabular-nums">
+                  {tapCount}
+                </span>
+              </div>
+              <div className="py-3 flex items-center justify-between gap-4">
+                <span className="text-[#A3A3AA]">Network hubs tapped</span>
+                <span className="text-white font-semibold tabular-nums">
+                  {nodes.length > 0 ? `${hubsTappedCount} of ${nodes.length}` : hubsTappedCount}
+                </span>
+              </div>
+            </div>
+
+            {currentNode?.custom_reward && (
+              <p className="text-xs text-[#E4E4E7] leading-relaxed">
+                {currentNode.custom_reward}
+              </p>
+            )}
+
+            <button
+              type="button"
+              onClick={() => setShowBadgeDetails(false)}
+              style={{ backgroundColor: accentColor }}
+              className="w-full min-h-[44px] py-2.5 px-4 rounded-xl text-black font-bold text-sm flex items-center justify-center hover:opacity-95 transition-opacity cursor-pointer"
+            >
+              Done
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Story Fields Modal for History Tile */}
       {showStorySheet && (
