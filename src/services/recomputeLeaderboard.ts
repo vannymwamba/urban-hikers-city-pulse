@@ -1,5 +1,8 @@
 import { initializeApp, getApps, cert, App } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
+import dotenv from 'dotenv';
+import fs from 'fs';
+import path from 'path';
 import type { VisitorProfile } from '../types';
 
 const PROJECT_ID = 'gen-lang-client-0752567409';
@@ -8,8 +11,19 @@ const DATABASE_ID = 'ai-studio-8d3a18ac-9f60-480e-8200-f9f5e01c389a';
 let adminApp: App | null = null;
 let loggedMissingCredsNotice = false;
 
+function readDotEnvServiceAccount(): string | undefined {
+  try {
+    const envPath = path.join(process.cwd(), '.env');
+    if (!fs.existsSync(envPath)) return undefined;
+    const parsed = dotenv.parse(fs.readFileSync(envPath, 'utf8'));
+    return parsed.FIREBASE_SERVICE_ACCOUNT_JSON?.trim() || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export function hasServiceAccountCredentials(): boolean {
-  return Boolean(process.env.FIREBASE_SERVICE_ACCOUNT_JSON?.trim());
+  return Boolean(process.env.FIREBASE_SERVICE_ACCOUNT_JSON?.trim() || readDotEnvServiceAccount());
 }
 
 /**
@@ -104,8 +118,12 @@ function getAdminApp(): App | null {
     return adminApp;
   }
 
-  const raw = process.env.FIREBASE_SERVICE_ACCOUNT_JSON?.trim();
-  if (!raw) {
+  const candidates = [
+    process.env.FIREBASE_SERVICE_ACCOUNT_JSON?.trim(),
+    readDotEnvServiceAccount(),
+  ].filter((val): val is string => Boolean(val));
+
+  if (candidates.length === 0) {
     if (!loggedMissingCredsNotice) {
       loggedMissingCredsNotice = true;
       console.log(
@@ -115,30 +133,26 @@ function getAdminApp(): App | null {
     return null;
   }
 
-  try {
-    const serviceAccount = parseServiceAccountEnv(raw);
-    if (!serviceAccount) {
-      if (!loggedMissingCredsNotice) {
-        loggedMissingCredsNotice = true;
-        console.log(
-          '[LEADERBOARD] Skipping server recompute: FIREBASE_SERVICE_ACCOUNT_JSON is missing client_email or private_key.'
-        );
-      }
-      return null;
-    }
+  for (const raw of candidates) {
+    try {
+      const serviceAccount = parseServiceAccountEnv(raw);
+      if (!serviceAccount) continue;
 
-    adminApp = initializeApp({
-      credential: cert(serviceAccount as any),
-      projectId: serviceAccount.project_id || PROJECT_ID,
-    });
-    return adminApp;
-  } catch {
-    if (!loggedMissingCredsNotice) {
-      loggedMissingCredsNotice = true;
-      console.log('[LEADERBOARD] Skipping server recompute: FIREBASE_SERVICE_ACCOUNT_JSON could not be parsed as JSON.');
+      adminApp = initializeApp({
+        credential: cert(serviceAccount as any),
+        projectId: serviceAccount.project_id || PROJECT_ID,
+      });
+      return adminApp;
+    } catch {
+      // Try next candidate if available
     }
-    return null;
   }
+
+  if (!loggedMissingCredsNotice) {
+    loggedMissingCredsNotice = true;
+    console.log('[LEADERBOARD] Skipping server recompute: FIREBASE_SERVICE_ACCOUNT_JSON could not be parsed as valid service account JSON.');
+  }
+  return null;
 }
 
 /**
