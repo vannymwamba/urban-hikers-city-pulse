@@ -886,6 +886,27 @@ async function startServer() {
     return { ogUrl, ogTitle, ogDesc, ogImageUrl };
   };
 
+  // ── TEMP_TAP_VERIFICATION_LOGGING ──────────────────────────────────
+  // Captures the raw request that hits the server for any /tap/* URL,
+  // BEFORE the SPA catch-all or any client-side JS runs. Use this to see
+  // exactly what tapin.me's redirect actually sends (query params,
+  // Referer/Origin headers, etc.) vs. a manually-typed URL with ?ref=nfc.
+  // Tap a real provisioned tag once, then check these logs.
+  // Remove this block once the real tapin.me redirect shape is known.
+  app.use('/tap', (req, res, next) => {
+    console.log('\n[TAP_VERIFICATION_LOG] ----------------------------------------');
+    console.log('[TAP_VERIFICATION_LOG] Timestamp:', new Date().toISOString());
+    console.log('[TAP_VERIFICATION_LOG] Full URL:', req.originalUrl);
+    console.log('[TAP_VERIFICATION_LOG] Method:', req.method);
+    console.log('[TAP_VERIFICATION_LOG] Referer:', req.headers['referer'] || '(none)');
+    console.log('[TAP_VERIFICATION_LOG] Origin:', req.headers['origin'] || '(none)');
+    console.log('[TAP_VERIFICATION_LOG] User-Agent:', req.headers['user-agent'] || '(none)');
+    console.log('[TAP_VERIFICATION_LOG] All headers:', JSON.stringify(req.headers, null, 2));
+    console.log('[TAP_VERIFICATION_LOG] ----------------------------------------\n');
+    next();
+  });
+  // ── END TEMP_TAP_VERIFICATION_LOGGING ──────────────────────────────
+
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
