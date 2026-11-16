@@ -15,6 +15,7 @@ import { NfcNodeHeatmap } from './NfcNodeHeatmap';
 import { AdminArtistsPanel } from './AdminArtistsPanel';
 import { AdminGlobalSponsorsPanel } from './AdminGlobalSponsorsPanel';
 import { AdminPromotedBookPanel } from './AdminPromotedBookPanel';
+import { AdminNodeProposalsPanel } from './AdminNodeProposalsPanel';
 import { BASE_URL } from '../constants';
 import { parseAnyTimestamp } from '../utils/dateUtils';
 
@@ -40,7 +41,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, userProfile, nodes, 
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
   const [nodeTapCounts, setNodeTapCounts] = useState<Record<string, number>>({});
 
-  const [activeTab, setActiveTab] = useState<'overview' | 'broadcasts' | 'partners' | 'hubs' | 'analytics' | 'system' | 'artists' | 'global_sponsors' | 'promoted_book'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'broadcasts' | 'partners' | 'hubs' | 'proposals' | 'analytics' | 'system' | 'artists' | 'global_sponsors' | 'promoted_book'>(() => {
+    const requested = new URLSearchParams(window.location.search).get('tab');
+    const validTabs = ['overview', 'broadcasts', 'partners', 'hubs', 'proposals', 'analytics', 'system', 'artists', 'global_sponsors', 'promoted_book'] as const;
+    return validTabs.includes(requested as any) ? (requested as typeof validTabs[number]) : 'overview';
+  });
   const [loading, setLoading] = useState(true);
   const [hudMessage, setHudMessage] = useState<{ text: string; type: 'info' | 'error' } | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -701,6 +706,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, userProfile, nodes, 
             )}
             {isAdmin && (
               <button 
+                onClick={() => setActiveTab('proposals')}
+                className={`px-5 py-2 text-[10px] font-bold tracking-widest uppercase rounded-full transition-all flex items-center gap-2 ${activeTab === 'proposals' ? 'bg-black text-[#FFE01A]' : 'text-uh-gray-400 bg-white border border-uh-gray-100 hover:border-uh-yellow hover:text-uh-black'}`}
+              >
+                <MapPin size={12} /> Proposals
+              </button>
+            )}
+            {isAdmin && (
+              <button 
                 onClick={() => setActiveTab('artists')}
                 className={`px-5 py-2 text-[10px] font-bold tracking-widest uppercase rounded-full transition-all flex items-center gap-2 ${activeTab === 'artists' ? 'bg-black text-[#FFE01A]' : 'text-uh-gray-400 bg-white border border-uh-gray-100 hover:border-uh-yellow hover:text-uh-black'}`}
               >
@@ -771,6 +784,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, userProfile, nodes, 
 
         {activeTab === 'promoted_book' && isAdmin && (
           <AdminPromotedBookPanel setHudMessage={setHudMessage} />
+        )}
+
+        {activeTab === 'proposals' && isAdmin && (
+          <AdminNodeProposalsPanel setHudMessage={setHudMessage} />
         )}
 
         {activeTab === 'system' && isSuperAdmin && (

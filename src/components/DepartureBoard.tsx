@@ -22,6 +22,7 @@ import { LinkEmailModal } from './LinkEmailModal';
 import { ProfileTab } from './ProfileTab';
 import { HomeUserProfileSection } from './HomeUserProfileSection';
 import { LeaderboardSection } from './LeaderboardSection';
+import { ProposeNodeSheet } from './ProposeNodeSheet';
 
 interface DepartureBoardProps {
   nodeName: string;
@@ -192,6 +193,7 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
 
   const [openReportsCount, setOpenReportsCount] = useState<number>(0);
   const [isQuickReportOpen, setIsQuickReportOpen] = useState<boolean>(false);
+  const [isProposeNodeOpen, setIsProposeNodeOpen] = useState<boolean>(false);
   const [showStorySheet, setShowStorySheet] = useState<boolean>(false);
   const [showBadgeDetails, setShowBadgeDetails] = useState<boolean>(false);
   const [isLinkEmailModalOpen, setIsLinkEmailModalOpen] = useState<boolean>(false);
@@ -813,7 +815,7 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
                   )}
 
                   {/* Top Bar: Live dot + LOCAL PULSE on left, share button on right */}
-                  <div className="relative z-10 flex items-center justify-between w-full">
+                  <div className="relative z-10 flex items-center justify-between w-full pr-14">
                     <div className="flex items-center gap-2">
                       <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: accentColor }} />
                       <span className="text-xs font-black tracking-widest text-white uppercase">
@@ -1062,6 +1064,23 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
                         <h4 className="text-[15px] font-bold text-white leading-tight">Lost & found</h4>
                         <p className="text-xs text-[#A3A3AA] mt-1 leading-snug truncate">
                           {openReportsCount > 0 ? `${openReportsCount} open report${openReportsCount > 1 ? 's' : ''}` : 'Report or claim'}
+                        </p>
+                      </div>
+                    </button>
+
+                    {/* Tile 5: Suggest a spot */}
+                    <button
+                      type="button"
+                      onClick={() => setIsProposeNodeOpen(true)}
+                      className="col-span-2 bg-[#161618] hover:bg-[#1f1f22] border border-[#26262A] rounded-[20px] p-4 text-left flex items-center gap-4 transition-all cursor-pointer group"
+                    >
+                      <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-white group-hover:border-[#FFE01A]/40 transition-colors shrink-0">
+                        <MapPin size={20} />
+                      </div>
+                      <div className="min-w-0">
+                        <h4 className="text-[15px] font-bold text-white leading-tight">Suggest a spot</h4>
+                        <p className="text-xs text-[#A3A3AA] mt-1 leading-snug truncate">
+                          Know where a new stop belongs? Tell us
                         </p>
                       </div>
                     </button>
@@ -1493,6 +1512,12 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
           nodeId={currentNode.id}
         />
       )}
+
+      <ProposeNodeSheet
+        isOpen={isProposeNodeOpen}
+        onClose={() => setIsProposeNodeOpen(false)}
+        neighborhood={currentNode?.neighborhood || null}
+      />
 
 
       <AnimatePresence>

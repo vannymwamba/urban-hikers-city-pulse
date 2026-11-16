@@ -5,7 +5,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { auth, db, finalDbId } from './firebase';
 import { signInWithPopup, signInAnonymously, GoogleAuthProvider, onAuthStateChanged, User } from 'firebase/auth';
 import { useLocation, Routes, Route, useNavigate } from 'react-router-dom';
-import { collection, onSnapshot, query, where, addDoc, doc, getDoc, setDoc, getDocs, orderBy, getDocFromServer, updateDoc, serverTimestamp, Timestamp, limit } from 'firebase/firestore';
+import { collection, onSnapshot, query, where, addDoc, doc, getDoc, setDoc, getDocs, getDocFromServer, updateDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
 import { Node, Broadcast, Vibe, UserProfile, UserRole, Partner, BroadcastType, LocalHub, TapPoint, VisitorProfile } from './types';
 import { BASE_URL } from './constants';
 import { DepartureBoard } from './components/DepartureBoard';
@@ -29,6 +29,7 @@ import { LostFoundHub } from './pages/LostFoundHub';
 import MuralNodeAdmin from './components/MuralNodeAdmin';
 import { PartnerHeader, SignatureWalk, PartnerLogo } from './components/PartnerHeader';
 import { KeepYourNightModal } from './components/KeepYourNightModal';
+import { NotificationBell } from './components/NotificationBell';
 import PartnerOnboarding from './pages/admin/PartnerOnboarding';
 import { getDistance } from './utils/geo';
 import { handleFirestoreError, OperationType } from './utils/firebaseErrors';
@@ -205,6 +206,7 @@ function AppRouter() {
   const [hudMessage, setHudMessage] = useState<{ text: string; type: 'error' | 'info' } | null>(null);
   const [signatureWalks, setSignatureWalks] = useState<SignatureWalk[]>([]);
   const location = useLocation();
+  const navigate = useNavigate();
   const [path, setPath] = useState(location.pathname);
   const [now, setNow] = useState(new Date());
 
@@ -1419,6 +1421,7 @@ function AppRouter() {
 
   const loaderLabel = useLoaderLabel(nodeId ? 'hub' : 'auth');
 
+  const renderView = () => {
   if (loading && !currentNode) {
     return (
       <LocalPulseLoader 
@@ -1815,82 +1818,38 @@ function AppRouter() {
     </ErrorBoundary>
     </APIProvider>
   );
-}
+  };
 
-function GlobalNotificationIndicator() {
-  const navigate = useNavigate();
-  const [hasNewActivity, setHasNewActivity] = useState(false);
-
-  useEffect(() => {
-    // 1. Get last visit timestamp
-    const lastVisitStr = localStorage.getItem('last_visit_timestamp');
-    const lastVisit = lastVisitStr ? parseInt(lastVisitStr, 10) : Date.now();
-    
-    if (!lastVisitStr) {
-      localStorage.setItem('last_visit_timestamp', Date.now().toString());
-    }
-
-    let latestVibeTime = 0;
-    let latestLfTime = 0;
-
-    const checkActivity = () => {
-      const maxTime = Math.max(latestVibeTime, latestLfTime);
-      if (maxTime > lastVisit) {
-        setHasNewActivity(true);
-      } else {
-        setHasNewActivity(false);
-      }
-    };
-
-    let isMounted = true;
-
-    const fetchLatestActivity = async () => {
-      try {
-        const qVibes = query(collection(db, 'vibe_reports'), orderBy('timestamp', 'desc'), limit(1));
-        const qLf = query(collection(db, 'lost_found'), orderBy('reportedAt', 'desc'), limit(1));
-        const [snapVibes, snapLf] = await Promise.all([
-          getDocs(qVibes).catch(() => null),
-          getDocs(qLf).catch(() => null),
-        ]);
-        if (!isMounted) return;
-
-        if (snapVibes && !snapVibes.empty) {
-          const data = snapVibes.docs[0].data();
-          latestVibeTime = data.timestamp?.toMillis ? data.timestamp.toMillis() : 0;
-        }
-        if (snapLf && !snapLf.empty) {
-          const data = snapLf.docs[0].data();
-          latestLfTime = data.reportedAt?.toMillis ? data.reportedAt.toMillis() : 0;
-        }
-        checkActivity();
-      } catch {
-        // Ignore activity check failure when quota is reached
-      }
-    };
-
-    fetchLatestActivity();
-
-    return () => {
-      isMounted = false;
-    };
-  }, []);
-
-  if (!hasNewActivity) return null;
+  const isResidentScreen =
+    !isDashboard &&
+    !isLogin &&
+    !isMuralAdmin &&
+    !isPartnerOnboarding &&
+    !isCreatorIgnite &&
+    !isSponsorIgnite &&
+    !isSponsorSuccess &&
+    !isSponsorCancelled;
 
   return (
-    <div className="fixed top-0 left-0 right-0 z-[9999] pointer-events-none flex justify-center mt-3">
-      <button
-        onClick={() => {
-          localStorage.setItem('last_visit_timestamp', Date.now().toString());
-          setHasNewActivity(false);
-          navigate('/lost-and-found');
-        }}
-        className="bg-[#E24A3B] text-white px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-widest shadow-2xl pointer-events-auto flex items-center gap-2 hover:scale-105 transition-transform"
-      >
-        <div className="w-2 h-2 rounded-full bg-white animate-pulse" />
-        New Activity Detected
-      </button>
-    </div>
+    <>
+      {renderView()}
+      {isResidentScreen && (
+        <NotificationBell
+          uid={user?.uid}
+          isAdmin={Boolean(isAdmin)}
+          nodes={nodes}
+          broadcasts={rawBroadcasts}
+          onNavigate={(targetPath) => navigate(targetPath)}
+          onOpenNode={(targetNodeId) => {
+            setCurrentTab('home');
+            getDocs(collection(db, 'nodes'))
+              .then((snap) => setNodes(snap.docs.map(d => ({ id: d.id, ...d.data() }) as Node)))
+              .catch(() => {});
+            navigate(`/tap/${targetNodeId}`);
+          }}
+        />
+      )}
+    </>
   );
 }
 
@@ -1899,7 +1858,6 @@ import { GlobalSponsorsProvider } from './contexts/GlobalSponsorsContext';
 export default function App() {
   return (
     <GlobalSponsorsProvider>
-      <GlobalNotificationIndicator />
       <AppRouter />
     </GlobalSponsorsProvider>
   );

@@ -65,10 +65,10 @@ export function QuickReportSheet({ isOpen, onClose, nodeId }: QuickReportSheetPr
   return (
     <>
       <div 
-        className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 animate-in fade-in duration-200"
+        className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[120] animate-in fade-in duration-200"
         onClick={resetAndClose}
       />
-      <div className="fixed bottom-0 left-0 right-0 max-w-lg mx-auto bg-[#1A1A1A] rounded-t-3xl z-50 animate-in slide-in-from-bottom duration-300 pb-safe">
+      <div className="fixed bottom-0 left-0 right-0 max-w-lg mx-auto bg-[#1A1A1A] rounded-t-3xl z-[130] animate-in slide-in-from-bottom duration-300 pb-24 max-h-[85vh] overflow-y-auto">
         <div className="p-6">
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-xl font-bold text-white">Quick Report</h2>

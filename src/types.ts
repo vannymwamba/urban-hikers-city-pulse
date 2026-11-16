@@ -496,4 +496,42 @@ export interface LeaderboardEntry {
   is_current_user?: boolean;
 }
 
+export interface NodeProposal {
+  id?: string;
+  name: string;
+  address?: string | null;
+  reason: string;
+  latitude?: number | null;
+  longitude?: number | null;
+  neighborhood?: string | null;
+  proposed_by_uid: string;
+  proposed_by_email?: string | null;
+  status: 'pending' | 'approved' | 'rejected';
+  created_at?: any;
+  reviewed_at?: any;
+  promoted_node_id?: string;
+}
+
+export interface AppNotification {
+  id?: string;
+  key?: string;
+  type:
+    | 'proposal_approved'
+    | 'proposal_submitted'
+    | 'proposal_pending'
+    | 'lost_found'
+    | 'vibe_report'
+    | 'broadcast';
+  title: string;
+  body: string;
+  read: boolean;
+  created_at?: any;
+  created_ms?: number;
+  node_id?: string;
+  proposal_id?: string;
+  broadcast_id?: string;
+  route_path?: string;
+  source?: 'inbox' | 'activity' | 'local';
+  subtype?: string;
+}
 

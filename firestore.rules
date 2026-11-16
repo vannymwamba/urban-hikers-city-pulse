@@ -208,6 +208,39 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    // ── node_proposals collection ──────────────────
+    match /node_proposals/{docId} {
+      allow read: if isAdmin();
+      allow create: if isSignedIn() &&
+                    request.resource.data.proposed_by_uid == request.auth.uid &&
+                    request.resource.data.status == 'pending' &&
+                    request.resource.data.created_at == request.time &&
+                    request.resource.data.name is string &&
+                    request.resource.data.name.size() > 0 &&
+                    request.resource.data.name.size() <= 200 &&
+                    request.resource.data.reason is string &&
+                    request.resource.data.reason.size() > 0 &&
+                    request.resource.data.reason.size() <= 2000 &&
+                    (request.resource.data.address == null || (request.resource.data.address is string && request.resource.data.address.size() <= 300)) &&
+                    (request.resource.data.neighborhood == null || (request.resource.data.neighborhood is string && request.resource.data.neighborhood.size() <= 120)) &&
+                    (request.resource.data.latitude == null || request.resource.data.latitude is number) &&
+                    (request.resource.data.longitude == null || request.resource.data.longitude is number) &&
+                    (request.resource.data.proposed_by_email == null || (request.resource.data.proposed_by_email is string && request.resource.data.proposed_by_email.size() <= 254)) &&
+                    request.resource.data.keys().hasOnly([
+                      'name',
+                      'address',
+                      'reason',
+                      'latitude',
+                      'longitude',
+                      'neighborhood',
+                      'proposed_by_uid',
+                      'proposed_by_email',
+                      'status',
+                      'created_at'
+                    ]);
+      allow update, delete: if isAdmin();
+    }
+
     // ── users / profiles ──────────────────────────
     match /users/{uid} {
       allow read:   if isSignedIn() && request.auth.uid == uid;
@@ -219,6 +252,33 @@ service cloud.firestore {
 
       match /pulse_drops/{dateId} {
         allow read, write: if isSignedIn() && request.auth.uid == uid;
+      }
+
+      match /notifications/{notificationId} {
+        allow read: if isSignedIn() && request.auth.uid == uid;
+        allow create: if isAdmin() &&
+                      request.resource.data.read == false &&
+                      request.resource.data.created_at == request.time &&
+                      request.resource.data.type is string &&
+                      request.resource.data.type.size() <= 64 &&
+                      request.resource.data.title is string &&
+                      request.resource.data.title.size() <= 200 &&
+                      request.resource.data.body is string &&
+                      request.resource.data.body.size() <= 500 &&
+                      request.resource.data.keys().hasOnly([
+                        'type',
+                        'title',
+                        'body',
+                        'read',
+                        'created_at',
+                        'node_id',
+                        'proposal_id'
+                      ]);
+        allow update: if isSignedIn() &&
+                      request.auth.uid == uid &&
+                      request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']) &&
+                      request.resource.data.read is bool;
+        allow delete: if isSignedIn() && request.auth.uid == uid;
       }
     }
 
