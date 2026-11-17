@@ -4,6 +4,7 @@ import { MapContainer, TileLayer, Marker, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { MapPin, ArrowUpRight, X, Navigation } from 'lucide-react';
+import { CARTO_ATTRIBUTION, CARTO_RASTER_TILE_URL } from '../constants';
 
 interface LocationPreviewModalProps {
   isOpen: boolean;
@@ -156,13 +157,13 @@ export const LocationPreviewModal: React.FC<LocationPreviewModalProps> = ({
                 <MapContainer
                   center={center}
                   zoom={16}
-                  style={{ height: '100%', width: '100%', background: '#121212' }}
+                  style={{ height: '100%', width: '100%', background: '#F4F3EF' }}
                   zoomControl={false}
                   className="z-0"
                 >
                   <TileLayer
-                    attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
-                    url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+                    attribution={CARTO_ATTRIBUTION}
+                    url={CARTO_RASTER_TILE_URL}
                   />
                   
                   <MapRecenter lat={latitude} lng={longitude} />

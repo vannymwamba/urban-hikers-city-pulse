@@ -146,6 +146,14 @@ export interface Broadcast {
   recurring_week_of_month?: 1 | 2 | 3 | 4 | 5;
   rarity_weight?: number;   // 1–10; 1 = ultra rare, 10 = very common
   drop_eligible?: boolean;  // false = permanent/recurring, skip for drops
+  walk_kind?: 'community' | 'guided';
+  host_name?: string;
+  host_uid_hash?: string;
+  departs_at?: any;
+  joined_count?: number;
+  member_preview?: string[];
+  note?: string | null;
+  cancelled_at?: any;
   created_at?: any;
 }
 

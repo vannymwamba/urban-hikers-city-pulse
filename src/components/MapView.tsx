@@ -3,14 +3,22 @@ import { MapContainer, TileLayer, Marker, Popup, Circle, useMap } from 'react-le
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { Broadcast, Node, Partner, BroadcastType } from '../types';
-import { MapPin, Zap, Music, Palette, Calendar, Mic, Ticket, Truck, Footprints, ShoppingBag } from 'lucide-react';
+import { MapPin, Zap, Music, Palette, Calendar, Truck, Footprints, ShoppingBag, X } from 'lucide-react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { SponsorBadge } from './SponsorBadge';
+import { WalkCard } from './WalkCard';
+import { WalkJoinSheet } from './WalkJoinSheet';
+import { isWalkVisible, useWalkSyncVersion } from '../utils/walkUtils';
+import { CARTO_ATTRIBUTION, CARTO_RASTER_TILE_URL } from '../constants';
 
 interface MapViewProps {
   currentNode: Node | null;
+  nodes?: Node[];
+  user?: any;
+  isAdmin?: boolean;
   broadcasts: Broadcast[];
   onSelect: (broadcast: Broadcast) => void;
+  onConfirm?: (id: string) => void;
   partnersMap?: Record<string, Partner>;
 }
 
@@ -103,7 +111,19 @@ const RecenterMap = ({ coords }: { coords: [number, number] }) => {
   return null;
 };
 
-export const MapView: React.FC<MapViewProps> = ({ currentNode, broadcasts, onSelect, partnersMap = {} }) => {
+export const MapView: React.FC<MapViewProps> = ({
+  currentNode,
+  nodes = [],
+  user = null,
+  isAdmin = false,
+  broadcasts,
+  onSelect,
+  onConfirm,
+  partnersMap = {},
+}) => {
+  useWalkSyncVersion();
+  const [selectedWalkId, setSelectedWalkId] = React.useState<string | null>(null);
+  const [joiningWalk, setJoiningWalk] = React.useState<Broadcast | null>(null);
   const currentNodeIcon = React.useMemo(() => getCurrentNodeIcon(), []);
 
   const lat = currentNode ? Number(currentNode.latitude) : NaN;
@@ -139,12 +159,12 @@ export const MapView: React.FC<MapViewProps> = ({ currentNode, broadcasts, onSel
       <MapContainer 
         center={center} 
         zoom={15} 
-        style={{ height: '100%', width: '100%', background: '#1A2B4A' }}
+        style={{ height: '100%', width: '100%', background: '#F4F3EF' }}
         zoomControl={false}
       >
         <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
-          url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+          attribution={CARTO_ATTRIBUTION}
+          url={CARTO_RASTER_TILE_URL}
         />
         
         <RecenterMap coords={center} />
@@ -164,7 +184,23 @@ export const MapView: React.FC<MapViewProps> = ({ currentNode, broadcasts, onSel
         {Array.isArray(broadcasts) && broadcasts.map((b) => {
           if (!b || typeof b.latitude !== 'number' || typeof b.longitude !== 'number') return null;
           if (isNaN(b.latitude) || isNaN(b.longitude)) return null;
-          
+
+          const isWalk = (b.type || '').toString().toLowerCase() === BroadcastType.WALKING_EVENT;
+          if (isWalk && !isWalkVisible(b)) return null;
+
+          if (isWalk) {
+            return (
+              <Marker
+                key={b.id}
+                position={[b.latitude, b.longitude]}
+                icon={createCustomIcon(getBroadcastType(b), getBroadcastColor(b))}
+                eventHandlers={{
+                  click: () => setSelectedWalkId(b.id),
+                }}
+              />
+            );
+          }
+
           const partner = b.partnerId ? partnersMap[b.partnerId] : null;
           const vibe = (b.currentVibe || b.current_vibe || 'CHILL').toUpperCase();
           const type = b.type || 'event';
@@ -209,40 +245,87 @@ export const MapView: React.FC<MapViewProps> = ({ currentNode, broadcasts, onSel
         <Circle 
           center={center} 
           radius={Number(currentNode.radius_limit) || 500} 
-          pathOptions={{ color: '#4CD98A', fillColor: '#4CD98A', fillOpacity: 0.05, weight: 1, dashArray: '5, 10' }} 
+          pathOptions={{ color: '#10B981', fillColor: '#10B981', fillOpacity: 0.08, weight: 1.5, dashArray: '5, 10' }} 
         />
       </MapContainer>
 
+      {/* Selected Walking Pin Card Overlay */}
+      {(() => {
+        const activeWalk = selectedWalkId
+          ? (broadcasts || []).find((b) => b.id === selectedWalkId) || null
+          : null;
+        if (!activeWalk || !isWalkVisible(activeWalk)) return null;
+
+        return (
+          <div className="absolute bottom-4 left-4 right-4 z-[600] max-w-md mx-auto">
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setSelectedWalkId(null)}
+                aria-label="Close walk card"
+                className="absolute -top-3 -right-2 z-10 min-h-[36px] min-w-[36px] rounded-full bg-[#0B0B0D] border border-white/20 text-white flex items-center justify-center shadow-lg cursor-pointer"
+              >
+                <X size={16} />
+              </button>
+              <WalkCard
+                walk={activeWalk}
+                nodes={nodes}
+                currentNode={currentNode}
+                user={user}
+                isAdmin={isAdmin}
+                layout="stack"
+                onJoinClick={(w) => setJoiningWalk(w)}
+                onSelectDetails={(w) => {
+                  setSelectedWalkId(null);
+                  onSelect(w);
+                }}
+              />
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Map Legend Overlay */}
-      <div className="absolute bottom-4 left-4 z-[500] bg-hud-bg/90 backdrop-blur-md border border-white/10 p-3 rounded-2xl shadow-xl pointer-events-none">
-        <div className="text-[8px] font-black tracking-[0.2em] text-white/40 uppercase mb-2">MAP_LEGEND</div>
-        <div className="flex flex-col gap-2">
-          <div className="flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full bg-[#FF3B30]" />
-            <span className="text-[9px] font-bold uppercase tracking-wider">Live Event</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full bg-[#F97316]" />
-            <span className="text-[9px] font-bold uppercase tracking-wider">Food Truck</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full bg-[#10B981]" />
-            <span className="text-[9px] font-bold uppercase tracking-wider">Walking Event</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full bg-[#FFE01A]" />
-            <span className="text-[9px] font-bold uppercase tracking-wider">Flash Deal</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full bg-[#8B5CF6]" />
-            <span className="text-[9px] font-bold uppercase tracking-wider">Art/Mural</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full bg-[#0EA5E9]" />
-            <span className="text-[9px] font-bold uppercase tracking-wider">Pop-up</span>
+      {!selectedWalkId && (
+        <div className="absolute bottom-4 left-4 z-[500] bg-hud-bg/90 text-white backdrop-blur-md border border-white/10 p-3 rounded-2xl shadow-xl pointer-events-none">
+          <div className="text-[8px] font-black tracking-[0.2em] text-white/40 uppercase mb-2">MAP_LEGEND</div>
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-[#FF3B30]" />
+              <span className="text-[9px] font-bold uppercase tracking-wider">Live Event</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-[#F97316]" />
+              <span className="text-[9px] font-bold uppercase tracking-wider">Food Truck</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-[#10B981]" />
+              <span className="text-[9px] font-bold uppercase tracking-wider">Walking Event</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-[#FFE01A]" />
+              <span className="text-[9px] font-bold uppercase tracking-wider">Flash Deal</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-[#8B5CF6]" />
+              <span className="text-[9px] font-bold uppercase tracking-wider">Art/Mural</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-[#0EA5E9]" />
+              <span className="text-[9px] font-bold uppercase tracking-wider">Pop-up</span>
+            </div>
           </div>
         </div>
-      </div>
+      )}
+
+      <WalkJoinSheet
+        walk={joiningWalk}
+        nodes={nodes}
+        currentNode={currentNode}
+        isOpen={Boolean(joiningWalk)}
+        onClose={() => setJoiningWalk(null)}
+        onJoined={(id) => onConfirm?.(id)}
+      />
     </div>
   );
 };

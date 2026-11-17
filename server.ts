@@ -18,6 +18,7 @@ import { runFixedCivicIngestion as runCivicIngestionEngine,
 import { initializeScheduler } from "./src/cron/scheduler.ts";
 import { createRateLimiter } from "./rateLimiter.ts";
 import { createSponsorCheckoutRoute, handleSponsorWebhook } from "./src/services/onSponsorPaid.ts";
+import { createWalkGroupsRouter } from "./src/services/walkGroups.ts";
 
 dotenv.config();
 
@@ -186,6 +187,9 @@ async function startServer() {
   app.get("/api/health", (req, res) => {
     res.json({ status: "URBAN HIKERS OS: ONLINE" });
   });
+
+  // Group Walks Routes (Admin SDK only — never uses client-SDK db)
+  app.use("/api/walk-groups", createWalkGroupsRouter());
 
   // Media Upload Endpoint (Audio & Covers under 5MB)
   app.post("/api/upload-media", async (req, res) => {

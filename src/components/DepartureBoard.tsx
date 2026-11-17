@@ -23,12 +23,25 @@ import { ProfileTab } from './ProfileTab';
 import { HomeUserProfileSection } from './HomeUserProfileSection';
 import { LeaderboardSection } from './LeaderboardSection';
 import { ProposeNodeSheet } from './ProposeNodeSheet';
+import { GroupWalksSheet } from './GroupWalksSheet';
+import { StartWalkSheet, hasPendingStartWalkDraft } from './StartWalkSheet';
+import { WalkJoinSheet } from './WalkJoinSheet';
+import {
+  formatWalkTimeNY,
+  getWalkDepartsMs,
+  getWalkScheduleLabel,
+  isWalkTodayNY,
+  isWalkVisible,
+  useWalkSyncVersion,
+} from '../utils/walkUtils';
 
 interface DepartureBoardProps {
   nodeName: string;
   currentNode: Node | null;
   nodes: Node[];
   broadcasts: Broadcast[];
+  allBroadcasts?: Broadcast[];
+  isAdmin?: boolean;
   onSelect: (broadcast: Broadcast) => void;
   onConfirm?: (id: string) => void;
   user: any;
@@ -68,6 +81,8 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
   currentNode, 
   nodes = [],
   broadcasts, 
+  allBroadcasts,
+  isAdmin = false,
   onSelect, 
   onConfirm,
   user, 
@@ -191,9 +206,13 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
   }, [tapCount, currentNode]);
 
 
+  const walkSyncVersion = useWalkSyncVersion();
   const [openReportsCount, setOpenReportsCount] = useState<number>(0);
   const [isQuickReportOpen, setIsQuickReportOpen] = useState<boolean>(false);
   const [isProposeNodeOpen, setIsProposeNodeOpen] = useState<boolean>(false);
+  const [isGroupWalksOpen, setIsGroupWalksOpen] = useState<boolean>(false);
+  const [isStartWalkOpen, setIsStartWalkOpen] = useState<boolean>(false);
+  const [joiningWalk, setJoiningWalk] = useState<Broadcast | null>(null);
   const [showStorySheet, setShowStorySheet] = useState<boolean>(false);
   const [showBadgeDetails, setShowBadgeDetails] = useState<boolean>(false);
   const [isLinkEmailModalOpen, setIsLinkEmailModalOpen] = useState<boolean>(false);
@@ -201,6 +220,13 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
   const [hubsTappedCount, setHubsTappedCount] = useState<number>(() => {
     return Number(localStorage.getItem('uh_passport_nodes_count') || '0');
   });
+
+  useEffect(() => {
+    if (user && !user.isAnonymous && hasPendingStartWalkDraft()) {
+      setIsGroupWalksOpen(true);
+      setIsStartWalkOpen(true);
+    }
+  }, [user?.uid, user?.isAnonymous]);
 
   // Query visitor_profiles for logged-in user, otherwise fallback to uh_passport_nodes_count
   useEffect(() => {
@@ -235,172 +261,38 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
       .catch(() => setOpenReportsCount(0));
   }, [currentNode?.id]);
 
-  // Helper for parsing any timestamp
-  const parseSafeDate = (val: any): Date | null => {
-    if (!val) return null;
-    if (typeof val.toDate === 'function') return val.toDate();
-    if (val instanceof Date) return val;
-    if (typeof val === 'number') return new Date(val);
-    if (typeof val === 'string') {
-      const d = new Date(val);
-      return isNaN(d.getTime()) ? null : d;
-    }
-    return null;
-  };
-
-  interface LiveItem {
-    id: string;
-    title: string;
-    venueOrAddress: string;
-    startsAt: Date;
-    expiresAt: Date;
-    isStarted: boolean;
-    timeLabel: string;
-    typeChip: 'WALK' | 'DEAL' | 'LIBRARY' | 'FOOD' | 'EVENT';
-    isFree: boolean;
-    distanceMeters: number;
-    walkMinutes: number;
-    originalBroadcast: Broadcast;
-  }
-
-  // HAPPENING NOW: live events derived purely from loaded broadcasts (no Firestore 'events' queries)
-  const { liveItems, liveSectionTitle } = React.useMemo(() => {
-    if (!currentNode || typeof currentNode.latitude !== 'number' || typeof currentNode.longitude !== 'number') {
-      return { liveItems: [] as LiveItem[], liveSectionTitle: 'Happening now' };
-    }
-
-    const now = new Date();
-    const twoHoursFromNow = new Date(now.getTime() + 2 * 60 * 60 * 1000);
-
-    const allowedTypes = new Set([
-      'walking_event',
-      'flash_deal',
-      'live_event',
-      'pop_up',
-      'civic_event',
-      'civic_free',
-      'event',
-      'live_performance',
-      'conference_panel',
-      'food_truck'
-    ]);
-
-    const candidates: Array<{ item: LiveItem; dist: number }> = [];
-
-    (broadcasts || []).forEach((b) => {
-      const rawType = (b.type || '').toString().toLowerCase();
-      const isSponsored = b.is_sponsored === true;
-
-      // 1. Allowed type or is_sponsored === true
-      if (!allowedTypes.has(rawType) && !isSponsored) {
-        return;
-      }
-
-      // 2. Type is NOT mural, civic_mural or street_art, and NO artist_id / artist_slug
-      if (rawType === 'mural' || rawType === 'civic_mural' || rawType === 'street_art') {
-        return;
-      }
-      const hasArtist = Boolean(
-        (b as any).artist_id ||
-        (b as any).artistId ||
-        (b as any).artist_slug ||
-        (b as any).artistSlug
-      );
-      if (hasArtist) {
-        return;
-      }
-
-      // 3. Live: starts_at <= now + 2 hours AND expires_at > now
-      const startsAt = parseSafeDate(b.starts_at || (b as any).startsAt || (b as any).startTime);
-      if (!startsAt) return;
-      const expiresAt = parseSafeDate(b.expires_at || (b as any).expiresAt) || new Date(startsAt.getTime() + 2 * 60 * 60 * 1000);
-      if (!expiresAt) return;
-
-      if (startsAt.getTime() > twoHoursFromNow.getTime() || expiresAt.getTime() <= now.getTime()) {
-        return;
-      }
-
-      // 4. Distance within coordinates
-      const lat = b.latitude ?? b.coords?.lat;
-      const lng = b.longitude ?? b.coords?.lng;
-      if (typeof lat !== 'number' || typeof lng !== 'number' || isNaN(lat) || isNaN(lng)) {
-        return;
-      }
-
-      const dist = getDistance(currentNode.latitude, currentNode.longitude, lat, lng);
-      const isStarted = startsAt.getTime() <= now.getTime();
-      const walkMinutes = Math.max(1, Math.round((dist * 1.3) / 80));
-
-      // Library check: treat source 'cincinnati_library', 'chpl' or 'library' as LIBRARY
-      const src = ((b.source || (b as any).signal_location_source || '') as string).toLowerCase();
-      const isLibrary = src === 'cincinnati_library' || src === 'chpl' || src === 'library';
-
-      let typeChip: 'WALK' | 'DEAL' | 'LIBRARY' | 'FOOD' | 'EVENT' = 'EVENT';
-      if (isLibrary) {
-        typeChip = 'LIBRARY';
-      } else if (rawType === 'walking_event') {
-        typeChip = 'WALK';
-      } else if (rawType === 'flash_deal' || isSponsored) {
-        typeChip = 'DEAL';
-      } else if (rawType === 'food_truck') {
-        typeChip = 'FOOD';
-      } else {
-        typeChip = 'EVENT';
-      }
-
-      const timeLabel = isStarted
-        ? 'NOW'
-        : startsAt.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-
-      const venueOrAddress = b.venue || b.address || b.partner_name || 'Nearby';
-      const isFree = b.payment_type === 'free';
-
-      candidates.push({
-        item: {
-          id: b.id,
-          title: b.title,
-          venueOrAddress,
-          startsAt,
-          expiresAt,
-          isStarted,
-          timeLabel,
-          typeChip,
-          isFree,
-          distanceMeters: dist,
-          walkMinutes,
-          originalBroadcast: b
-        },
-        dist
+  const walkTogetherSubtitle = React.useMemo(() => {
+    if (!currentNode?.id) return 'Start the first one';
+    const nowMs = time.getTime();
+    const sourceBroadcasts = allBroadcasts ?? broadcasts ?? [];
+    const hubWalks = sourceBroadcasts
+      .filter((w) => isWalkVisible(w, nowMs) && (w.node_id || w.nodeId) === currentNode.id)
+      .sort((a, b) => {
+        const aMs = getWalkDepartsMs(a, nowMs) ?? Number.MAX_SAFE_INTEGER;
+        const bMs = getWalkDepartsMs(b, nowMs) ?? Number.MAX_SAFE_INTEGER;
+        return aMs - bMs;
       });
-    });
 
-    // Distance threshold: within 805 m of node. If leaves 0 items, use 1609 m and "Within a 20-min walk".
-    const within805 = candidates.filter((c) => c.dist <= 805);
-    let finalCandidates: Array<{ item: LiveItem; dist: number }>;
-    let heading = 'Happening now';
-
-    if (within805.length > 0) {
-      finalCandidates = within805;
-      heading = 'Happening now';
-    } else {
-      const within1609 = candidates.filter((c) => c.dist <= 1609);
-      finalCandidates = within1609;
-      heading = within1609.length > 0 ? 'Within a 20-min walk' : 'Happening now';
+    if (hubWalks.length === 0) {
+      return 'Start the first one';
     }
 
-    // Sort: started items first, then by distance
-    finalCandidates.sort((a, b) => {
-      if (a.item.isStarted !== b.item.isStarted) {
-        return a.item.isStarted ? -1 : 1;
-      }
-      return a.dist - b.dist;
-    });
+    const todayCount = hubWalks.filter((w) => {
+      const depMs = getWalkDepartsMs(w, nowMs);
+      return depMs !== null && isWalkTodayNY(depMs, nowMs);
+    }).length;
 
-    return {
-      liveItems: finalCandidates.map((c) => c.item),
-      liveSectionTitle: heading
-    };
-  }, [currentNode?.latitude, currentNode?.longitude, broadcasts]);
+    if (todayCount >= 2) {
+      return `${todayCount} walks today`;
+    }
+
+    const soonest = hubWalks[0];
+    const nextMs = getWalkDepartsMs(soonest, nowMs);
+    if (nextMs !== null) {
+      return `Next: ${formatWalkTimeNY(nextMs)}`;
+    }
+    return `Next: ${getWalkScheduleLabel(soonest, nowMs)}`;
+  }, [allBroadcasts, broadcasts, currentNode?.id, time, walkSyncVersion]);
   
   const [formState, setFormState] = useState({ 
     title: '', 
@@ -998,7 +890,7 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
 
 
 
-                {/* 5. EXPLORE FROM HERE (2x2 grid) */}
+                {/* 4. EXPLORE FROM HERE (2x2 grid) */}
                 <div className="px-4 mt-6">
                   <h3 className="text-[20px] font-bold text-white mb-3">
                     Explore from here
@@ -1039,7 +931,7 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
                     {/* Tile 3: Walk together */}
                     <button
                       type="button"
-                      onClick={() => onTabChange?.('wallet')}
+                      onClick={() => setIsGroupWalksOpen(true)}
                       className="bg-[#161618] hover:bg-[#1f1f22] border border-[#26262A] rounded-[20px] p-4 text-left flex flex-col justify-between min-h-[110px] transition-all cursor-pointer group"
                     >
                       <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-white group-hover:border-[#FFE01A]/40 transition-colors">
@@ -1047,7 +939,9 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
                       </div>
                       <div>
                         <h4 className="text-[15px] font-bold text-white leading-tight">Walk together</h4>
-                        <p className="text-xs text-[#A3A3AA] mt-1 leading-snug">Join a group walk</p>
+                        <p className="text-xs text-[#A3A3AA] mt-1 leading-snug truncate">
+                          {walkTogetherSubtitle}
+                        </p>
                       </div>
                     </button>
 
@@ -1122,6 +1016,9 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
               <Feed 
                 broadcasts={broadcasts}
                 currentNode={currentNode}
+                nodes={nodes}
+                user={user}
+                isAdmin={isAdmin}
                 onSelect={onSelect}
                 onConfirm={onConfirm}
                 onShareEvent={onShareEvent}
@@ -1137,8 +1034,12 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
                 <div className="h-[400px]">
                   <MapView 
                     currentNode={currentNode} 
+                    nodes={nodes}
+                    user={user}
+                    isAdmin={isAdmin}
                     broadcasts={broadcasts} 
                     onSelect={onSelect} 
+                    onConfirm={onConfirm}
                     partnersMap={partnersMap}
                   />
                 </div>
@@ -1517,6 +1418,44 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
         isOpen={isProposeNodeOpen}
         onClose={() => setIsProposeNodeOpen(false)}
         neighborhood={currentNode?.neighborhood || null}
+      />
+
+      <GroupWalksSheet
+        isOpen={isGroupWalksOpen}
+        onClose={() => setIsGroupWalksOpen(false)}
+        currentNode={currentNode}
+        nodes={nodes}
+        broadcasts={allBroadcasts ?? broadcasts}
+        user={user}
+        userProfile={userProfile}
+        isAdmin={isAdmin}
+        onStartWalkClick={() => setIsStartWalkOpen(true)}
+        onJoinWalkClick={(w) => setJoiningWalk(w)}
+        onSelectWalkDetails={(w) => {
+          setIsGroupWalksOpen(false);
+          onSelect(w);
+        }}
+      />
+
+      <StartWalkSheet
+        isOpen={isStartWalkOpen}
+        onClose={() => setIsStartWalkOpen(false)}
+        currentNode={currentNode}
+        nodes={nodes}
+        user={user}
+        userProfile={userProfile}
+        onLogin={onLogin}
+        onProfileUpdate={onProfileUpdate}
+        onCreated={(walkId) => onConfirm?.(walkId)}
+      />
+
+      <WalkJoinSheet
+        walk={joiningWalk}
+        nodes={nodes}
+        currentNode={currentNode}
+        isOpen={Boolean(joiningWalk)}
+        onClose={() => setJoiningWalk(null)}
+        onJoined={(walkId) => onConfirm?.(walkId)}
       />
 
 

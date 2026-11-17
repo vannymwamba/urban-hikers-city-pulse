@@ -34,6 +34,7 @@ import PartnerOnboarding from './pages/admin/PartnerOnboarding';
 import { getDistance } from './utils/geo';
 import { handleFirestoreError, OperationType } from './utils/firebaseErrors';
 import { toMs, isNotExpired } from './utils/timeUtils';
+import { isWalkVisible, useWalkSyncVersion } from './utils/walkUtils';
 
 import { v4 as uuidv4 } from 'uuid';
 import { motion, AnimatePresence } from 'motion/react';
@@ -175,6 +176,7 @@ function AppRouter() {
   const [confirmedBroadcastId, setConfirmedBroadcastId] = useState<string | null>(null);
   const [selectedBroadcastNode, setSelectedBroadcastNode] = useState<Node | null>(null);
   const [isTappedIn, setIsTappedIn] = useState(true);
+  const walkSyncVersion = useWalkSyncVersion();
   const [nfcStatus, setNfcStatus] = useState<'idle' | 'scanning' | 'error' | 'unsupported'>('idle');
   
   // Explorer Passport & NFC Success States.
@@ -1114,32 +1116,30 @@ function AppRouter() {
       return;
     }
 
-    let isMounted = true;
     const sessionStartTime = Timestamp.fromDate(new Date(Date.now() - 3600000));
-    
     const q = query(
       collection(db, 'broadcasts'),
       where('expires_at', '>', sessionStartTime)
     );
 
-    getDocs(q)
-      .then((snapshot) => {
-        if (!isMounted) return;
-        const data = snapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        const data = snapshot.docs.map((d) => ({
+          id: d.id,
+          ...d.data(),
         })) as Broadcast[];
         setRawBroadcasts(data);
-      })
-      .catch((err) => {
-        if (!isMounted) return;
+      },
+      (err) => {
         handleFirestoreError(err, OperationType.LIST, 'broadcasts');
-      });
+      }
+    );
 
     return () => {
-      isMounted = false;
+      unsubscribe();
     };
-  }, [currentNode]);
+  }, [currentNode?.id]);
 
   // Fetch POIs (Murals)
   useEffect(() => {
@@ -1192,12 +1192,19 @@ function AppRouter() {
       return;
     }
 
-    const twentyFourHoursFromNow = new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString();
-    const nowIso = now.toISOString();
-
     const allRaw = [...rawBroadcasts, ...rawPois];
+    const nowMs = now.getTime();
 
     const filtered = allRaw.filter(b => {
+      if (b.active === false || Boolean(b.cancelled_at)) {
+        return false;
+      }
+
+      const isWalk = (b.type ?? '').toString().toLowerCase() === 'walking_event';
+      if (isWalk && !isWalkVisible(b, nowMs)) {
+        return false;
+      }
+
       // Default to 8km (approx 5 miles) for a more inclusive local feel in Cincinnati
       const radiusLimit = currentNode.radius_limit || (currentNode as any).radiusLimit || 8046;
       
@@ -1216,7 +1223,8 @@ function AppRouter() {
         ? (startsAt as any).toDate().getTime() 
         : (startsAt ? new Date(startsAt).getTime() : 0);
       
-      const isWithinWindow = !startsAt || startsAtTime <= (now.getTime() + 24 * 60 * 60 * 1000);
+      const maxHorizonMs = isWalk ? 14 * 24 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000;
+      const isWithinWindow = !startsAt || startsAtTime <= (nowMs + maxHorizonMs);
       const isStillValid = isNotExpired(b);
 
       return matched && isWithinWindow && isStillValid;
@@ -1244,7 +1252,7 @@ function AppRouter() {
     });
 
     setBroadcasts(sortedBroadcasts);
-  }, [rawBroadcasts, now, currentNode, partnersMap]);
+  }, [rawBroadcasts, rawPois, now, currentNode, partnersMap, walkSyncVersion]);
 
   const handleVibeReport = async (vibe: Vibe) => {
     if (!selectedBroadcast) return;
@@ -1418,6 +1426,13 @@ function AppRouter() {
   const isSelectedBroadcastNodeSaved = selectedBroadcastNode 
     ? savedHubs.some(h => h.id === selectedBroadcastNode.id)
     : false;
+
+  const liveSelectedBroadcast = useMemo(() => {
+    if (!selectedBroadcast) return null;
+    const latest = rawBroadcasts.find((b) => b.id === selectedBroadcast.id) || selectedBroadcast;
+    if (latest.active === false || latest.cancelled_at) return null;
+    return latest;
+  }, [selectedBroadcast, rawBroadcasts, walkSyncVersion]);
 
   const loaderLabel = useLoaderLabel(nodeId ? 'hub' : 'auth');
 
@@ -1701,6 +1716,8 @@ function AppRouter() {
             currentNode={currentNode}
             nodes={nodes}
             broadcasts={broadcasts}
+            allBroadcasts={rawBroadcasts}
+            isAdmin={Boolean(isAdmin)}
             onSelect={setSelectedBroadcast}
             onConfirm={(id) => setConfirmedBroadcastId(id)}
             user={user}
@@ -1774,15 +1791,19 @@ function AppRouter() {
 
         <ErrorBoundary section="BROADCAST_MODAL">
           <BroadcastModal
-            broadcast={selectedBroadcast}
+            broadcast={liveSelectedBroadcast}
             onClose={() => setSelectedBroadcast(null)}
             onShare={handleShare}
             onSaveToWallet={toggleSaveHub}
             isSaved={isSelectedBroadcastNodeSaved}
             node={selectedBroadcastNode}
+            nodes={nodes}
+            user={user}
+            isAdmin={Boolean(isAdmin)}
+            onConfirm={(id) => setConfirmedBroadcastId(id)}
             onVibeReport={handleVibeReport}
             isReporting={isReporting}
-            confirmed={confirmedBroadcastId === selectedBroadcast?.id}
+            confirmed={confirmedBroadcastId === liveSelectedBroadcast?.id}
           />
         </ErrorBoundary>
 

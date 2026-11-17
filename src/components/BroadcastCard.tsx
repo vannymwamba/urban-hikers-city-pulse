@@ -1,9 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { MapPin, Share2, ArrowRight, Clock, Heart } from 'lucide-react';
-import { format } from 'date-fns';
-import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
-import { db, auth } from '../firebase';
 import { Broadcast, Partner, Node, Sponsor, BroadcastType } from '../types';
 import { getDistance } from '../utils/geo';
 import { 
@@ -23,6 +20,8 @@ import {
 } from '../utils/broadcastHelpers';
 import { RarityBadge } from './PulseDropStrip';
 import { LocationPreviewModal } from './LocationPreviewModal';
+import { WalkJoinSheet } from './WalkJoinSheet';
+import { getWalkAvailabilityState, getWalkMembership, useWalkSyncVersion } from '../utils/walkUtils';
 
 const ARTWAVE_DONATION_URL = 'https://4agc.com/donation_pages/0785fa30-9065-400b-b54d-74458f2c9eb0';
 
@@ -52,10 +51,13 @@ export const BroadcastCard: React.FC<BroadcastCardProps> = ({
   variant = 'peek',
   canManage = false
 }) => {
+  useWalkSyncVersion();
   const [progress, setProgress] = useState(100);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [showBooking, setShowBooking] = useState(false);
+  const [showJoinSheet, setShowJoinSheet] = useState(false);
   const [isBooking, setIsBooking] = useState(false);
+  const [bookingError, setBookingError] = useState<string | null>(null);
   const [spots, setSpots] = useState(1);
   const [copied, setCopied] = useState(false);
   const [, forceUpdate] = useState(0);
@@ -144,10 +146,16 @@ export const BroadcastCard: React.FC<BroadcastCardProps> = ({
       return;
     }
 
-    // Native walk — open inline booking sheet
+    // Native walk — free walks open WalkJoinSheet; paid walks open Stripe booking sheet
     if (isWalkingEvent) {
-      if (item.spots_remaining === 0) return; // full, no-op
-      setShowBooking(true);
+      const walkAvail = getWalkAvailabilityState(item);
+      if (walkAvail === 'FULL' || walkAvail === 'DEPARTED') return;
+      if ((item.price ?? 0) > 0) {
+        setBookingError(null);
+        setShowBooking(true);
+      } else {
+        setShowJoinSheet(true);
+      }
       return;
     }
 
@@ -543,11 +551,17 @@ export const BroadcastCard: React.FC<BroadcastCardProps> = ({
                 <span className="text-[10px] font-black uppercase tracking-widest font-mono">
                   {isDonation
                     ? 'Donate ♥'
-                    : item.spots_remaining === 0
-                      ? 'Full'
-                      : item.booking_type === 'partner'
-                        ? 'Book ↗'
-                        : 'Book Now'}
+                    : getWalkMembership(item.id)
+                      ? "You're in"
+                      : getWalkAvailabilityState(item) === 'FULL'
+                        ? 'Full'
+                        : getWalkAvailabilityState(item) === 'DEPARTED'
+                          ? 'Departed'
+                          : item.booking_type === 'partner' && item.booking_url
+                            ? 'Book ↗'
+                            : (item.price ?? 0) > 0
+                              ? 'Book Now'
+                              : 'Join walk'}
                 </span>
               </button>
             )}
@@ -580,7 +594,7 @@ export const BroadcastCard: React.FC<BroadcastCardProps> = ({
       </motion.div>
 
 
-    {showBooking && (
+    {showBooking && (item.price ?? 0) > 0 && (
       <div 
         onClick={() => setShowBooking(false)}
         style={{position:'fixed',inset:0,background:'rgba(0,0,0,.9)',zIndex:3000,display:'flex',alignItems:'flex-end'}}
@@ -589,19 +603,19 @@ export const BroadcastCard: React.FC<BroadcastCardProps> = ({
         <div onClick={e => e.stopPropagation()} style={{background:'#0a0a0a',borderTop:'1px solid #222',width:'100%',padding:'40px 40px 60px',display:'flex',flexDirection:'column',gap:'32px'}} className="font-mono">
           
           <div className="flex flex-col gap-1">
-            <div style={{fontSize:9,fontWeight:700,letterSpacing:'.2em',color:'#444',textTransform:'uppercase'}}>Walk_Protocol // {item.venue || item.address}</div>
+            <div style={{fontSize:9,fontWeight:700,letterSpacing:'.2em',color:'#444',textTransform:'uppercase'}}>Guided Walk · {item.venue || item.address}</div>
             <div style={{fontSize:28,fontWeight:700,textTransform:'uppercase',letterSpacing:'-0.02em',lineHeight:1, color: '#fff'}} className="italic">{item.title}</div>
           </div>
 
           <div style={{display:'flex',gap:12}}>
             {[
               ['Departs', item.is_recurring ? (getNextRecurringDeparture(item.recurring_days || [], item.recurring_times || [])?.label?.split(' ').slice(1).join(' ') || item.departure_time || 'Pending') : (item.departure_time || 'Pending')], 
-              ['Remaining', String(item.spots_remaining ?? (item.price === 0 || !item.price ? 'Open' : '—'))], 
-              ['Price', item.price ? `$${item.price}` : 'Free']
+              ['Remaining', String(item.spots_remaining ?? '—')], 
+              ['Price', `$${item.price}`]
             ].map(([l,v]) => (
               <div key={l} style={{flex:1,background:'#111',border: '1px solid #222',padding:'16px'}}>
                 <div style={{fontSize:8,fontWeight:700,color:'#444',letterSpacing:'.15em',textTransform:'uppercase', marginBottom: '4px'}}>{l}</div>
-                <div style={{fontSize:14,fontWeight:700,textTransform:'uppercase',color: l==='Price' && (!item.price || item.price === 0) ? '#FFE01A' : '#fff'}}>{v}</div>
+                <div style={{fontSize:14,fontWeight:700,textTransform:'uppercase',color: '#fff'}}>{v}</div>
               </div>
             ))}
           </div>
@@ -610,15 +624,18 @@ export const BroadcastCard: React.FC<BroadcastCardProps> = ({
             <div style={{fontSize:13,color:'#888',lineHeight:1.6, maxWidth: '600px'}}>{item.description}</div>
           )}
 
-          {/* Spot selector — only show if price > 0 */}
-          {(item.price ?? 0) > 0 && (
-            <div style={{display:'flex',alignItems:'center',gap:16}}>
-              <span style={{fontSize:10,fontWeight:700,color:'#444',textTransform:'uppercase',letterSpacing:'.1em'}}>Qty</span>
-              <div style={{display:'flex',alignItems:'center',gap:12, background: '#111', border: '1px solid #222', padding: '4px'}}>
-                <button onClick={() => setSpots(s => Math.max(1,s-1))} style={{width:32,height:32,background:'transparent',border:'none',color:'#fff',fontSize:18,cursor:'pointer'}}>−</button>
-                <span style={{fontSize:16,fontWeight:700,minWidth:24,textAlign:'center', color: '#fff'}}>{spots}</span>
-                <button onClick={() => setSpots(s => Math.min(4,s+1))} style={{width:32,height:32,background:'transparent',border:'none',color:'#fff',fontSize:18,cursor:'pointer'}}>+</button>
-              </div>
+          <div style={{display:'flex',alignItems:'center',gap:16}}>
+            <span style={{fontSize:10,fontWeight:700,color:'#444',textTransform:'uppercase',letterSpacing:'.1em'}}>Qty</span>
+            <div style={{display:'flex',alignItems:'center',gap:12, background: '#111', border: '1px solid #222', padding: '4px'}}>
+              <button onClick={() => setSpots(s => Math.max(1,s-1))} style={{width:32,height:32,background:'transparent',border:'none',color:'#fff',fontSize:18,cursor:'pointer'}}>−</button>
+              <span style={{fontSize:16,fontWeight:700,minWidth:24,textAlign:'center', color: '#fff'}}>{spots}</span>
+              <button onClick={() => setSpots(s => Math.min(4,s+1))} style={{width:32,height:32,background:'transparent',border:'none',color:'#fff',fontSize:18,cursor:'pointer'}}>+</button>
+            </div>
+          </div>
+
+          {bookingError && (
+            <div className="rounded-xl border border-uh-magenta/40 bg-uh-magenta/10 px-4 py-3 text-xs text-[#FDA4AF]">
+              {bookingError}
             </div>
           )}
 
@@ -628,41 +645,9 @@ export const BroadcastCard: React.FC<BroadcastCardProps> = ({
               onClick={async () => {
                 if (isBooking) return;
                 setIsBooking(true);
+                setBookingError(null);
                 try {
-                  // Free walk — instant confirm
-                  if ((item.price ?? 0) === 0) {
-                    // Request notification permission and get FCM token
-                    let notifyToken: string | undefined;
-                    try {
-                      const permission = await Notification.requestPermission();
-                      if (permission === 'granted') {
-                        notifyToken = localStorage.getItem('uh_fcm_token') || undefined;
-                      }
-                    } catch (_) {
-                      // Notification permission denied — booking still proceeds
-                    }
-
-                    // Write to bookings collection — Cloud Function handles decrement + push
-                    await addDoc(collection(db, 'bookings'), {
-                      broadcastId: item.id,
-                      userId: auth.currentUser?.uid || null,
-                      spots,
-                      price: 0,
-                      status: 'pending',
-                      notifyToken: notifyToken || null,
-                      created_at: serverTimestamp(),
-                    });
-
-                    // Local success feedback
-                    alert("SPOT_INITIALIZED! Your place is secured. Redirecting...");
-
-                    setShowBooking(false);
-                    onConfirm?.(item.id);
-                    onSelect(item);
-                    return;
-                  }
-
-                  // Paid walk — Stripe checkout
+                  // Paid walk — Stripe checkout untouched
                   const res = await fetch('/api/create-checkout-session', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -677,7 +662,7 @@ export const BroadcastCard: React.FC<BroadcastCardProps> = ({
                   if (url) window.location.href = url;
                 } catch (err) {
                   console.error("Booking failed:", err);
-                  alert("Protocol Error: Booking failed. Please try again.");
+                  setBookingError("Checkout could not be started. Please try again.");
                 } finally {
                   setIsBooking(false);
                 }
@@ -696,13 +681,20 @@ export const BroadcastCard: React.FC<BroadcastCardProps> = ({
                 opacity: isBooking ? 0.7 : 1
               }}
             >
-              {isBooking ? 'Processing_Protocol...' : ((item.price ?? 0) === 0 ? 'Initialize_Spot — Free' : `Secure_Checkout · $${((item.price??0)*spots).toFixed(2)}`)}
+              {isBooking ? 'Starting checkout...' : `Checkout · $${((item.price??0)*spots).toFixed(2)}`}
             </button>
           </div>
         </div>
       </div>
-
     )}
+
+    <WalkJoinSheet
+      walk={item}
+      currentNode={currentNode}
+      isOpen={showJoinSheet}
+      onClose={() => setShowJoinSheet(false)}
+      onJoined={(id) => onConfirm?.(id)}
+    />
     {typeof item.latitude === 'number' && typeof item.longitude === 'number' && !isNaN(item.latitude) && !isNaN(item.longitude) && (
       <LocationPreviewModal
         isOpen={isPreviewOpen}

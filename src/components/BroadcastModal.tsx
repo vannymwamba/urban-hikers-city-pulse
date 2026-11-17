@@ -1,9 +1,11 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, MapPin, Clock, ExternalLink, Share2, Wallet, Calendar } from 'lucide-react';
-import { Broadcast, Node, Partner } from '../types';
+import { X, MapPin, Clock, ExternalLink, Share2, Wallet } from 'lucide-react';
+import { Broadcast, BroadcastType, Node } from '../types';
 import { VibeCheck } from './VibeCheck';
 import { VibeTrend } from './VibeTrend';
+import { WalkCard } from './WalkCard';
+import { WalkJoinSheet } from './WalkJoinSheet';
 
 interface BroadcastModalProps {
   broadcast: Broadcast | null;
@@ -12,6 +14,10 @@ interface BroadcastModalProps {
   onSaveToWallet?: (node: Node) => void;
   isSaved?: boolean;
   node: Node | null;
+  nodes?: Node[];
+  user?: any;
+  isAdmin?: boolean;
+  onConfirm?: (id: string) => void;
   onVibeReport?: (vibe: any) => void;
   isReporting?: boolean;
   confirmed?: boolean;
@@ -24,12 +30,23 @@ export const BroadcastModal: React.FC<BroadcastModalProps> = ({
   onSaveToWallet,
   isSaved,
   node,
+  nodes = [],
+  user = null,
+  isAdmin = false,
+  onConfirm,
   onVibeReport,
   isReporting,
   confirmed = false
 }) => {
+  const [joiningWalk, setJoiningWalk] = React.useState<Broadcast | null>(null);
+
+  React.useEffect(() => {
+    setJoiningWalk(null);
+  }, [broadcast?.id]);
+
   const startsAt = broadcast?.startsAt || broadcast?.starts_at;
   const expiresAt = broadcast?.expiresAt || broadcast?.expires_at;
+  const isWalkingEvent = (broadcast?.type ?? '').toString().toLowerCase() === BroadcastType.WALKING_EVENT;
 
   const formatTime = (dateStr?: string) => {
     if (!dateStr) return 'N/A';
@@ -98,13 +115,27 @@ export const BroadcastModal: React.FC<BroadcastModalProps> = ({
               <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                 {/* Main Info */}
                 <div className="md:col-span-2 space-y-8">
+                  {isWalkingEvent && (
+                    <section>
+                      <WalkCard
+                        walk={broadcast}
+                        nodes={nodes}
+                        currentNode={node}
+                        user={user}
+                        isAdmin={isAdmin}
+                        layout="stack"
+                        onJoinClick={(w) => setJoiningWalk(w)}
+                      />
+                    </section>
+                  )}
+
                   <section>
                     <h3 className="text-[10px] font-black text-uh-gray-400 uppercase tracking-widest font-mono mb-3">Signal_Intel</h3>
                     <p className="text-uh-gray-800 text-sm leading-relaxed whitespace-pre-wrap font-medium">
-                      {broadcast.description || "No additional intel available for this signal."}
+                      {broadcast.description || broadcast.note || "No additional intel available for this signal."}
                     </p>
                     {broadcast.deal_description && (
-                      <p className="mt-4 p-4 bg-uh-yellow/10 border-l-4 border-uh-yellow text-uh-black text-sm font-bold">
+                      <p className="mt-4 p-4 bg-uh-yellow/10 border border-uh-yellow/40 rounded-xl text-uh-black text-sm font-bold">
                         {broadcast.deal_description}
                       </p>
                     )}
@@ -208,15 +239,17 @@ export const BroadcastModal: React.FC<BroadcastModalProps> = ({
                     <h3 className="text-[10px] font-black text-uh-gray-400 uppercase tracking-widest font-mono mb-4">Actions</h3>
                     <div className="flex flex-col gap-3">
                       {(broadcast.booking_url || broadcast.sourceUrl) && (
-                        <button 
-                          onClick={() => window.open((broadcast.booking_url || broadcast.sourceUrl)!, '_blank')}
-                          className="w-full bg-uh-yellow text-uh-black py-4 rounded-2xl text-[11px] font-black uppercase tracking-widest hover:scale-[1.02] transition-transform shadow-lg shadow-uh-yellow/10"
+                        <a
+                          href={(broadcast.booking_url || broadcast.sourceUrl)!}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="w-full bg-uh-yellow text-uh-black py-4 rounded-2xl text-[11px] font-black uppercase tracking-widest hover:scale-[1.02] transition-transform shadow-lg shadow-uh-yellow/10 text-center block"
                         >
                           {broadcast.type === 'donation' ? 'Donate ♥' : 
                            broadcast.type === 'walking_event' ? 'Book Now ↗' : 
                            broadcast.type === 'flash_deal' ? 'Claim Deal ↗' : 
                            'Execute_Source'}
-                        </button>
+                        </a>
                       )}
 
                       <button 
@@ -256,7 +289,14 @@ export const BroadcastModal: React.FC<BroadcastModalProps> = ({
             </div>
           </motion.div>
 
-
+          <WalkJoinSheet
+            walk={joiningWalk}
+            nodes={nodes}
+            currentNode={node}
+            isOpen={Boolean(joiningWalk)}
+            onClose={() => setJoiningWalk(null)}
+            onJoined={(id) => onConfirm?.(id)}
+          />
         </div>
       )}
     </AnimatePresence>

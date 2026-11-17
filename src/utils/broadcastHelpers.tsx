@@ -24,20 +24,24 @@ export const getIconBg = (item: Broadcast) => {
   return 'bg-[#F0EEE8]';
 };
 
-import { getTimeState, toMs, getNextRecurringDeparture } from './timeUtils';
+import { getTimeState, toMs } from './timeUtils';
+import { getWalkAvailabilityState } from './walkUtils';
 
 export function getEventStatus(item: Broadcast) {
+  if (item.type === BroadcastType.WALKING_EVENT) {
+    const walkState = getWalkAvailabilityState(item);
+    if (walkState === 'DEPARTED') return { label: 'DEPARTED', color: 'gray' };
+    if (walkState === 'FULL') return { label: 'FULL', color: 'gray' };
+    if (walkState === 'ALMOST FULL') return { label: 'ALMOST FULL', color: 'magenta' };
+    return { label: 'OPEN', color: 'green' };
+  }
+
   if (item.is_recurring) {
     const freq = item.recurring_frequency || 'daily';
     return {
       label: freq.toUpperCase(),
       color: 'blue' 
     };
-  }
-
-  // Walking events — always show booking status
-  if (item.type === BroadcastType.WALKING_EVENT) {
-    return { label: 'BOOK →', color: 'green' };
   }
 
   // Permanent types — no status pill
@@ -126,12 +130,14 @@ export const getStatusTag = (item: Broadcast) => {
     if (!status) return { label: 'Expired', bg: 'bg-gray-700', text: 'text-white', color: 'gray' };
     
     const styles: Record<string, { bg: string, text: string }> = {
-      yellow: { bg: 'bg-[#FFE01A]', text: 'text-[#0a0a0a]' },
-      green:  { bg: 'bg-[#10B981]', text: 'text-white' },
-      blue:   { bg: 'bg-[#1D4ED8]', text: 'text-white' },
+      yellow:  { bg: 'bg-[#FFE01A]', text: 'text-[#0a0a0a]' },
+      green:   { bg: 'bg-[#1D9E75]', text: 'text-white' },
+      magenta: { bg: 'bg-[#FF3D6B]', text: 'text-white' },
+      gray:    { bg: 'bg-zinc-700',  text: 'text-zinc-200' },
+      blue:    { bg: 'bg-[#1D4ED8]', text: 'text-white' },
     };
     
-    const style = styles[status.color] || { bg: 'bg-[#10B981]', text: 'text-white' };
+    const style = styles[status.color] || { bg: 'bg-[#1D9E75]', text: 'text-white' };
     return { label: status.label, ...style, color: status.color };
   }
 
@@ -139,10 +145,12 @@ export const getStatusTag = (item: Broadcast) => {
   if (!status) return { label: 'Expired', bg: 'bg-gray-700', text: 'text-white', color: 'gray' };
 
   const styles: Record<string, { bg: string, text: string }> = {
-    red:    { bg: 'bg-[#FF3B30]', text: 'text-white' },
-    yellow: { bg: 'bg-[#FFE01A]', text: 'text-[#0a0a0a]' },
-    purple: { bg: 'bg-[#8B5CF6]', text: 'text-white' },
-    green:  { bg: 'bg-[#10B981]', text: 'text-white' },
+    red:     { bg: 'bg-[#FF3B30]', text: 'text-white' },
+    yellow:  { bg: 'bg-[#FFE01A]', text: 'text-[#0a0a0a]' },
+    purple:  { bg: 'bg-[#8B5CF6]', text: 'text-white' },
+    green:   { bg: 'bg-[#1D9E75]', text: 'text-white' },
+    magenta: { bg: 'bg-[#FF3D6B]', text: 'text-white' },
+    gray:    { bg: 'bg-zinc-700',  text: 'text-zinc-200' },
   };
   
   const style = styles[status.color] || { bg: 'bg-gray-500', text: 'text-white' };

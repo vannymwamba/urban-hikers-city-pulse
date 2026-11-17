@@ -4,10 +4,16 @@ import { ArrowRight, ChevronRight } from 'lucide-react';
 import { getDistance } from '../utils/geo';
 import { getTimeLabel, getRecurringTimeLabel } from '../utils/timeUtils';
 import { FlashRotation } from './FlashRotation';
+import { WalkCard } from './WalkCard';
+import { WalkJoinSheet } from './WalkJoinSheet';
+import { getWalkDepartsMs, isWalkVisible, useWalkSyncVersion } from '../utils/walkUtils';
 
 interface FeedProps {
   broadcasts: Broadcast[];
   currentNode: Node | null;
+  nodes?: Node[];
+  user?: any;
+  isAdmin?: boolean;
   onSelect: (broadcast: Broadcast) => void;
   onConfirm?: (id: string) => void;
   onShareEvent: (broadcast: Broadcast) => void;
@@ -24,12 +30,19 @@ interface FeedProps {
 export const Feed: React.FC<FeedProps> = ({
   broadcasts = [],
   currentNode,
+  nodes = [],
+  user = null,
+  isAdmin = false,
   onSelect,
+  onConfirm,
   partnersMap = {},
   localHubs = [],
   onRedeemHub,
   loading = false,
 }) => {
+  const walkSyncVersion = useWalkSyncVersion();
+  const [joiningWalk, setJoiningWalk] = useState<Broadcast | null>(null);
+
   // Single accent color used sparingly throughout the screen
   const accentColor = currentNode?.partner_accent || '#FFE01A';
 
@@ -102,11 +115,15 @@ export const Feed: React.FC<FeedProps> = ({
   }, [broadcasts]);
 
   const walkingEvents = useMemo(() => {
-    return broadcasts.filter((b) => {
-      const type = (b.type ?? '').toLowerCase();
-      return type === 'walking_event';
-    });
-  }, [broadcasts]);
+    const nowMs = currentTime.getTime();
+    return broadcasts
+      .filter((b) => isWalkVisible(b, nowMs))
+      .sort((a, b) => {
+        const aMs = getWalkDepartsMs(a, nowMs) ?? Number.MAX_SAFE_INTEGER;
+        const bMs = getWalkDepartsMs(b, nowMs) ?? Number.MAX_SAFE_INTEGER;
+        return aMs - bMs;
+      });
+  }, [broadcasts, currentTime, walkSyncVersion]);
 
   const cityPulse = useMemo(() => {
     return broadcasts.filter((b) => {
@@ -334,11 +351,16 @@ export const Feed: React.FC<FeedProps> = ({
             style={{ WebkitOverflowScrolling: 'touch', scrollSnapType: 'x mandatory' }}
           >
             {(expandedSections['walks'] ? walkingEvents : walkingEvents.slice(0, 8)).map((walk) => (
-              <ContentCard
+              <WalkCard
                 key={walk.id}
-                item={walk}
-                badgeLabel="Walk"
-                ctaLabel="Join Walk"
+                walk={walk}
+                nodes={nodes}
+                currentNode={currentNode}
+                user={user}
+                isAdmin={isAdmin}
+                layout="carousel"
+                onJoinClick={(w) => setJoiningWalk(w)}
+                onSelectDetails={onSelect}
               />
             ))}
           </div>
@@ -529,6 +551,15 @@ export const Feed: React.FC<FeedProps> = ({
           </p>
         </div>
       )}
+
+      <WalkJoinSheet
+        walk={joiningWalk}
+        nodes={nodes}
+        currentNode={currentNode}
+        isOpen={Boolean(joiningWalk)}
+        onClose={() => setJoiningWalk(null)}
+        onJoined={(id) => onConfirm?.(id)}
+      />
     </div>
   );
 };
