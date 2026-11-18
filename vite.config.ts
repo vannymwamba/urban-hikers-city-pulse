@@ -10,6 +10,7 @@ export default defineConfig(({mode}) => {
     define: {
       'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY),
       'process.env.GOOGLE_MAPS_PLATFORM_KEY': JSON.stringify(env.GOOGLE_MAPS_PLATFORM_KEY),
+      'process.env.CARTO_API_KEY': JSON.stringify(env.CARTO_API_KEY || env.VITE_CARTO_API_KEY),
     },
     resolve: {
       alias: {

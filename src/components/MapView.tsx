@@ -9,7 +9,7 @@ import { SponsorBadge } from './SponsorBadge';
 import { WalkCard } from './WalkCard';
 import { WalkJoinSheet } from './WalkJoinSheet';
 import { isWalkVisible, useWalkSyncVersion } from '../utils/walkUtils';
-import { CARTO_ATTRIBUTION, CARTO_RASTER_TILE_URL } from '../constants';
+import { CARTO_API_KEY, CARTO_ATTRIBUTION } from '../constants';
 
 interface MapViewProps {
   currentNode: Node | null;
@@ -164,7 +164,7 @@ export const MapView: React.FC<MapViewProps> = ({
       >
         <TileLayer
           attribution={CARTO_ATTRIBUTION}
-          url={CARTO_RASTER_TILE_URL}
+          url={`https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png?key=${process.env.CARTO_API_KEY || CARTO_API_KEY}`}
         />
         
         <RecenterMap coords={center} />
@@ -287,8 +287,8 @@ export const MapView: React.FC<MapViewProps> = ({
 
       {/* Map Legend Overlay */}
       {!selectedWalkId && (
-        <div className="absolute bottom-4 left-4 z-[500] bg-hud-bg/90 text-white backdrop-blur-md border border-white/10 p-3 rounded-2xl shadow-xl pointer-events-none">
-          <div className="text-[8px] font-black tracking-[0.2em] text-white/40 uppercase mb-2">MAP_LEGEND</div>
+        <div className="absolute bottom-4 left-4 z-[500] bg-hud-bg/90 backdrop-blur-md border border-white/10 p-3 rounded-2xl shadow-xl pointer-events-none">
+          <div className="text-[8px] font-black tracking-[0.2em] text-uh-black/40 uppercase mb-2">MAP_LEGEND</div>
           <div className="flex flex-col gap-2">
             <div className="flex items-center gap-2">
               <div className="w-2 h-2 rounded-full bg-[#FF3B30]" />

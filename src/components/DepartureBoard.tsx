@@ -555,7 +555,7 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
   return (
     <div className={`flex flex-col h-full ${activeTab === 'home' || activeTab === 'feed' ? 'bg-[#0B0B0D]' : 'bg-[#f0f0f0]'} text-uh-black font-sans relative overflow-hidden`}>
       {/* Collapsible Header Container — New Co-branded Structure */}
-      {activeTab !== 'home' && activeTab !== 'feed' && (
+      {activeTab !== 'home' && activeTab !== 'feed' && activeTab !== 'explore' && (
         <motion.div 
           style={{ 
             height: 200, 
@@ -678,11 +678,11 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
       {/* Main Scrollable Area */}
       <div 
         onScroll={handleScroll}
-        className={`flex-1 overflow-y-auto relative z-10 ${activeTab === 'home' || activeTab === 'feed' ? 'pt-0 pb-20' : 'pt-[200px] pb-32'} scroll-smooth`}
+        className={`flex-1 ${activeTab === 'explore' ? 'overflow-hidden' : 'overflow-y-auto'} relative z-10 ${activeTab === 'explore' ? '' : activeTab === 'home' || activeTab === 'feed' ? 'pt-0 pb-20' : 'pt-[200px] pb-32'} scroll-smooth`}
         style={{ WebkitOverflowScrolling: 'touch' }}
       >
-        <div className="flex flex-col gap-0">
-          <div className="flex flex-col">
+        <div className={`flex flex-col gap-0 ${activeTab === 'explore' ? 'h-full' : ''}`}>
+          <div className={`flex flex-col ${activeTab === 'explore' ? 'h-full' : ''}`}>
             {/* Home Node-Specific Landing Page */}
             {activeTab === 'home' ? (
               <div id="home_tab_landing" className="flex flex-col bg-[#0B0B0D] text-white">
@@ -1031,7 +1031,7 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
               />
             ) : activeTab === 'explore' ? (
               <div className="h-full flex flex-col">
-                <div className="h-[400px]">
+                <div className="h-full">
                   <MapView 
                     currentNode={currentNode} 
                     nodes={nodes}

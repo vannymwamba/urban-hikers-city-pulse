@@ -4,7 +4,7 @@ import { MapContainer, TileLayer, Marker, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { MapPin, ArrowUpRight, X, Navigation } from 'lucide-react';
-import { CARTO_ATTRIBUTION, CARTO_RASTER_TILE_URL } from '../constants';
+import { CARTO_API_KEY, CARTO_ATTRIBUTION } from '../constants';
 
 interface LocationPreviewModalProps {
   isOpen: boolean;
@@ -163,7 +163,7 @@ export const LocationPreviewModal: React.FC<LocationPreviewModalProps> = ({
                 >
                   <TileLayer
                     attribution={CARTO_ATTRIBUTION}
-                    url={CARTO_RASTER_TILE_URL}
+                    url={`https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png?key=${process.env.CARTO_API_KEY || CARTO_API_KEY}`}
                   />
                   
                   <MapRecenter lat={latitude} lng={longitude} />
