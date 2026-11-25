@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ShieldCheck, Award, Sparkles, Navigation, CheckCircle2, UserPlus, Heart, X, Volume2 } from 'lucide-react';
+import { ShieldCheck, Award, Sparkles, Navigation, UserPlus, Heart, X } from 'lucide-react';
+import { REWARDS_ENABLED } from '../config/features';
 
 interface NfcSuccessOverlayProps {
   isOpen: boolean;
@@ -182,29 +183,42 @@ export const NfcSuccessOverlay: React.FC<NfcSuccessOverlayProps> = ({
               </p>
             </div>
 
-            {/* Special localized dynamic benefit unlock */}
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.4 }}
-              className="bg-white/3 border border-white/5 rounded-2xl p-4 text-left font-mono space-y-1.5 relative overflow-hidden"
-            >
-              <div className="absolute right-3 top-3 opacity-10">
-                <Navigation size={28} className="text-[#FFE01A]" />
-              </div>
-              
-              <span className="text-[7.5px] font-black text-[#888] uppercase block tracking-widest">
-                LOCAL_SURE_BENEFITS
-              </span>
-              <div className="text-[11.5px] font-black text-white uppercase flex items-center gap-2">
-                <span className="text-[#FFE01A]">⚡</span> 10% Discount Unlocked
-              </div>
-              <p className="text-white/40 text-[9px] leading-tight">
-                Refuel protocol activated! Flash voucher stored in your Explorer Passport. Show at check-out.
-              </p>
-            </motion.div>
+            {/* Tap confirmation / optional benefit block */}
+            {REWARDS_ENABLED ? (
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.4 }}
+                className="bg-white/3 border border-white/5 rounded-2xl p-4 text-left font-mono space-y-1.5 relative overflow-hidden"
+              >
+                <div className="absolute right-3 top-3 opacity-10">
+                  <Navigation size={28} className="text-[#FFE01A]" />
+                </div>
+                
+                <span className="text-[7.5px] font-black text-[#888] uppercase block tracking-widest">
+                  LOCAL_SURE_BENEFITS
+                </span>
+                <div className="text-[11.5px] font-black text-white uppercase flex items-center gap-2">
+                  <span className="text-[#FFE01A]">⚡</span> 10% Discount Unlocked
+                </div>
+                <p className="text-white/40 text-[9px] leading-tight">
+                  Refuel protocol activated! Flash voucher stored in your Explorer Passport. Show at check-out.
+                </p>
+              </motion.div>
+            ) : (
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.4 }}
+                className="bg-white/3 border border-white/5 rounded-2xl p-4 text-center font-mono"
+              >
+                <p className="text-white/80 text-xs leading-relaxed">
+                  Tap recorded at {nodeName}. Thanks for exploring.
+                </p>
+              </motion.div>
+            )}
 
-            {/* Dynamic Badge unlock presentation */}
+            {/* Dynamic Badge recognition presentation */}
             {badgeEarned && (
               <motion.div
                 initial={{ opacity: 0, scale: 0.9 }}
@@ -215,7 +229,9 @@ export const NfcSuccessOverlay: React.FC<NfcSuccessOverlayProps> = ({
                   <Award size={20} />
                 </div>
                 <div>
-                  <span className="text-[8px] font-mono text-purple-400 font-black uppercase tracking-wider block">BADGE UNLOCKED!</span>
+                  <span className="text-[8px] font-mono text-purple-400 font-black uppercase tracking-wider block">
+                    {REWARDS_ENABLED ? 'BADGE UNLOCKED!' : 'BADGE EARNED'}
+                  </span>
                   <span className="text-white text-xs font-black uppercase tracking-tight">{badgeEarned}</span>
                 </div>
               </motion.div>

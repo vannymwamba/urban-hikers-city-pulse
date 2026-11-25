@@ -1,6 +1,7 @@
 import React from 'react';
 import { SponsorBadgeProps } from '../types';
 import { getTextOnColor } from '../lib/color';
+import { REWARDS_ENABLED } from '../config/features';
 
 export function SponsorBadge({ partner, zone, compact = false }: SponsorBadgeProps) {
   // Guard: no partner, no branding, or zone not assigned
@@ -54,7 +55,7 @@ export function SponsorBadge({ partner, zone, compact = false }: SponsorBadgePro
   }
 
   // Zone D: deal text strip at bottom of card
-  if (zone === 'D' && dealText) {
+  if (REWARDS_ENABLED && zone === 'D' && dealText) {
     const dimBg = `${brandColor}1A`; // ~10% opacity hex
     const borderBg = `${brandColor}4D`; // ~30% opacity hex
     

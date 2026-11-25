@@ -1734,7 +1734,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, userProfile, nodes, 
                             />
                           </div>
                           <div>
-                            <label className="text-[8px] text-[#999] tracking-widest uppercase mb-1.5 block font-mono animate-none">Miles Walked</label>
+                            <label className="text-[8px] text-[#999] tracking-widest uppercase mb-1.5 block font-mono animate-none">Estimated miles (unverified)</label>
                             <input
                               type="number"
                               className="w-full bg-uh-gray-50 border border-uh-gray-100 rounded-xl px-3 py-2 text-[11px] font-bold focus:border-uh-yellow outline-none"
@@ -2050,7 +2050,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, userProfile, nodes, 
                                 </div>
                                 <div className="text-center border-x border-uh-gray-100/10">
                                   <span className="text-[11px] font-black block leading-none" style={{ color: newSectorNode.partner_accent || '#FFE01A' }}>{newSectorNode.metric_miles}</span>
-                                  <span className="text-[6px] text-uh-gray-400 font-mono block mt-1">MILES</span>
+                                  <span className="text-[5.5px] text-uh-gray-400 font-mono block mt-1 leading-tight">Estimated miles (unverified)</span>
                                 </div>
                                 <div className="text-center">
                                   <span className="text-[11px] font-black block leading-none" style={{ color: newSectorNode.partner_accent || '#FFE01A' }}>{newSectorNode.metric_visits}</span>

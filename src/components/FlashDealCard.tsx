@@ -2,6 +2,7 @@ import React from 'react';
 import { motion } from 'motion/react';
 import { Broadcast, Partner, Node } from '../types';
 import { BroadcastCountdown } from './BroadcastCountdown';
+import { REWARDS_ENABLED } from '../config/features';
 
 interface FlashDealCardProps {
   item: Broadcast;
@@ -70,11 +71,13 @@ export const FlashDealCard: React.FC<FlashDealCardProps> = ({
       </div>
 
       {/* NFC Claim Label */}
-      <div className="absolute top-14 right-4">
-        <div className="bg-uh-yellow text-uh-black text-[9px] font-black px-2.5 py-1 rounded-full uppercase tracking-tight font-mono shadow-lg">
-          NFC_CLAIM_READY
+      {REWARDS_ENABLED && (
+        <div className="absolute top-14 right-4">
+          <div className="bg-uh-yellow text-uh-black text-[9px] font-black px-2.5 py-1 rounded-full uppercase tracking-tight font-mono shadow-lg">
+            NFC_CLAIM_READY
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Content */}
       <div className="absolute bottom-0 left-0 right-0 p-6">
@@ -103,7 +106,7 @@ export const FlashDealCard: React.FC<FlashDealCardProps> = ({
                TIME_BURNING_DOWN
              </div>
              <button className="bg-uh-yellow text-uh-black px-6 py-2.5 rounded-full text-[12px] font-black uppercase tracking-widest shadow-lg shadow-uh-yellow/20 hover:scale-105 transition-transform">
-               Claim ${item.discount_value || '5'} Off
+               {REWARDS_ENABLED ? `Claim $${item.discount_value || '5'} Off` : 'View details'}
              </button>
           </div>
         </div>

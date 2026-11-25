@@ -8,6 +8,7 @@ import {
 import { auth, db } from '../firebase';
 import { doc, onSnapshot } from 'firebase/firestore';
 import type { UserProfile, VisitorProfile } from '../types';
+import { SHOW_MILEAGE } from '../config/features';
 
 interface ProfileTabProps {
   user: any;
@@ -320,7 +321,9 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({
           </div>
 
           <p className="text-xs sm:text-sm text-[#9BA1B0] mt-3 leading-relaxed">
-            Your taps, places, and combined mileage are connected. Every discovery is automatically synced to your account.
+            {SHOW_MILEAGE
+              ? 'Your taps, places, and combined mileage are connected. Every discovery is automatically synced to your account.'
+              : 'Your taps and places are connected. Every discovery is automatically synced to your account.'}
           </p>
 
           <button
@@ -351,7 +354,7 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({
           )}
         </div>
 
-        <div className="grid grid-cols-3 gap-2.5 sm:gap-3">
+        <div className={`grid ${SHOW_MILEAGE ? 'grid-cols-3' : 'grid-cols-2'} gap-2.5 sm:gap-3`}>
           {/* Taps */}
           <div className="bg-[#161826] border border-[#252839] rounded-2xl p-4 flex flex-col items-center justify-center text-center min-h-[96px] relative shadow-sm">
             <span
@@ -381,18 +384,20 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({
           </div>
 
           {/* Miles */}
-          <div className="bg-[#161826] border border-[#252839] rounded-2xl p-4 flex flex-col items-center justify-center text-center min-h-[96px] relative shadow-sm">
-            <span
-              className={`text-2xl font-mono font-bold tabular-nums ${
-                isGuest ? 'text-[#8E95A5]/40' : 'text-white'
-              }`}
-            >
-              {isGuest ? '—' : realMilesCount}
-            </span>
-            <span className="text-[11px] font-mono font-bold text-[#8E95A5] uppercase tracking-wider mt-1">
-              MILES
-            </span>
-          </div>
+          {SHOW_MILEAGE && (
+            <div className="bg-[#161826] border border-[#252839] rounded-2xl p-4 flex flex-col items-center justify-center text-center min-h-[96px] relative shadow-sm">
+              <span
+                className={`text-2xl font-mono font-bold tabular-nums ${
+                  isGuest ? 'text-[#8E95A5]/40' : 'text-white'
+                }`}
+              >
+                {isGuest ? '—' : realMilesCount}
+              </span>
+              <span className="text-[11px] font-mono font-bold text-[#8E95A5] uppercase tracking-wider mt-1">
+                MILES
+              </span>
+            </div>
+          )}
         </div>
       </div>
     </div>

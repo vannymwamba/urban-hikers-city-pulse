@@ -7,6 +7,7 @@ import { FlashRotation } from './FlashRotation';
 import { WalkCard } from './WalkCard';
 import { WalkJoinSheet } from './WalkJoinSheet';
 import { getWalkDepartsMs, isWalkVisible, useWalkSyncVersion } from '../utils/walkUtils';
+import { REWARDS_ENABLED } from '../config/features';
 
 interface FeedProps {
   broadcasts: Broadcast[];
@@ -314,11 +315,11 @@ export const Feed: React.FC<FeedProps> = ({
       {/* PAID FLASH SPONSOR ROTATION (renders nothing when no active slots) */}
       <FlashRotation nodeId={currentNode?.id} />
 
-      {/* 2. HOT DEALS SECTION */}
+      {/* 2. FEATURED / DEALS SECTION */}
       {flashDeals.length > 0 && (
         <section className="flex flex-col">
           <SectionHeader
-            label="HOT DEALS"
+            label={REWARDS_ENABLED ? 'HOT DEALS' : 'FEATURED SPOTS'}
             count={flashDeals.length}
             sectionKey="hot_deals"
           />
@@ -330,8 +331,8 @@ export const Feed: React.FC<FeedProps> = ({
               <ContentCard
                 key={item.id}
                 item={item}
-                badgeLabel="Deal"
-                ctaLabel="Claim Deal"
+                badgeLabel={REWARDS_ENABLED ? 'Deal' : 'Featured'}
+                ctaLabel={REWARDS_ENABLED ? 'Claim Deal' : 'View details'}
               />
             ))}
           </div>
@@ -479,7 +480,7 @@ export const Feed: React.FC<FeedProps> = ({
                       {hub.name}
                     </h3>
                     <p className="text-xs text-[#A3A3AA] truncate font-medium mt-1">
-                      {hub.offer || 'Local Partner Hub'}
+                      {REWARDS_ENABLED ? (hub.offer || 'Local Partner Hub') : 'Local Partner Hub'}
                     </p>
                   </div>
 
@@ -505,7 +506,7 @@ export const Feed: React.FC<FeedProps> = ({
                       className="w-full min-h-[44px] py-2 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-sm mt-1"
                       style={{ backgroundColor: accentColor, color: '#000000' }}
                     >
-                      <span>Claim Offer</span>
+                      <span>{REWARDS_ENABLED ? 'Claim Offer' : 'View details'}</span>
                       <ArrowRight size={13} strokeWidth={2.5} />
                     </button>
                   )}

@@ -6,6 +6,7 @@ import { VibeCheck } from './VibeCheck';
 import { VibeTrend } from './VibeTrend';
 import { WalkCard } from './WalkCard';
 import { WalkJoinSheet } from './WalkJoinSheet';
+import { REWARDS_ENABLED } from '../config/features';
 
 interface BroadcastModalProps {
   broadcast: Broadcast | null;
@@ -247,7 +248,7 @@ export const BroadcastModal: React.FC<BroadcastModalProps> = ({
                         >
                           {broadcast.type === 'donation' ? 'Donate ♥' : 
                            broadcast.type === 'walking_event' ? 'Book Now ↗' : 
-                           broadcast.type === 'flash_deal' ? 'Claim Deal ↗' : 
+                           broadcast.type === 'flash_deal' ? (REWARDS_ENABLED ? 'Claim Deal ↗' : 'View details ↗') : 
                            'Execute_Source'}
                         </a>
                       )}

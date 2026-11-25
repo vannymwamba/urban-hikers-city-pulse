@@ -6,6 +6,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '../firebase';
 import type { VisitorProfile, JourneyStop } from '../types';
+import { SHOW_MILEAGE } from '../config/features';
 
 /**
  * Calculates straight-line distance in miles between two coordinates using Haversine formula.
@@ -54,7 +55,7 @@ function computeEarnedBadges(profile: {
   if (profile.locations_visited_ids.length >= 5) earned.push('Local Explorer');
   if (profile.locations_visited_ids.length >= 10) earned.push('Hyperlocal Guru');
   if (profile.neighborhoods_visited.length >= 3) earned.push('Neighborhood Hopper');
-  if (profile.total_miles_explored >= 10) earned.push('10-Mile Hiker');
+  if (SHOW_MILEAGE && profile.total_miles_explored >= 10) earned.push('10-Mile Hiker');
   if (profile.connections_count >= 3) earned.push('Connector');
   return earned;
 }

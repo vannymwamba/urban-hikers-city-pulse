@@ -3,6 +3,7 @@ import { db, auth } from '../firebase';
 import { collection, query, where, onSnapshot, addDoc, serverTimestamp } from 'firebase/firestore';
 import { motion, AnimatePresence } from 'motion/react';
 import { MapPin, ArrowRight } from 'lucide-react';
+import { REWARDS_ENABLED } from '../config/features';
 
 interface FlashSlot {
   id: string;
@@ -198,7 +199,7 @@ export const FlashRotation: React.FC<FlashRotationProps> = ({
                 onClick={() => recordTapImpression(activeSlot)}
                 className="min-h-[44px] flex items-center justify-between bg-[#FFE01A] text-[#0B0B0D] px-4 py-2.5 rounded-xl font-black text-xs uppercase tracking-widest hover:opacity-95 transition-all group"
               >
-                <span>{activeSlot.cta_label || 'Explore Offer'}</span>
+                <span>{activeSlot.cta_label || (REWARDS_ENABLED ? 'Explore Offer' : 'View Details')}</span>
                 <ArrowRight size={15} className="group-hover:translate-x-1 transition-transform" />
               </a>
             ) : (

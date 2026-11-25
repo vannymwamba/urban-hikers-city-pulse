@@ -30,6 +30,7 @@ import { SponsorSlot } from '../components/SponsorSlot';
 import { useGlobalSponsors } from '../contexts/GlobalSponsorsContext';
 import { PartnerPerkCard } from '../components/PartnerPerkCard';
 import { MicroLoopsModal } from '../components/MicroLoopsModal';
+import { REWARDS_ENABLED, SHOW_MILEAGE } from '../config/features';
 
 // Treat the redirect source (Tapin for NFC, our QR codes for qr) as the
 // source of truth: it's set once from the URL the tag/code points to.
@@ -700,14 +701,16 @@ export function ArtistNfcPage() {
         </div>
 
         {/* 3. Partner Perks with Counter-Verifiable Code */}
-        <PartnerPerkCard
-          tapCount={visitorProfile?.journey_stops?.length || 1}
-          userUid={auth.currentUser?.uid}
-          partnerName={artist.perk_venue || "Urbana Cafe"}
-          partnerAddress={artist.perk_address || "1206 Vine St · Over-The-Rhine (3 min walk)"}
-          perkTitle={artist.perk_title || "Refuel Partner Perk"}
-          perkDeal={artist.perk_deal || "Free Drip Coffee or $3 Off Any Craft Drink"}
-        />
+        {REWARDS_ENABLED && (
+          <PartnerPerkCard
+            tapCount={visitorProfile?.journey_stops?.length || 1}
+            userUid={auth.currentUser?.uid}
+            partnerName={artist.perk_venue || "Urbana Cafe"}
+            partnerAddress={artist.perk_address || "1206 Vine St · Over-The-Rhine (3 min walk)"}
+            perkTitle={artist.perk_title || "Refuel Partner Perk"}
+            perkDeal={artist.perk_deal || "Free Drip Coffee or $3 Off Any Craft Drink"}
+          />
+        )}
 
         {/* Location & Multi-Artist Social Roster */}
         <div className="flex flex-col gap-2.5 mb-4">
@@ -855,7 +858,7 @@ export function ArtistNfcPage() {
             </span>
           </div>
 
-          <div className="grid grid-cols-4 gap-2 text-center py-3 px-2 bg-white/[0.03] rounded-xl border border-white/5 mb-3">
+          <div className={`grid ${SHOW_MILEAGE ? 'grid-cols-4' : 'grid-cols-3'} gap-2 text-center py-3 px-2 bg-white/[0.03] rounded-xl border border-white/5 mb-3`}>
             <div>
               <div className="text-xl font-black text-white tabular-nums">
                 {visitorProfile?.artists_discovered_ids?.length || 1}
@@ -872,14 +875,16 @@ export function ArtistNfcPage() {
                 Locations
               </div>
             </div>
-            <div>
-              <div className="text-xl font-black text-[#F2C94C] tabular-nums">
-                {(visitorProfile?.total_miles_explored || 0).toFixed(1)}
+            {SHOW_MILEAGE && (
+              <div>
+                <div className="text-xl font-black text-[#F2C94C] tabular-nums">
+                  {(visitorProfile?.total_miles_explored || 0).toFixed(1)}
+                </div>
+                <div className="text-[9px] font-mono uppercase tracking-wider text-[#8A928B] mt-0.5">
+                  Miles
+                </div>
               </div>
-              <div className="text-[9px] font-mono uppercase tracking-wider text-[#8A928B] mt-0.5">
-                Miles
-              </div>
-            </div>
+            )}
             <div>
               <div className="text-xl font-black text-white tabular-nums">
                 {visitorProfile?.neighborhoods_visited?.length || 1}

@@ -566,13 +566,13 @@ const seedData = async () => {
         guideId: 'guide-marcus',
         sponsorId: 'sponsor-kroger',
         endPartnerId: 'partner-allez',
-        rewardText: 'Includes 1 Free Pastry',
+        rewardText: '',
         capacity: 20,
         remainingSpots: 3,
         startNodeId: 'ALPHA_PLAZA_HUB',
         stops: [
           { nodeId: 'ALPHA_PLAZA_HUB', name: 'Findlay Market Node', description: 'Meet at the north gate.' },
-          { nodeId: 'partner-allez', name: 'Allez Bakery', description: 'End of the sprint and pastry pickup.' }
+          { nodeId: 'partner-allez', name: 'Allez Bakery', description: 'End of the sprint at Allez Bakery.' }
         ],
         imageUrl: 'https://picsum.photos/seed/arch/800/400'
       },
@@ -588,7 +588,7 @@ const seedData = async () => {
         guideId: 'guide-sarah',
         sponsorId: 'sponsor-medpace',
         endPartnerId: 'partner-cac',
-        rewardText: 'Includes Free Exhibition Entry',
+        rewardText: '',
         capacity: 15,
         remainingSpots: 5,
         startNodeId: 'ALPHA_PLAZA_HUB',

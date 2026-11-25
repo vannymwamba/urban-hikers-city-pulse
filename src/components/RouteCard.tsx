@@ -2,6 +2,7 @@ import React from 'react';
 import { motion } from 'motion/react';
 import { Clock, Navigation, Zap, ShieldCheck, Mic2, MapPin, Flag, Trophy, Users } from 'lucide-react';
 import { Route, Guide, Sponsor, Partner } from '../types';
+import { REWARDS_ENABLED } from '../config/features';
 
 interface RouteCardProps {
   route: Route;
@@ -23,7 +24,7 @@ export const RouteCard: React.FC<RouteCardProps> = ({
   const isSponsored = route.type === 'sponsored';
   const isPremium = route.type === 'premium';
   
-  const displayPrice = isSponsored ? route.discountedPrice : route.price;
+  const displayPrice = REWARDS_ENABLED && isSponsored ? route.discountedPrice : route.price;
   const isFree = displayPrice === 0;
 
   return (
@@ -65,7 +66,7 @@ export const RouteCard: React.FC<RouteCardProps> = ({
             <span className={`text-lg font-black tracking-tighter font-mono ${isFree ? 'text-hud-green' : 'text-white'}`}>
               {isFree ? 'FREE' : `$${displayPrice?.toFixed(2)}`}
             </span>
-            {!isFree && route.price > (displayPrice || 0) && (
+            {REWARDS_ENABLED && !isFree && route.price > (displayPrice || 0) && (
               <span className="ml-2 text-[10px] text-white/40 line-through font-mono">
                 ${route.price.toFixed(2)}
               </span>
@@ -129,7 +130,10 @@ export const RouteCard: React.FC<RouteCardProps> = ({
               <div>
                 <div className="text-[10px] font-bold text-white/40 uppercase tracking-widest font-mono leading-none mb-1">PARTNER DESTINATION</div>
                 <div className="text-xs font-bold text-white font-sans italic">
-                  Ends at {endPartner.name} <span className="text-hud-green not-italic">({route.rewardText})</span>
+                  Ends at {endPartner.name}
+                  {REWARDS_ENABLED && route.rewardText ? (
+                    <span className="text-hud-green not-italic"> ({route.rewardText})</span>
+                  ) : null}
                 </div>
               </div>
             </div>

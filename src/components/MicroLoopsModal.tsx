@@ -1,5 +1,6 @@
 import React from 'react';
-import { X, Navigation, Footprints, Clock, MapPin, Sparkles, Coffee } from 'lucide-react';
+import { X, Navigation, Footprints, Clock } from 'lucide-react';
+import { REWARDS_ENABLED } from '../config/features';
 
 export interface MicroLoop {
   id: string;
@@ -49,17 +50,23 @@ export function MicroLoopsModal({ isOpen, onClose, currentLocationName = 'Curren
     },
     {
       id: 'coffee-refuel',
-      title: 'Coffee & Refuel Walk',
+      title: 'Coffee & Courtyard Walk',
       subtitle: 'Urban Hikers Curated Route 02',
       durationMinutes: 28,
       distanceMiles: 0.9,
       stopsCount: 3,
-      tag: 'PERK ROUTE',
+      tag: REWARDS_ENABLED ? 'PERK ROUTE' : 'COURTYARD WALK',
       themeColor: '#FFE01A',
-      description: 'Quiet brick courtyards, heritage architecture, and a direct stop at Urbana Cafe for your 3-tap reward.',
+      description: REWARDS_ENABLED
+        ? 'Quiet brick courtyards, heritage architecture, and a direct stop at Urbana Cafe for your 3-tap reward.'
+        : 'Quiet brick courtyards, heritage architecture, and a neighborhood cafe stop at Urbana Cafe.',
       stops: [
         { name: currentLocationName, note: 'Starting Point', distanceStr: '0 min' },
-        { name: 'Urbana Cafe (1206 Vine St)', note: 'Refuel Perk Stop · Counter Code UH', distanceStr: '250 yd · 3 min' },
+        {
+          name: 'Urbana Cafe (1206 Vine St)',
+          note: REWARDS_ENABLED ? 'Refuel Perk Stop · Counter Code UH' : 'Neighborhood espresso bar & courtyard stop',
+          distanceStr: '250 yd · 3 min',
+        },
         { name: 'Pleasant St Historic Brickway', note: 'Illuminated ironwork and alleyway murals', distanceStr: '380 yd · 5 min' },
         { name: 'Washington Park Civic Center', note: 'Open plaza projection and fountain lighting', distanceStr: '0.3 mi · 6 min' },
       ],

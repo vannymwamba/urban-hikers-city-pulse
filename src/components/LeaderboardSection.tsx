@@ -3,6 +3,7 @@ import { Trophy, Footprints } from 'lucide-react';
 import { collection, query, orderBy, limit, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebase';
 import type { LeaderboardEntry } from '../types';
+import { SHOW_MILEAGE } from '../config/features';
 
 interface LeaderboardSectionProps {
   currentUid?: string;
@@ -226,8 +227,12 @@ export const LeaderboardSection: React.FC<LeaderboardSectionProps> = ({
                     </div>
                     <div className="flex items-center gap-2 text-[11px] text-[#8E95A5] mt-0.5">
                       <span>{entry.places_count} places</span>
-                      <span>•</span>
-                      <span>{Number(entry.miles_count || 0).toFixed(1)} mi</span>
+                      {SHOW_MILEAGE && (
+                        <>
+                          <span>•</span>
+                          <span>{Number(entry.miles_count || 0).toFixed(1)} mi</span>
+                        </>
+                      )}
                     </div>
                   </div>
                 </div>

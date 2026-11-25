@@ -3,7 +3,7 @@ import { MapContainer, TileLayer, Marker, Popup, Circle, useMap } from 'react-le
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { Broadcast, Node, Partner, BroadcastType } from '../types';
-import { MapPin, Zap, Music, Palette, Calendar, Truck, Footprints, ShoppingBag, X } from 'lucide-react';
+import { MapPin, Zap, Music, Palette, Calendar, Truck, Footprints, ShoppingBag, Heart, X } from 'lucide-react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { SponsorBadge } from './SponsorBadge';
 import { WalkCard } from './WalkCard';
@@ -36,28 +36,45 @@ const fixLeafletIcons = () => {
 
 fixLeafletIcons();
 
+const renderMarkerGlyph = (type: string) => {
+  switch (type) {
+    case BroadcastType.FLASH_DEAL:
+      return <Zap size={14} />;
+    case BroadcastType.LIVE_EVENT:
+      return <Music size={14} />;
+    case BroadcastType.FOOD_TRUCK:
+      return <Truck size={14} />;
+    case BroadcastType.WALKING_EVENT:
+      return <Footprints size={14} />;
+    case BroadcastType.MURAL:
+    case BroadcastType.STREET_ART:
+      return <Palette size={14} />;
+    case BroadcastType.POP_UP:
+      return <ShoppingBag size={14} />;
+    case BroadcastType.DONATION:
+      return <Heart size={14} />;
+    default:
+      return <Calendar size={14} />;
+  }
+};
+
 const createCustomIcon = (type: string, color: string) => {
   try {
+    const fgColor = color.toUpperCase() === '#FFE01A' ? '#0A0A0A' : '#FFFFFF';
     const iconMarkup = renderToStaticMarkup(
       <div style={{ 
         backgroundColor: color, 
+        width: '30px',
+        height: '30px',
         borderRadius: '50%', 
-        padding: '6px', 
         border: '2px solid white',
-        boxShadow: '0 0 10px rgba(0,0,0,0.3)',
+        boxShadow: '0 2px 8px rgba(0,0,0,0.35)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        color: 'white'
+        color: fgColor
       }}>
-        {type === BroadcastType.FLASH_DEAL && <Zap size={14} />}
-        {type === BroadcastType.LIVE_EVENT && <Music size={14} />}
-        {type === BroadcastType.FOOD_TRUCK && <Truck size={14} />}
-        {type === BroadcastType.WALKING_EVENT && <Footprints size={14} />}
-        {type === BroadcastType.MURAL && <Palette size={14} />}
-        {type === BroadcastType.STREET_ART && <Palette size={14} />}
-        {type === BroadcastType.POP_UP && <ShoppingBag size={14} />}
-        {!Object.values(BroadcastType).includes(type as any) && <Calendar size={14} />}
+        {renderMarkerGlyph(type)}
       </div>
     );
 
@@ -150,6 +167,9 @@ export const MapView: React.FC<MapViewProps> = ({
       case BroadcastType.MURAL:
       case BroadcastType.STREET_ART: return '#8B5CF6';
       case BroadcastType.POP_UP: return '#0EA5E9';
+      case BroadcastType.CIVIC_EVENT:
+      case BroadcastType.CIVIC_FREE: return '#2563EB';
+      case BroadcastType.DONATION: return '#EC4899';
       default: return '#1A1A1A';
     }
   };
@@ -172,10 +192,14 @@ export const MapView: React.FC<MapViewProps> = ({
         {/* Current Node Marker */}
         <Marker position={center} icon={currentNodeIcon}>
           <Popup className="hud-popup">
-            <div className="p-2 text-hud-bg">
-              <div className="font-black text-[10px] uppercase tracking-widest mb-1">CURRENT_HUB</div>
-              <div className="font-bold text-sm">{currentNode.name}</div>
-              <div className="text-[10px] opacity-60">{currentNode.address}</div>
+            <div className="p-1.5 text-uh-black min-w-[160px]">
+              <div className="font-black text-[10px] uppercase tracking-widest text-uh-gray-600 mb-1">Current Hub</div>
+              <div className="font-bold text-sm text-uh-black leading-snug">
+                {currentNode.name.replace(/_HUB/g, '').replace(/_/g, ' ')}
+              </div>
+              {currentNode.address && (
+                <div className="text-[11px] text-uh-gray-600 mt-0.5">{currentNode.address}</div>
+              )}
             </div>
           </Popup>
         </Marker>
@@ -201,9 +225,11 @@ export const MapView: React.FC<MapViewProps> = ({
             );
           }
 
-          const partner = b.partnerId ? partnersMap[b.partnerId] : null;
+          const partnerKey = b.partnerId || b.partner_id;
+          const partner = partnerKey ? partnersMap[partnerKey] : null;
           const vibe = (b.currentVibe || b.current_vibe || 'CHILL').toUpperCase();
           const type = b.type || 'event';
+          const locationLine = b.address?.split(',')[0] || b.venue || currentNode.address?.split(',')[0] || '';
           
           return (
             <Marker 
@@ -212,27 +238,32 @@ export const MapView: React.FC<MapViewProps> = ({
               icon={createCustomIcon(getBroadcastType(b), getBroadcastColor(b))}
             >
               <Popup className="hud-popup">
-                <div className="p-2 text-hud-bg min-w-[150px]">
-                  <div className="flex justify-between items-start mb-2">
+                <div className="p-1.5 text-uh-black min-w-[180px] max-w-[240px]">
+                  <div className="flex justify-between items-start gap-2 mb-1.5">
                     <div className="flex flex-col gap-1">
-                      <div className="font-black text-[9px] uppercase tracking-widest opacity-60">
-                        {type.replace('_', ' ')}
+                      <div className="font-black text-[9px] uppercase tracking-widest text-uh-gray-600">
+                        {type.replace(/_/g, ' ')}
                       </div>
-                      {partner && <SponsorBadge partner={partner} zone="A" />}
+                      {partner && <SponsorBadge partner={partner} zone="A" compact />}
                     </div>
-                    <div className="text-[9px] font-bold bg-hud-bg/10 px-1.5 py-0.5 rounded">
+                    <div className="text-[9px] font-bold bg-uh-gray-100 text-uh-black px-1.5 py-0.5 rounded shrink-0">
                       {vibe}
                     </div>
                   </div>
-                  <div className="font-bold text-sm mb-1">{b.title || 'UNKNOWN_SIGNAL'}</div>
-                  <div className="text-[10px] mb-1 opacity-80">{b.address?.split(',')[0] || 'NO_ADDRESS_DATA'}</div>
-                  {partner && <SponsorBadge partner={partner} zone="D" />}
+                  <div className="font-bold text-sm text-uh-black leading-snug mb-1">
+                    {b.title || 'Local Signal'}
+                  </div>
+                  {locationLine && (
+                    <div className="text-[11px] text-uh-gray-600 mb-1">{locationLine}</div>
+                  )}
+                  {partner && <SponsorBadge partner={partner} zone="D" compact />}
                   <div className="mt-3">
                     <button 
+                      type="button"
                       onClick={() => onSelect(b)}
-                      className="w-full py-1.5 bg-hud-bg text-white text-[9px] font-black uppercase tracking-widest rounded hover:bg-hud-bg/80 transition-colors"
+                      className="w-full min-h-[36px] py-2 px-3 bg-uh-black text-uh-yellow text-[10px] font-black uppercase tracking-widest rounded-lg hover:bg-uh-gray-800 transition-colors cursor-pointer"
                     >
-                      VIEW_DETAILS
+                      View Details
                     </button>
                   </div>
                 </div>
@@ -257,7 +288,7 @@ export const MapView: React.FC<MapViewProps> = ({
         if (!activeWalk || !isWalkVisible(activeWalk)) return null;
 
         return (
-          <div className="absolute bottom-4 left-4 right-4 z-[600] max-w-md mx-auto">
+          <div className="absolute bottom-20 left-4 right-4 z-[600] max-w-md mx-auto">
             <div className="relative">
               <button
                 type="button"
@@ -287,7 +318,7 @@ export const MapView: React.FC<MapViewProps> = ({
 
       {/* Map Legend Overlay */}
       {!selectedWalkId && (
-        <div className="absolute bottom-4 left-4 z-[500] bg-hud-bg/90 backdrop-blur-md border border-white/10 p-3 rounded-2xl shadow-xl pointer-events-none">
+        <div className="absolute bottom-20 left-4 z-[500] bg-hud-bg/90 backdrop-blur-md border border-white/10 p-3 rounded-2xl shadow-xl pointer-events-none">
           <div className="text-[8px] font-black tracking-[0.2em] text-uh-black/40 uppercase mb-2">MAP_LEGEND</div>
           <div className="flex flex-col gap-2">
             <div className="flex items-center gap-2">

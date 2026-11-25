@@ -9,6 +9,7 @@ import { db } from '../firebase';
 import { toMs, getTimeState, getTimeLabel } from '../utils/timeUtils';
 import { BroadcastType } from '../types';
 import type { Broadcast } from '../types';
+import { REWARDS_ENABLED } from '../config/features';
 
 export function SignalPage() {
   const { broadcastId } = useParams<{ broadcastId: string }>();
@@ -323,7 +324,7 @@ export function SignalPage() {
             }}
           >
             {broadcast.type === BroadcastType.WALKING_EVENT ? 'Book Now ↗' :
-             broadcast.type === BroadcastType.FLASH_DEAL    ? 'Claim Deal ↗' :
+             broadcast.type === BroadcastType.FLASH_DEAL    ? (REWARDS_ENABLED ? 'Claim Deal ↗' : 'View Details ↗') :
              broadcast.type === BroadcastType.DONATION      ? 'Donate ♥' :
              'View Details ↗'}
           </button>
@@ -388,7 +389,7 @@ function getCategoryLabel(type: string): string {
     live_event:    'Live Performance',
     food_truck:    'Food Truck',
     walking_event: 'Guided Walk',
-    flash_deal:    'Flash Deal',
+    flash_deal:    REWARDS_ENABLED ? 'Flash Deal' : 'Featured Signal',
     pop_up:        'Event',
     civic_event:   'Civic Event',
     mural:         'Mural',

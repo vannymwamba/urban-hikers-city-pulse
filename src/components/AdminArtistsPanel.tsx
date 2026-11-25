@@ -4,6 +4,7 @@ import { db } from '../firebase';
 import type { Artist, ArtistSocialProfile } from '../types';
 import { Plus, Trash2, Edit2, Instagram, Link as LinkIcon, Loader2, Users } from 'lucide-react';
 import { handleFirestoreError, OperationType } from '../utils/firebaseErrors';
+import { REWARDS_ENABLED } from '../config/features';
 
 interface AdminArtistsPanelProps {
   setHudMessage: (msg: { text: string; type: 'info' | 'error' } | null) => void;
@@ -544,40 +545,42 @@ export function AdminArtistsPanel({ setHudMessage }: AdminArtistsPanelProps) {
               />
             </div>
 
-            <div className="md:col-span-2 mt-2 pt-4 border-t border-[#e0e0e0]">
-              <h4 className="text-xs font-bold uppercase tracking-wider mb-2">Partner Perk (3-Tap Counter Reward)</h4>
-              <p className="text-[11px] text-[#777] mb-4">Configures the reward visitors unlock after 3 walk taps, verified by staff at the counter.</p>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="text-[9px] text-[#999] tracking-widest uppercase mb-2 block">Partner Venue Name</label>
-                  <input
-                    value={formData.perk_venue}
-                    onChange={e => setFormData({...formData, perk_venue: e.target.value})}
-                    className="w-full bg-[#f5f5f5] text-black border border-[#e0e0e0] rounded-lg px-4 py-3 text-sm"
-                    placeholder="e.g. Urbana Cafe"
-                  />
-                </div>
-                <div>
-                  <label className="text-[9px] text-[#999] tracking-widest uppercase mb-2 block">Reward / Offer Deal</label>
-                  <input
-                    value={formData.perk_deal}
-                    onChange={e => setFormData({...formData, perk_deal: e.target.value})}
-                    className="w-full bg-[#f5f5f5] text-black border border-[#e0e0e0] rounded-lg px-4 py-3 text-sm"
-                    placeholder="e.g. Free Drip Coffee or $3 Off Any Craft Drink"
-                  />
-                </div>
-                <div className="md:col-span-2">
-                  <label className="text-[9px] text-[#999] tracking-widest uppercase mb-2 block">Partner Address & Walk Estimate</label>
-                  <input
-                    value={formData.perk_address}
-                    onChange={e => setFormData({...formData, perk_address: e.target.value})}
-                    className="w-full bg-[#f5f5f5] text-black border border-[#e0e0e0] rounded-lg px-4 py-3 text-sm"
-                    placeholder="e.g. 1206 Vine St · Over-The-Rhine (3 min walk)"
-                  />
+            {REWARDS_ENABLED && (
+              <div className="md:col-span-2 mt-2 pt-4 border-t border-[#e0e0e0]">
+                <h4 className="text-xs font-bold uppercase tracking-wider mb-2">Partner Perk (3-Tap Counter Reward)</h4>
+                <p className="text-[11px] text-[#777] mb-4">Configures the reward visitors unlock after 3 walk taps, verified by staff at the counter.</p>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-[9px] text-[#999] tracking-widest uppercase mb-2 block">Partner Venue Name</label>
+                    <input
+                      value={formData.perk_venue}
+                      onChange={e => setFormData({...formData, perk_venue: e.target.value})}
+                      className="w-full bg-[#f5f5f5] text-black border border-[#e0e0e0] rounded-lg px-4 py-3 text-sm"
+                      placeholder="e.g. Urbana Cafe"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[9px] text-[#999] tracking-widest uppercase mb-2 block">Reward / Offer Deal</label>
+                    <input
+                      value={formData.perk_deal}
+                      onChange={e => setFormData({...formData, perk_deal: e.target.value})}
+                      className="w-full bg-[#f5f5f5] text-black border border-[#e0e0e0] rounded-lg px-4 py-3 text-sm"
+                      placeholder="e.g. Free Drip Coffee or $3 Off Any Craft Drink"
+                    />
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="text-[9px] text-[#999] tracking-widest uppercase mb-2 block">Partner Address & Walk Estimate</label>
+                    <input
+                      value={formData.perk_address}
+                      onChange={e => setFormData({...formData, perk_address: e.target.value})}
+                      className="w-full bg-[#f5f5f5] text-black border border-[#e0e0e0] rounded-lg px-4 py-3 text-sm"
+                      placeholder="e.g. 1206 Vine St · Over-The-Rhine (3 min walk)"
+                    />
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
 
             <div className="md:col-span-2">
               <label className="text-[9px] text-[#999] tracking-widest uppercase mb-2 block">Latitude, Longitude</label>

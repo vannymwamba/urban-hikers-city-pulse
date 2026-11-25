@@ -5,6 +5,7 @@ import { auth, db } from '../firebase';
 import { signOut } from 'firebase/auth';
 import { doc, onSnapshot } from 'firebase/firestore';
 import type { UserProfile, VisitorProfile } from '../types';
+import { REWARDS_ENABLED, SHOW_MILEAGE } from '../config/features';
 
 
 
@@ -186,7 +187,7 @@ export const HomeUserProfileSection: React.FC<HomeUserProfileSectionProps> = ({
               Save Your Walk Record
             </h4>
             <p className="text-xs text-[#8E95A5] mt-1 leading-relaxed">
-              Sign in with one tap to preserve your tap count, unlocked badges, and leaderboard ranking across devices.
+              Sign in with one tap to preserve your tap count, {REWARDS_ENABLED ? 'unlocked badges' : 'earned badges'}, and leaderboard ranking across devices.
             </p>
           </div>
 
@@ -288,8 +289,8 @@ export const HomeUserProfileSection: React.FC<HomeUserProfileSectionProps> = ({
         </div>
       )}
 
-      {/* 2. 3-Up Stats Row (Taps / Places / Miles) */}
-      <div className="grid grid-cols-3 gap-2.5 sm:gap-3">
+      {/* 2. Stats Row (Taps / Places / optional Miles) */}
+      <div className={`grid ${SHOW_MILEAGE ? 'grid-cols-3' : 'grid-cols-2'} gap-2.5 sm:gap-3`}>
         {/* Taps */}
         <div className="bg-[#141417] border border-white/10 rounded-2xl p-3.5 flex flex-col items-center justify-center text-center min-h-[90px] relative shadow-md">
           <span className="text-2xl font-mono font-black text-[#FFE01A] tabular-nums">
@@ -311,14 +312,16 @@ export const HomeUserProfileSection: React.FC<HomeUserProfileSectionProps> = ({
         </div>
 
         {/* Miles */}
-        <div className="bg-[#141417] border border-white/10 rounded-2xl p-3.5 flex flex-col items-center justify-center text-center min-h-[90px] relative shadow-md">
-          <span className="text-2xl font-mono font-black text-white tabular-nums">
-            {realMilesCount}
-          </span>
-          <span className="text-[10px] font-mono font-bold text-[#8E95A5] uppercase tracking-wider mt-0.5">
-            MILES
-          </span>
-        </div>
+        {SHOW_MILEAGE && (
+          <div className="bg-[#141417] border border-white/10 rounded-2xl p-3.5 flex flex-col items-center justify-center text-center min-h-[90px] relative shadow-md">
+            <span className="text-2xl font-mono font-black text-white tabular-nums">
+              {realMilesCount}
+            </span>
+            <span className="text-[10px] font-mono font-bold text-[#8E95A5] uppercase tracking-wider mt-0.5">
+              MILES
+            </span>
+          </div>
+        )}
       </div>
     </div>
   );

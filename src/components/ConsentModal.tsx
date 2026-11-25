@@ -1,6 +1,7 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ShieldCheck, MapPin, Zap, Lock, CheckCircle2, X } from 'lucide-react';
+import { REWARDS_ENABLED } from '../config/features';
 
 interface ConsentModalProps {
   isOpen: boolean;
@@ -69,7 +70,7 @@ export const ConsentModal: React.FC<ConsentModalProps> = ({
           {/* Explanation Content */}
           <div className="space-y-3 mb-6 text-xs text-white/80 leading-relaxed">
             <p>
-              To record your presence at Urban Hikers installation nodes and unlock trail passports, we log anonymous tap data and session continuity.
+              To record your presence at Urban Hikers installation nodes and {REWARDS_ENABLED ? 'unlock trail passports' : 'save your trail stamps'}, we log anonymous tap data and session continuity.
             </p>
 
             <div className="bg-white/5 border border-white/5 rounded-xl p-3 space-y-2">

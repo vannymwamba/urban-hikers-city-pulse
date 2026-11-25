@@ -34,6 +34,7 @@ import {
   isWalkVisible,
   useWalkSyncVersion,
 } from '../utils/walkUtils';
+import { REWARDS_ENABLED, SHOW_MILEAGE } from '../config/features';
 
 interface DepartureBoardProps {
   nodeName: string;
@@ -427,7 +428,7 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
         latitude: n.latitude,
         longitude: n.longitude,
         imageUrl: n.cover_image_url || n.logo_url || n.imageUrl,
-        reward: n.custom_reward,
+        reward: REWARDS_ENABLED ? n.custom_reward : undefined,
         is_open: (n as any).is_open,
         operating_hours: (n as any).operating_hours,
         rawType: `${n.type || ''} ${n.partner_type || ''}`
@@ -441,7 +442,7 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
         latitude: h.latitude,
         longitude: h.longitude,
         imageUrl: h.cover_url,
-        reward: h.offer,
+        reward: REWARDS_ENABLED ? h.offer : undefined,
         is_open: h.is_open,
         operating_hours: h.operating_hours,
         rawType: (h as any).tier || ''
@@ -780,7 +781,11 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
 
                   return (
                     <div className="px-6 pt-3 pb-2 relative z-20">
-                      <div className="grid grid-cols-3 gap-4 max-w-[340px] mx-auto items-start justify-items-center">
+                      <div
+                        className={`grid ${
+                          REWARDS_ENABLED ? 'grid-cols-3 gap-4 max-w-[340px]' : 'grid-cols-2 gap-6 max-w-[240px]'
+                        } mx-auto items-start justify-items-center`}
+                      >
                         {/* 1. Badge Indicator (Tappable for badge details) */}
                         <button
                           type="button"
@@ -804,19 +809,21 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
                         </button>
 
                         {/* 2. Pulse Reward Indicator */}
-                        <div className="flex flex-col items-center">
-                          <div
-                            className="w-[68px] h-[68px] rounded-full bg-[#141417] border-[1.5px] flex items-center justify-center"
-                            style={{ borderColor: accentColor }}
-                          >
-                            <span className="text-[20px] font-extrabold tabular-nums text-white tracking-tight leading-none">
-                              +{earnedPulseReward}
+                        {REWARDS_ENABLED && (
+                          <div className="flex flex-col items-center">
+                            <div
+                              className="w-[68px] h-[68px] rounded-full bg-[#141417] border-[1.5px] flex items-center justify-center"
+                              style={{ borderColor: accentColor }}
+                            >
+                              <span className="text-[20px] font-extrabold tabular-nums text-white tracking-tight leading-none">
+                                +{earnedPulseReward}
+                              </span>
+                            </div>
+                            <span className="text-xs font-medium text-[#E4E4E7] mt-2 text-center leading-tight whitespace-nowrap">
+                              Pulse
                             </span>
                           </div>
-                          <span className="text-xs font-medium text-[#E4E4E7] mt-2 text-center leading-tight whitespace-nowrap">
-                            Pulse
-                          </span>
-                        </div>
+                        )}
 
                         {/* 3. Hubs Tapped Progress Indicator */}
                         <div className="flex flex-col items-center">
@@ -1167,13 +1174,15 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
                 <div className="space-y-3">
                   <span className="text-[9px] font-black uppercase tracking-widest text-[#0a0a0a]">Special Achievements</span>
                   <div className="grid grid-cols-2 gap-3">
-                    {badges.map((b) => (
+                    {(SHOW_MILEAGE ? badges : badges.filter((b) => b !== '10-Mile Hiker')).map((b) => (
                       <div key={b} className="bg-[#0a0a0a] border border-white/5 p-4 rounded-xl flex items-center gap-3 text-white">
                         <div className="w-9 h-9 rounded-lg bg-[#FFE01A]/10 border border-[#FFE01A]/25 flex items-center justify-center text-[#FFE01A]">
                           <Award size={18} />
                         </div>
                         <div className="truncate">
-                          <span className="text-[7px] font-mono text-white/30 uppercase block">UNLOCKED</span>
+                          <span className="text-[7px] font-mono text-white/30 uppercase block">
+                            {REWARDS_ENABLED ? 'UNLOCKED' : 'EARNED'}
+                          </span>
                           <span className="text-[11px] font-black uppercase tracking-tight">{b}</span>
                         </div>
                       </div>
@@ -1182,30 +1191,32 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
                 </div>
 
                 {/* Sponsor Active Refuel Coupons */}
-                <div className="space-y-3">
-                  <span className="text-[9px] font-black uppercase tracking-widest text-[#0a0a0a]">Active Partner Coupons</span>
-                  <div className="bg-[#ff2d78]/5 border border-[#ff2d78]/25 p-5 rounded-2xl space-y-3">
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <span className="bg-[#ff2d78] text-white text-[7px] font-black uppercase px-1.5 py-0.5 rounded tracking-widest block w-fit mb-1">STATION_VOUCHER</span>
-                        <h4 className="text-[13px] font-bold uppercase tracking-tight text-uh-black">10% Off Deeper Roots Coffee</h4>
+                {REWARDS_ENABLED && (
+                  <div className="space-y-3">
+                    <span className="text-[9px] font-black uppercase tracking-widest text-[#0a0a0a]">Active Partner Coupons</span>
+                    <div className="bg-[#ff2d78]/5 border border-[#ff2d78]/25 p-5 rounded-2xl space-y-3">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <span className="bg-[#ff2d78] text-white text-[7px] font-black uppercase px-1.5 py-0.5 rounded tracking-widest block w-fit mb-1">STATION_VOUCHER</span>
+                          <h4 className="text-[13px] font-bold uppercase tracking-tight text-uh-black">10% Off Deeper Roots Coffee</h4>
+                        </div>
+                        <span className="text-[12px] font-black text-[#ff2d78]">⚡ ACTIVE</span>
                       </div>
-                      <span className="text-[12px] font-black text-[#ff2d78]">⚡ ACTIVE</span>
-                    </div>
-                    <div className="flex justify-between items-center bg-white border border-[#ff2d78]/10 p-3 rounded-lg">
-                      <div className="text-left font-mono">
-                        <span className="text-[7.5px] text-uh-gray-400 uppercase block">Voucher Code</span>
-                        <span className="text-[11px] font-black text-uh-black">UH-DR-REFUEL-99</span>
+                      <div className="flex justify-between items-center bg-white border border-[#ff2d78]/10 p-3 rounded-lg">
+                        <div className="text-left font-mono">
+                          <span className="text-[7.5px] text-uh-gray-400 uppercase block">Voucher Code</span>
+                          <span className="text-[11px] font-black text-uh-black">UH-DR-REFUEL-99</span>
+                        </div>
+                        <button 
+                          onClick={() => alert("Show Code 'UH-DR-REFUEL-99' at check-out for 10% Discount!")}
+                          className="px-3 py-1.5 bg-[#ff2d78] text-white text-[8px] font-black uppercase tracking-widest rounded-lg hover:bg-[#ff2d78]/90 transition-all cursor-pointer"
+                        >
+                          Redeem
+                        </button>
                       </div>
-                      <button 
-                        onClick={() => alert("Show Code 'UH-DR-REFUEL-99' at check-out for 10% Discount!")}
-                        className="px-3 py-1.5 bg-[#ff2d78] text-white text-[8px] font-black uppercase tracking-widest rounded-lg hover:bg-[#ff2d78]/90 transition-all cursor-pointer"
-                      >
-                        Redeem
-                      </button>
                     </div>
                   </div>
-                </div>
+                )}
               </div>
             ) : null}
 
@@ -1272,7 +1283,7 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
                     className="text-[11px] font-bold uppercase tracking-wider block"
                     style={{ color: accentColor }}
                   >
-                    Hub Badge Unlocked
+                    {REWARDS_ENABLED ? 'Hub Badge Unlocked' : 'Hub Badge Earned'}
                   </span>
                   <h3 id="badge-details-title" className="text-lg font-bold text-white leading-snug">
                     {(currentNode?.name || nodeName).replace(/_HUB/g, '').replace(/_/g, ' ')}
@@ -1301,12 +1312,14 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
                   </span>
                 </div>
               )}
-              <div className="py-3 flex items-center justify-between gap-4">
-                <span className="text-[#A3A3AA]">Pulse earned</span>
-                <span className="font-bold tabular-nums" style={{ color: accentColor }}>
-                  +{(currentNode as any)?.pulse_reward ?? 25} Pulse
-                </span>
-              </div>
+              {REWARDS_ENABLED && (
+                <div className="py-3 flex items-center justify-between gap-4">
+                  <span className="text-[#A3A3AA]">Pulse earned</span>
+                  <span className="font-bold tabular-nums" style={{ color: accentColor }}>
+                    +{(currentNode as any)?.pulse_reward ?? 25} Pulse
+                  </span>
+                </div>
+              )}
               <div className="py-3 flex items-center justify-between gap-4">
                 <span className="text-[#A3A3AA]">Taps at this hub</span>
                 <span className="text-white font-semibold tabular-nums">
@@ -1321,7 +1334,7 @@ export const DepartureBoard: React.FC<DepartureBoardProps> = ({
               </div>
             </div>
 
-            {currentNode?.custom_reward && (
+            {REWARDS_ENABLED && currentNode?.custom_reward && (
               <p className="text-xs text-[#E4E4E7] leading-relaxed">
                 {currentNode.custom_reward}
               </p>
