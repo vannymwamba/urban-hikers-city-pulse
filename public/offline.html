@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#0A0A0A" />
+  <title>Local Pulse — Offline</title>
+  <style>
+    html, body { margin: 0; height: 100%; background: #0A0A0A; color: #fff;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+    main { min-height: 100%; display: flex; flex-direction: column; align-items: center;
+      justify-content: center; text-align: center; padding: 32px; box-sizing: border-box; }
+    img { width: 96px; height: 96px; border-radius: 22px; margin-bottom: 24px; }
+    h1 { color: #FFE01A; font-size: 14px; letter-spacing: .2em; text-transform: uppercase; margin: 0 0 12px; }
+    p { opacity: .7; max-width: 320px; line-height: 1.5; margin: 0 0 28px; }
+    button { background: #FFE01A; color: #0A0A0A; border: 0; border-radius: 999px;
+      padding: 12px 28px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <main>
+    <img src="/icons/icon-192.png" alt="" />
+    <h1>No signal</h1>
+    <p>You're offline. Local Pulse will pick up the live city feed as soon as you're back in range.</p>
+    <button onclick="location.reload()">Try again</button>
+  </main>
+  <script>window.addEventListener('online', function () { location.reload(); });</script>
+</body>
+</html>
