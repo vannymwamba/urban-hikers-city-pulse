@@ -947,7 +947,9 @@ async function startServer() {
     });
   } else {
     const distPath = path.join(process.cwd(), 'dist');
-    app.use(express.static(distPath));
+    // index: false so "/" (the installed app's start page) also goes through the
+    // meta-tag replacement below instead of serving raw __OG_*__ placeholders.
+    app.use(express.static(distPath, { index: false }));
     app.get('*', async (req, res, next) => {
       // Skip for static assets or API nodes
       if (req.originalUrl.includes('.') || req.originalUrl.startsWith('/api')) {

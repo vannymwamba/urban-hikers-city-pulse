@@ -1,0 +1,27 @@
+{
+  "id": "/",
+  "name": "Local Pulse — Urban Hikers",
+  "short_name": "Local Pulse",
+  "description": "Tap the city. Feel what's happening now. Live signals, stories and walks across Cincinnati.",
+  "start_url": "/?source=pwa",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#FFFFFF",
+  "theme_color": "#0A0A0A",
+  "lang": "en",
+  "categories": ["travel", "lifestyle", "navigation"],
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    {
+      "name": "Lost & Found",
+      "short_name": "Lost & Found",
+      "url": "/lost-and-found?source=pwa",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    }
+  ]
+}
